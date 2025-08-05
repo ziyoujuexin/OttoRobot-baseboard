@@ -1,4 +1,5 @@
 build/
-.vscode
+# 考虑到加了一个include path，.vscode暂时保留，可以查看idf库代码了
+# .vscode  
 .codebuddy
 build.log
