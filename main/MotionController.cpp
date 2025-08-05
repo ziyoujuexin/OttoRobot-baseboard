@@ -39,6 +39,7 @@ bool MotionController::queue_command(const motion_command_t& cmd) {
         ESP_LOGW(TAG, "Motion queue is full. Command dropped.");
         return false;
     }
+    ESP_LOGI(TAG, "Motion command queued.");
     return true;
 }
 
