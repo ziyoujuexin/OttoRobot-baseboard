@@ -67,6 +67,9 @@ void UartHandler::receive_task_handler() {
                     ESP_LOGI(TAG, "Motion command %d queued.", cmd.motion_type);
                 }
             }
+            else {
+                ESP_LOGW(TAG, "receive error uart command");
+            }
             // ... 重置帧接收状态 ...
         }
     }
