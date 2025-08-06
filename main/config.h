@@ -7,7 +7,8 @@
 #include "freertos/semphr.h"
 
 typedef struct {
-    uint8_t motion_type;
+    uint8_t motion_type; // 具体指令, e.g., MOVE_RIGHT, ARM_SWING
+    uint8_t param;       // 指令的参数, e.g., 角度, 速度
 } motion_command_t;
 
 // 舵机数量定义 - 扩展为8个舵机

@@ -45,5 +45,8 @@
         "typeinfo": "cpp"
     },
     "idf.portWin": "COM3",
-    "idf.flashType": "UART"
+    "idf.flashType": "UART",
+    "idf.espIdfPathWin": "C:\\Users\\12721\\esp\\v5.5\\esp-idf",
+    "idf.toolsPathWin": "C:\\Users\\12721\\.espressif",
+    "idf.pythonInstallPath": "C:\\Users\\12721\\.espressif\\tools\\idf-python\\3.11.2\\python.exe"
 }
