@@ -78,7 +78,8 @@ void MotionController::motion_task_handler() {
                     break;
             }
              // 动作完成后可以回到home位置，或者等待下一个指令
-            home();
+            // home();
+
         }
     }
 }
@@ -150,4 +151,10 @@ void MotionController::move_ear() {
     }
     m_servo_driver.set_angle(LEFT_EAR_1, 90);
     m_servo_driver.set_angle(LEFT_EAR_2, 90);
+}
+
+void MotionController::servo_test(uint8_t channel, uint8_t angle) {
+    // 注意：这里调用的是m_servo_driver的方法
+    ESP_LOGI(TAG, "Executing servo test: channel %d, angle %d", channel, angle);
+    m_servo_driver.set_angle(channel, angle);
 }

@@ -40,6 +40,8 @@ private:
     void wave_hand();
     void move_ear();
 
+    void servo_test(uint8_t channel, uint8_t angle);
+
     // 静态的Task启动函数，用于适配FreeRTOS的xTaskCreate
     static void start_task_wrapper(void* _this) {
         static_cast<MotionController*>(_this)->motion_task_handler();
