@@ -6,6 +6,10 @@
 #include "esp_log.h"
 #include "freertos/semphr.h"
 
+// Wi-Fi Configuration
+#define WIFI_SSID     "LIANQIU-2"
+#define WIFI_PASSWORD "lianqiu123"
+
 typedef struct {
     uint8_t motion_type; // 具体指令, e.g., MOVE_RIGHT, ARM_SWING
     uint8_t param;       // 指令的参数, e.g., 角度, 速度

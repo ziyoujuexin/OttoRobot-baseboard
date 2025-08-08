@@ -8,14 +8,14 @@ PCA9685::PCA9685() {
     memset(&dev, 0, sizeof(dev));
     dev.cfg.scl_pullup_en = 1;
     dev.cfg.sda_pullup_en = 1;
-    dev.cfg.master.clk_speed = 40000; // 一个小坑，在这里修改无效，见pca9685_init_desc中的修改。
+    // dev.cfg.master.clk_speed = 40000; // 一个小坑，在这里修改无效，见pca9685_init_desc中的修改。
 }
 
 void PCA9685::init() {
     // Initialize the I2C device descriptor
     ESP_LOGI(TAG, "Initializing PCA9685 descriptor");
     pca9685_init_desc(&dev, PCA9685_I2C_ADDR, (i2c_port_t)I2C_PORT, (gpio_num_t)SDA_PIN, (gpio_num_t)SCL_PIN);
-
+    dev.cfg.master.clk_speed = 40000;
     // Initialize the PCA9685 device
     ESP_LOGI(TAG, "Initializing PCA9685");
     esp_err_t err = pca9685_init(&dev);

@@ -44,7 +44,7 @@
 #include <esp_log.h>
 #include <ets_sys.h>
 
-#define I2C_FREQ_HZ 40000 // 1 Mhz
+#define I2C_FREQ_HZ 1000000 // 1 Mhz
 
 #define REG_MODE1      0x00
 #define REG_MODE2      0x01
