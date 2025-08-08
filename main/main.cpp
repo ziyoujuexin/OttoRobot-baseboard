@@ -179,6 +179,7 @@ extern "C" void app_main(void)
 
     // 保持主任务运行，以确保 unique_ptr 不会被销毁
     while (true) {
-        vTaskDelay(pdMS_TO_TICKS(10000));
+        motion_controller_ptr->servo_test(15, 90); // 15通道总是用来校准舵机，方便机械安装
+        vTaskDelay(pdMS_TO_TICKS(500));
     }
 }

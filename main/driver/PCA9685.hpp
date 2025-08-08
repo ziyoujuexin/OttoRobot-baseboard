@@ -11,7 +11,14 @@ extern "C" {
 #define I2C_PORT 0
 #define SDA_PIN 0
 #define SCL_PIN 1
-#define PWM_FREQ_HZ 50
+#define PWM_FREQ_HZ             60      // 舵机PWM频率
+
+#define SERVO_MIN_PULSE        150     // 0度对应的脉冲宽度计数值
+#define SERVO_MAX_PULSE        600     // 180度对应的脉冲宽度计数值
+
+// 舵机安全限制 (可选，但建议保留)
+#define SERVO_ABSOLUTE_MIN_PULSE  100  // 绝对最小脉冲宽度计数值
+#define SERVO_ABSOLUTE_MAX_PULSE  700  // 绝对最大脉冲宽度计数值
 
 class PCA9685 : public Servo {
 public:

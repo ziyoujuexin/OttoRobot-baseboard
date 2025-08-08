@@ -42,16 +42,35 @@ void PCA9685::init() {
     ESP_LOGI(TAG, "PCA9685 initialized successfully");
 }
 
+// TODO: 为了代码的兼容性，这里其实180对应了物理上的120度，后续修改
 void PCA9685::set_angle(uint8_t channel, uint8_t angle) {
+    if (channel > 15) {
+        ESP_LOGE(TAG, "Invalid channel: %d. Must be 0-15.", channel);
+        return;
+    }
+
+    // 将角度(0-180)钳位
     if (angle > 180) {
-        ESP_LOGW(TAG, "Angle %d is out of range (0-180). Clamping to 180.", angle);
         angle = 180;
     }
 
-    uint16_t pwm_value = map_angle_to_pwm(angle);
-    ESP_LOGD(TAG, "Setting channel %d to angle %d (PWM: %d)", channel, angle, pwm_value);
+    // 将角度(0-180)线性映射到脉冲宽度计数值
+    uint16_t pulse = SERVO_MIN_PULSE + (uint16_t)(((SERVO_MAX_PULSE - SERVO_MIN_PULSE) * (uint32_t)angle) / 180);
 
-    esp_err_t err = pca9685_set_pwm_value(&dev, channel, pwm_value);
+    // 安全检查，防止超出绝对范围
+    if (pulse < SERVO_ABSOLUTE_MIN_PULSE) {
+        pulse = SERVO_ABSOLUTE_MIN_PULSE;
+        ESP_LOGW(TAG, "Pulse clamped to safe minimum: %d", pulse);
+    } else if (pulse > SERVO_ABSOLUTE_MAX_PULSE) {
+        pulse = SERVO_ABSOLUTE_MAX_PULSE;
+        ESP_LOGW(TAG, "Pulse clamped to safe maximum: %d", pulse);
+    }
+
+    ESP_LOGD(TAG, "Channel: %d, Angle: %d, Pulse: %d", channel, angle, pulse);
+
+    // 在PCA9685上设置PWM值
+    // set_pwm_value 使用的是0-4095的计数值，正好是我们计算出的pulse
+    esp_err_t err = pca9685_set_pwm_value(&dev, channel, pulse);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Failed to set PWM value for channel %d: %s", channel, esp_err_to_name(err));
     }
@@ -68,8 +87,8 @@ uint16_t PCA9685::map_angle_to_pwm(uint8_t angle) {
     // Standard servo range is 500-2500us for 0-180 degrees.
     // PCA9685 resolution is 12-bit (4096 steps).
     // PWM frequency is 50Hz, so each step is (1/50)/4096 = 4.88us.
-    const uint16_t min_pulse_us = 500;
-    const uint16_t max_pulse_us = 2500;
+    const uint16_t min_pulse_us = 900;
+    const uint16_t max_pulse_us = 2100;
     const float us_per_step = 1000000.0f / (PWM_FREQ_HZ * 4096.0f);
 
     uint32_t pulse_us = min_pulse_us + (uint32_t)((max_pulse_us - min_pulse_us) * (angle / 180.0f));

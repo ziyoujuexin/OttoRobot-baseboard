@@ -155,6 +155,6 @@ void MotionController::move_ear() {
 
 void MotionController::servo_test(uint8_t channel, uint8_t angle) {
     // 注意：这里调用的是m_servo_driver的方法
-    ESP_LOGI(TAG, "Executing servo test: channel %d, angle %d", channel, angle);
+    // ESP_LOGI(TAG, "Executing servo test: channel %d, angle %d", channel, angle);
     m_servo_driver.set_angle(channel, angle);
 }
