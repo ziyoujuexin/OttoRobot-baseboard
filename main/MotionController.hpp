@@ -25,12 +25,21 @@ public:
     std::vector<std::string> list_actions_from_nvs();
     std::vector<std::string> list_groups_from_nvs();
 
+    // --- Real-time Gait Tuning ---
+    bool tune_gait_parameter(const std::string& action_name, int servo_index, const std::string& param_type, float value);
+    bool save_action_to_nvs(const std::string& action_name);
+    std::string get_action_params_json(const std::string& action_name);
+
+    // be private in future:
+    void register_default_actions();
+
 private:
     Servo& m_servo_driver; 
     QueueHandle_t m_motion_queue; 
     std::unique_ptr<MotionStorage> m_storage; // 使用智能指针管理存储实例
     std::map<std::string, RegisteredAction> m_action_cache; // 缓存从NVS加载的动作
     std::map<std::string, RegisteredGroup> m_group_cache; // 缓存从NVS加载的动作组
+    std::map<uint8_t, std::string> m_gait_command_map; // Map command code to action name
 
     // Mapping from logical joint to physical servo channel
     uint8_t m_joint_channel_map[GAIT_JOINT_COUNT];
@@ -56,7 +65,7 @@ private:
     void print_action_details(const RegisteredAction& action);
 
     // 初始化默认数据
-    void register_default_actions();
+
     void register_default_groups();
 
     // 静态的Task启动函数

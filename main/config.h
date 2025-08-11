@@ -29,6 +29,11 @@ typedef struct {
 // Custom groups, hardcoded for UART compatibility
 #define MOTION_RUN_DEMO_GROUP 0x10
 
+// Commands for Web UI parameter tuning
+#define MOTION_TUNE_PARAM    0x20
+#define MOTION_SAVE_PARAMS   0x21
+#define MOTION_GET_PARAMS    0x22
+
 enum class ServoChannel : uint8_t {
     // EAR
     LEFT_EAR_LIFT = 0,

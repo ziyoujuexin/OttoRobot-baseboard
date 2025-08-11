@@ -1988,6 +1988,14 @@ CONFIG_I2CDEV_MAX_DEVICES_PER_PORT=8
 CONFIG_I2CDEV_TIMEOUT=1000
 # CONFIG_I2CDEV_NOLOCK is not set
 # end of I2C Device Library
+
+#
+# jsmn
+#
+# CONFIG_JSMN_PARENT_LINKS is not set
+# CONFIG_JSMN_STRICT is not set
+# CONFIG_JSMN_STATIC is not set
+# end of jsmn
 # end of Component config
 
 # CONFIG_IDF_EXPERIMENTAL_FEATURES is not set

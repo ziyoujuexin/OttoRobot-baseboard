@@ -35,6 +35,12 @@ void MotionController::init_joint_channel_map() {
 void MotionController::init() {
     init_joint_channel_map();
 
+    // Map gait commands to action names
+    m_gait_command_map[MOTION_FORWARD] = "walk_forward";
+    m_gait_command_map[MOTION_BACKWARD] = "walk_backward";
+    m_gait_command_map[MOTION_LEFT] = "turn_left";
+    m_gait_command_map[MOTION_RIGHT] = "turn_right";
+
     m_motion_queue = xQueueCreate(10, sizeof(motion_command_t));
     if (m_motion_queue == NULL) {
         ESP_LOGE(TAG, "Failed to create motion queue");
@@ -75,22 +81,24 @@ void MotionController::motion_engine_task() {
         if (xQueueReceive(m_motion_queue, &received_cmd, portMAX_DELAY)) {
             m_interrupt_flag.store(false);
             ESP_LOGI(TAG, "Executing motion command type: 0x%02X", received_cmd.motion_type);
+
+            // Check if the command is a registered gait action
+            if (m_gait_command_map.count(received_cmd.motion_type)) {
+                const std::string& action_name = m_gait_command_map[received_cmd.motion_type];
+                if (m_action_cache.count(action_name)) {
+                    execute_action(m_action_cache[action_name]);
+                } else {
+                    ESP_LOGE(TAG, "Action '%s' not found in cache.", action_name.c_str());
+                }
+                continue; // Skip the switch statement
+            }
+
+            // Handle non-gait and other special commands
             switch (received_cmd.motion_type) {
                 case MOTION_STOP:
                     home();
                     break;
-                case MOTION_FORWARD:
-                    execute_action(m_action_cache["walk_forward"]);
-                    break;
-                case MOTION_BACKWARD:
-                    execute_action(m_action_cache["walk_backward"]);
-                    break;
-                case MOTION_LEFT:
-                    execute_action(m_action_cache["turn_left"]);
-                    break;
-                case MOTION_RIGHT:
-                    execute_action(m_action_cache["turn_right"]);
-                    break;
+                // wave_hand and move_ear are kept separate for now
                 case MOTION_WAVE_HAND:
                     wave_hand();
                     break;
@@ -137,8 +145,9 @@ void MotionController::execute_action(const RegisteredAction& action) {
 }
 
 void MotionController::execute_gait(const RegisteredAction& action) {
-    int total_frames = action.default_steps * 20;
-    int frame_delay_ms = action.default_speed_ms / 20;
+    int control_rate = 50;
+    int total_frames = action.default_steps * control_rate;
+    int frame_delay_ms = action.default_speed_ms / control_rate;
 
     for (int frame = 0; frame < total_frames; frame++) {
         if (m_interrupt_flag.load()) {
@@ -150,7 +159,7 @@ void MotionController::execute_gait(const RegisteredAction& action) {
         for (int i = 0; i < GAIT_JOINT_COUNT; ++i) {
             float amp = action.params.amplitude[i];
             if (amp - 0.0f < 0.01f) {
-                continue; // 如果振幅接近0，则跳过该关节
+                continue; // 如果振幅接近0，则跳过该舵机
             }
             float offset = action.params.offset[i];
             float phase = action.params.phase_diff[i];
@@ -160,7 +169,7 @@ void MotionController::execute_gait(const RegisteredAction& action) {
             if (angle > 180) angle = 180;
 
             uint8_t channel = m_joint_channel_map[i];
-            ESP_LOGI("execute_gait", "Setting channel %d to angle %.2f", channel, angle);
+            // ESP_LOGI("execute_gait", "Setting channel %d to angle %.2f", channel, angle);
             m_servo_driver.set_angle(channel, static_cast<int>(angle));
         }
         vTaskDelay(pdMS_TO_TICKS(frame_delay_ms));
@@ -190,19 +199,20 @@ void MotionController::register_default_actions() {
     forward.type = ActionType::GAIT_PERIODIC;
     forward.is_atomic = false;
     forward.default_steps = 4;
-    forward.default_speed_ms = 800;
-
+    forward.default_speed_ms = 10000;
+    // 腿旋转的幅度一致并且同频是正确的（考虑舵机反装，其实控制幅度是负值）
     forward.params.amplitude[static_cast<uint8_t>(ServoChannel::LEFT_LEG_ROTATE)]  = 30;
     forward.params.amplitude[static_cast<uint8_t>(ServoChannel::RIGHT_LEG_ROTATE)] = 30;
-    forward.params.amplitude[static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT)]   = 15;
-    forward.params.amplitude[static_cast<uint8_t>(ServoChannel::RIGHT_ANKLE_LIFT)]  = 15;
+    // 前进的时候，重心也以周期在左右脚之间运动，表现为：重心脚的抬起幅度小一点。
+    forward.params.amplitude[static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT)]   = 20;
+    forward.params.amplitude[static_cast<uint8_t>(ServoChannel::RIGHT_ANKLE_LIFT)]  = 20;
 
-    forward.params.offset[static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT)]    = 5;
-    forward.params.offset[static_cast<uint8_t>(ServoChannel::RIGHT_ANKLE_LIFT)]   = -5;
+    forward.params.offset[static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT)]    = 0;
+    forward.params.offset[static_cast<uint8_t>(ServoChannel::RIGHT_ANKLE_LIFT)]   = 0;
 
     forward.params.phase_diff[static_cast<uint8_t>(ServoChannel::LEFT_LEG_ROTATE)]  = 0;
     forward.params.phase_diff[static_cast<uint8_t>(ServoChannel::RIGHT_LEG_ROTATE)] = PI;
-    forward.params.phase_diff[static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT)]   = -PI / 2;
+    forward.params.phase_diff[static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT)]   = PI / 2;
     forward.params.phase_diff[static_cast<uint8_t>(ServoChannel::RIGHT_ANKLE_LIFT)]  = -PI / 2;
     
     m_storage->save_action(forward);
@@ -336,6 +346,101 @@ std::vector<std::string> MotionController::list_groups_from_nvs() {
     ESP_LOGI(TAG, "Found %d groups in NVS.", groups.size());
     return groups;
 }
+
+// --- Real-time Gait Tuning ---
+bool MotionController::tune_gait_parameter(const std::string& action_name, int servo_index, const std::string& param_type, float value) {
+    auto it = m_action_cache.find(action_name);
+    if (it == m_action_cache.end()) {
+        ESP_LOGE(TAG, "Action '%s' not found in cache for tuning.", action_name.c_str());
+        return false;
+    }
+
+    if (servo_index < 0 || servo_index >= GAIT_JOINT_COUNT) {
+        ESP_LOGE(TAG, "Invalid servo index: %d", servo_index);
+        return false;
+    }
+
+    // Safely access the action using the iterator
+    RegisteredAction& action = it->second;
+
+    if (param_type == "amplitude") {
+        action.params.amplitude[servo_index] = value;
+    } else if (param_type == "offset") {
+        action.params.offset[servo_index] = value;
+    } else if (param_type == "phase_diff") {
+        action.params.phase_diff[servo_index] = value;
+    } else {
+        ESP_LOGE(TAG, "Unknown parameter type: %s", param_type.c_str());
+        return false;
+    }
+
+    ESP_LOGI(TAG, "Tuned %s for %s, servo %d: set to %.2f", param_type.c_str(), action_name.c_str(), servo_index, value);
+    return true;
+}
+
+bool MotionController::save_action_to_nvs(const std::string& action_name) {
+    auto it = m_action_cache.find(action_name);
+    if (it == m_action_cache.end()) {
+        ESP_LOGE(TAG, "Action '%s' not found in cache, cannot save.", action_name.c_str());
+        return false;
+    }
+
+    ESP_LOGI(TAG, "Saving action '%s' to NVS...", action_name.c_str());
+    // Safely access the action using the iterator
+    return m_storage->save_action(it->second);
+}
+
+std::string MotionController::get_action_params_json(const std::string& action_name) {
+    auto it = m_action_cache.find(action_name);
+    if (it == m_action_cache.end()) {
+        return "{}"; // Return empty JSON object if action not found
+    }
+
+    const RegisteredAction& action = it->second;
+
+    // Use std::string for dynamic allocation on the heap to avoid stack overflow
+    std::string json_str;
+    json_str.reserve(512); // Pre-allocate memory to improve performance
+
+    char temp_buf[40]; // Small temporary buffer for formatting floats and names
+
+    snprintf(temp_buf, sizeof(temp_buf), "{\"name\":\"%s\",\"params\":{", action.name);
+    json_str += temp_buf;
+
+    auto& params = action.params;
+
+    // Amplitude Array
+    json_str += "\"amplitude\":[";
+    for(int i=0; i<GAIT_JOINT_COUNT; ++i) {
+        snprintf(temp_buf, sizeof(temp_buf), "%.2f", params.amplitude[i]);
+        json_str += temp_buf;
+        if (i < GAIT_JOINT_COUNT - 1) json_str += ",";
+    }
+    json_str += "],"; // Comma after amplitude array
+
+    // Offset Array
+    json_str += "\"offset\":[";
+    for(int i=0; i<GAIT_JOINT_COUNT; ++i) {
+        snprintf(temp_buf, sizeof(temp_buf), "%.2f", params.offset[i]);
+        json_str += temp_buf;
+        if (i < GAIT_JOINT_COUNT - 1) json_str += ",";
+    }
+    json_str += "],"; // Comma after offset array
+
+    // Phase Difference Array
+    json_str += "\"phase_diff\":[";
+    for(int i=0; i<GAIT_JOINT_COUNT; ++i) {
+        snprintf(temp_buf, sizeof(temp_buf), "%.2f", params.phase_diff[i]);
+        json_str += temp_buf;
+        if (i < GAIT_JOINT_COUNT - 1) json_str += ",";
+    }
+    json_str += "]}}"; // End of JSON
+
+    return json_str;
+}
+
+
+
 
 /*
 Current params sutiable for ear wiggle:
