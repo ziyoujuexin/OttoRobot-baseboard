@@ -4,21 +4,15 @@
 #include "freertos/queue.h"
 #include "driver/servo.hpp"
 #include "config.h"
+#include "Motion_types.hpp" // 引入新的类型定义
+#include "MotionStorage.hpp" // 引入存储类
 #include <memory>
-
-// 动作控制命令结构体
-
-
-// 步态参数结构体
-typedef struct {
-    int amplitude[SERVO_COUNT];
-    int offset[SERVO_COUNT];
-    double phase_diff[SERVO_COUNT];
-} motion_params_t;
+#include <string>
+#include <map>
+#include <atomic>
 
 class MotionController {
 public:
-    // 构造函数公开，并接收引用
     explicit MotionController(Servo& servo_driver);
     ~MotionController();
     void init();
@@ -27,22 +21,40 @@ public:
 
 private:
     Servo& m_servo_driver; 
-    
     QueueHandle_t m_motion_queue; 
+    std::unique_ptr<MotionStorage> m_storage; // 使用智能指针管理存储实例
+    std::map<std::string, RegisteredAction> m_action_cache; // 缓存从NVS加载的动作
+    std::map<std::string, RegisteredGroup> m_group_cache; // 缓存从NVS加载的动作组
 
-    // 运行在独立任务中的主循环
-    void motion_task_handler();
+    // Mapping from logical joint to physical servo channel
+    uint8_t m_joint_channel_map[GAIT_JOINT_COUNT];
 
-    // 将原C函数改为类的私有方法
-    void home();
-    void gait(int steps, int period_ms, const motion_params_t* params);
-    void walk(int steps, int speed, int direction);
-    void turn(int steps, int speed, int direction);
+    std::atomic<bool> m_interrupt_flag; // 用于抢占的原子中断标志
+
+    // 初始化逻辑关节到物理通道的映射
+    void init_joint_channel_map();
+
+    // 核心任务循环
+    void motion_engine_task();
+
+    // 动作执行器
+    void execute_action(const RegisteredAction& action);
+    void execute_gait(const RegisteredAction& action);
+    
+    // 旧的非gait动作，暂时保留以兼容
     void wave_hand();
     void move_ear();
+    void home();
 
-    // 静态的Task启动函数，用于适配FreeRTOS的xTaskCreate
+    // Helper for debugging
+    void print_action_details(const RegisteredAction& action);
+
+    // 初始化默认数据
+    void register_default_actions();
+    void register_default_groups();
+
+    // 静态的Task启动函数
     static void start_task_wrapper(void* _this) {
-        static_cast<MotionController*>(_this)->motion_task_handler();
+        static_cast<MotionController*>(_this)->motion_engine_task();
     }
 };

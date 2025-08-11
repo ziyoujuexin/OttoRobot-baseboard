@@ -15,7 +15,7 @@ void PCA9685::init() {
     // Initialize the I2C device descriptor
     ESP_LOGI(TAG, "Initializing PCA9685 descriptor");
     pca9685_init_desc(&dev, PCA9685_I2C_ADDR, (i2c_port_t)I2C_PORT, (gpio_num_t)SDA_PIN, (gpio_num_t)SCL_PIN);
-    dev.cfg.master.clk_speed = 40000;
+    dev.cfg.master.clk_speed = 10000;
     // Initialize the PCA9685 device
     ESP_LOGI(TAG, "Initializing PCA9685");
     esp_err_t err = pca9685_init(&dev);
@@ -80,6 +80,7 @@ void PCA9685::home_all() {
     ESP_LOGI(TAG, "Homing all servos to 90 degrees.");
     for (uint8_t i = 0; i < 16; ++i) {
         set_angle(i, 90);
+        vTaskDelay(pdMS_TO_TICKS(10));
     }
 }
 

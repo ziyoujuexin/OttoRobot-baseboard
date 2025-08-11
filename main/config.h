@@ -16,7 +16,6 @@ typedef struct {
 } motion_command_t;
 
 // 舵机数量定义 - 扩展为8个舵机
-#define SERVO_COUNT 8
 
 // 运动状态定义
 #define MOTION_STOP        0x00
@@ -27,4 +26,32 @@ typedef struct {
 #define MOTION_WAVE_HAND   0x05
 #define MOTION_MOVE_EAR    0x06
 
+// Custom groups, hardcoded for UART compatibility
+#define MOTION_RUN_DEMO_GROUP 0x10
+
+enum class ServoChannel : uint8_t {
+    // EAR
+    LEFT_EAR_LIFT = 0,
+    RIGHT_EAR_LIFT = 2,
+
+    LEFT_EAR_SWING = 1,
+    RIGHT_EAR_SWING = 3,
+    // HEAD
+    HEAD_PAN = 5,
+    HEAD_TILT = 4,
+    // ARM
+    LEFT_ARM_SWING = 6,
+    RIGHT_ARM_SWING = 8,
+
+    LEFT_ARM_LIFT = 7,
+    RIGHT_ARM_LIFT = 9,
+    // LEG
+    LEFT_LEG_ROTATE = 10,
+    RIGHT_LEG_ROTATE = 12,
+    // Ankle
+    LEFT_ANKLE_LIFT = 11,
+    RIGHT_ANKLE_LIFT = 13,
+
+    SERVO_COUNT // This automatically gives the number of servos
+};
 extern QueueHandle_t motion_queue;
