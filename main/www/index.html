@@ -13,12 +13,17 @@
         .btn-stop { background-color: #f44336; }
         .btn-stop:hover { background-color: #da190b; }
         .tuner { border-top: 2px solid #eee; padding-top: 20px; margin-top: 30px; }
-        .tuner-controls { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: end; }
-        .form-group { display: flex; flex-direction: column; }
-        label { margin-bottom: 5px; color: #555; font-weight: bold; }
-        select, input, button { padding: 10px; border-radius: 5px; border: 1px solid #ccc; font-size: 14px; }
-        .tuner-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; }
-        #param-display { margin-top: 20px; background: #e9e9e9; padding: 10px; border-radius: 5px; font-family: monospace; white-space: pre; overflow-x: auto; }
+        .tuner-controls { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: end; margin-bottom: 20px; }
+        .form-group { display: flex; flex-direction: column; gap: 5px; }
+        label { color: #555; font-weight: bold; }
+        select, input, button { padding: 10px; border-radius: 5px; border: 1px solid #ccc; font-size: 14px; box-sizing: border-box; }
+        .tuner-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        #param-display { margin-top: 20px; }
+        .param-block h4 { margin-bottom: 10px; border-bottom: 1px solid #ddd; padding-bottom: 5px; }
+        .param-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;}
+        .input-group { display: flex; align-items: center; gap: 10px; }
+        .input-group input[type="range"] { flex-grow: 1; }
+        .input-group input[type="number"] { width: 80px; }
     </style>
 </head>
 <body>
@@ -69,9 +74,7 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
-            if (!response.ok) {
-                console.error('Command failed:', response.statusText);
-            }
+            if (!response.ok) console.error('Command failed:', response.statusText);
             return response;
         } catch (error) {
             console.error('Error sending command:', error);
@@ -91,10 +94,8 @@
         alert('Save command sent for ' + action);
     }
 
-    function tuneParam(servoIndex, paramType) {
+    function tuneParam(servoIndex, paramType, value) {
         const action = document.getElementById('action-select').value;
-        const inputId = `slider-${paramType}-${servoIndex}`;
-        const value = document.getElementById(inputId).value;
         sendJsonCommand({ 
             command: 'tune_param', 
             action: action, 
@@ -111,20 +112,25 @@
         const paramTypes = ['amplitude', 'offset', 'phase_diff'];
 
         paramTypes.forEach(type => {
-            html += `<h4>${type.charAt(0).toUpperCase() + type.slice(1)}</h4>`;
-            html += '<div class="grid-container">';
+            html += `<div class="param-block"><h4>${type.charAt(0).toUpperCase() + type.slice(1)}</h4>`;
+            html += '<div class="param-grid">';
             params[type].forEach((value, index) => {
                 const sliderId = `slider-${type}-${index}`;
-                const valueId = `value-${type}-${index}`;
+                const numberId = `number-${type}-${index}`;
                 html += `
                     <div class="form-group">
-                        <label for="${sliderId}">Servo ${index}: <span id="${valueId}">${value.toFixed(2)}</span></label>
-                        <input type="range" id="${sliderId}" min="-180" max="180" step="0.1" value="${value}" 
-                               oninput="document.getElementById('${valueId}').textContent = parseFloat(this.value).toFixed(2)" 
-                               onchange="tuneParam(${index}, '${type}')">
+                        <label for="${sliderId}">Servo ${index}</label>
+                        <div class="input-group">
+                            <input type="range" id="${sliderId}" min="-180" max="180" step="0.1" value="${value}"
+                                   oninput="document.getElementById('${numberId}').value = this.value"
+                                   onchange="tuneParam(${index}, '${type}', this.value)">
+                            <input type="number" id="${numberId}" step="0.1" value="${value}"
+                                   oninput="document.getElementById('${sliderId}').value = this.value"
+                                   onchange="tuneParam(${index}, '${type}', this.value)">
+                        </div>
                     </div>`;
             });
-            html += '</div>';
+            html += '</div></div>';
         });
 
         container.innerHTML = html;
