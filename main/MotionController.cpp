@@ -18,15 +18,17 @@ MotionController::~MotionController() {
 }
 
 void MotionController::init_joint_channel_map() {
-    m_joint_channel_map[static_cast<uint8_t>(ServoChannel::LEFT_LEG_ROTATE)]  = 10;
-    m_joint_channel_map[static_cast<uint8_t>(ServoChannel::RIGHT_LEG_ROTATE)] = 12;
-    m_joint_channel_map[static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT)]   = 11;
-    m_joint_channel_map[static_cast<uint8_t>(ServoChannel::RIGHT_ANKLE_LIFT)]  = 13;
-    m_joint_channel_map[static_cast<uint8_t>(ServoChannel::LEFT_ARM_SWING)]    = 6;
-    m_joint_channel_map[static_cast<uint8_t>(ServoChannel::RIGHT_ARM_SWING)]   = 8;
-    m_joint_channel_map[static_cast<uint8_t>(ServoChannel::HEAD_PAN)]          = 5;
-    m_joint_channel_map[static_cast<uint8_t>(ServoChannel::HEAD_TILT)]         = 4;
-    ESP_LOGI(TAG, "Joint-to-Channel map initialized.");
+    // Initialize all servo channels with an identity mapping (channel_id -> channel_id).
+    // This ensures that every possible servo has a valid channel defined before
+    // being used in gait calculations, fixing the uninitialized read error.
+    for (uint8_t i = 0; i < static_cast<uint8_t>(ServoChannel::SERVO_COUNT); ++i) {
+        m_joint_channel_map[i] = i;
+    }
+
+    // You can still override specific channels here if you need to remap them.
+    // For example: m_joint_channel_map[static_cast<uint8_t>(ServoChannel::LEFT_LEG_ROTATE)] = 15;
+
+    ESP_LOGI(TAG, "Joint-to-Channel map identity-initialized for %d channels.", static_cast<int>(ServoChannel::SERVO_COUNT));
 }
 
 // --- Public Methods ---
@@ -46,7 +48,7 @@ void MotionController::init() {
     }
 
     register_default_actions();
-    // register_default_groups();
+    // register_default_groups(); // Demo groups not implemented yet
 
     xTaskCreate(start_task_wrapper, "motion_engine_task", 4096, this, 5, NULL);
     ESP_LOGI(TAG, "Motion Controller initialized and task started.");
@@ -140,13 +142,16 @@ void MotionController::execute_gait(const RegisteredAction& action) {
 
     for (int frame = 0; frame < total_frames; frame++) {
         if (m_interrupt_flag.load()) {
-            ESP_LOGI(TAG, "Gait interrupted.");
+            ESP_LOGW(TAG, "Gait interrupted.");
             break;
         }
 
         float t = (float)frame / 20.0f;
         for (int i = 0; i < GAIT_JOINT_COUNT; ++i) {
             float amp = action.params.amplitude[i];
+            if (amp - 0.0f < 0.01f) {
+                continue; // 如果振幅接近0，则跳过该关节
+            }
             float offset = action.params.offset[i];
             float phase = action.params.phase_diff[i];
 
@@ -155,6 +160,7 @@ void MotionController::execute_gait(const RegisteredAction& action) {
             if (angle > 180) angle = 180;
 
             uint8_t channel = m_joint_channel_map[i];
+            ESP_LOGI("execute_gait", "Setting channel %d to angle %.2f", channel, angle);
             m_servo_driver.set_angle(channel, static_cast<int>(angle));
         }
         vTaskDelay(pdMS_TO_TICKS(frame_delay_ms));
@@ -186,40 +192,40 @@ void MotionController::register_default_actions() {
     forward.default_steps = 4;
     forward.default_speed_ms = 800;
 
-    forward.params.amplitude[static_cast<int>(ServoChannel::LEFT_LEG_ROTATE)]  = 30;
-    forward.params.amplitude[static_cast<int>(ServoChannel::RIGHT_LEG_ROTATE)] = 30;
-    forward.params.amplitude[static_cast<int>(ServoChannel::LEFT_ANKLE_LIFT)]   = 15;
-    forward.params.amplitude[static_cast<int>(ServoChannel::RIGHT_ANKLE_LIFT)]  = 15;
+    forward.params.amplitude[static_cast<uint8_t>(ServoChannel::LEFT_LEG_ROTATE)]  = 30;
+    forward.params.amplitude[static_cast<uint8_t>(ServoChannel::RIGHT_LEG_ROTATE)] = 30;
+    forward.params.amplitude[static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT)]   = 15;
+    forward.params.amplitude[static_cast<uint8_t>(ServoChannel::RIGHT_ANKLE_LIFT)]  = 15;
 
-    forward.params.offset[static_cast<int>(ServoChannel::LEFT_ANKLE_LIFT)]    = 5;
-    forward.params.offset[static_cast<int>(ServoChannel::RIGHT_ANKLE_LIFT)]   = -5;
+    forward.params.offset[static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT)]    = 5;
+    forward.params.offset[static_cast<uint8_t>(ServoChannel::RIGHT_ANKLE_LIFT)]   = -5;
 
-    forward.params.phase_diff[static_cast<int>(ServoChannel::LEFT_LEG_ROTATE)]  = 0;
-    forward.params.phase_diff[static_cast<int>(ServoChannel::RIGHT_LEG_ROTATE)] = PI;
-    forward.params.phase_diff[static_cast<int>(ServoChannel::LEFT_ANKLE_LIFT)]   = -PI / 2;
-    forward.params.phase_diff[static_cast<int>(ServoChannel::RIGHT_ANKLE_LIFT)]  = -PI / 2;
+    forward.params.phase_diff[static_cast<uint8_t>(ServoChannel::LEFT_LEG_ROTATE)]  = 0;
+    forward.params.phase_diff[static_cast<uint8_t>(ServoChannel::RIGHT_LEG_ROTATE)] = PI;
+    forward.params.phase_diff[static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT)]   = -PI / 2;
+    forward.params.phase_diff[static_cast<uint8_t>(ServoChannel::RIGHT_ANKLE_LIFT)]  = -PI / 2;
     
     m_storage->save_action(forward);
     m_action_cache[forward.name] = forward;
 
     RegisteredAction backward = forward;
     strcpy(backward.name, "walk_backward");
-    backward.params.amplitude[static_cast<int>(ServoChannel::LEFT_LEG_ROTATE)]  = -30;
-    backward.params.amplitude[static_cast<int>(ServoChannel::RIGHT_LEG_ROTATE)] = -30;
+    backward.params.amplitude[static_cast<uint8_t>(ServoChannel::LEFT_LEG_ROTATE)]  = -30;
+    backward.params.amplitude[static_cast<uint8_t>(ServoChannel::RIGHT_LEG_ROTATE)] = -30;
     m_storage->save_action(backward);
     m_action_cache[backward.name] = backward;
 
     RegisteredAction left = forward;
     strcpy(left.name, "turn_left");
-    left.params.amplitude[static_cast<int>(ServoChannel::LEFT_LEG_ROTATE)]  = 20;
-    left.params.amplitude[static_cast<int>(ServoChannel::RIGHT_LEG_ROTATE)] = -20;
+    left.params.amplitude[static_cast<uint8_t>(ServoChannel::LEFT_LEG_ROTATE)]  = 20;
+    left.params.amplitude[static_cast<uint8_t>(ServoChannel::RIGHT_LEG_ROTATE)] = -20;
     m_storage->save_action(left);
     m_action_cache[left.name] = left;
 
     RegisteredAction right = forward;
     strcpy(right.name, "turn_right");
-    right.params.amplitude[static_cast<int>(ServoChannel::LEFT_LEG_ROTATE)]  = -20;
-    right.params.amplitude[static_cast<int>(ServoChannel::RIGHT_LEG_ROTATE)] = 20;
+    right.params.amplitude[static_cast<uint8_t>(ServoChannel::LEFT_LEG_ROTATE)]  = -20;
+    right.params.amplitude[static_cast<uint8_t>(ServoChannel::RIGHT_LEG_ROTATE)] = 20;
     m_storage->save_action(right);
     m_action_cache[right.name] = right;
 
@@ -257,11 +263,12 @@ void MotionController::home() {
     vTaskDelay(pdMS_TO_TICKS(100)); // 等待舵机归位
 }
 
+// TODO: 在未来，这些控制都可以使用GAIT来实现，以此实现平滑的移动
 void MotionController::wave_hand() {
     ESP_LOGI(TAG, "Executing wave hand");
     for (int wave = 0; wave < 3; wave++) {
-        m_servo_driver.set_angle(static_cast<uint8_t>(ServoChannel::LEFT_ARM_SWING), 45);
-        m_servo_driver.set_angle(static_cast<uint8_t>(ServoChannel::RIGHT_ARM_SWING), 135);
+        m_servo_driver.set_angle(static_cast<uint8_t>(ServoChannel::LEFT_ARM_SWING), 135);
+        m_servo_driver.set_angle(static_cast<uint8_t>(ServoChannel::RIGHT_ARM_SWING), 45);
         vTaskDelay(pdMS_TO_TICKS(500));
         m_servo_driver.set_angle(static_cast<uint8_t>(ServoChannel::LEFT_ARM_SWING), 90);
         m_servo_driver.set_angle(static_cast<uint8_t>(ServoChannel::RIGHT_ARM_SWING), 90);
@@ -288,3 +295,70 @@ void MotionController::move_ear() {
 void MotionController::servo_test(uint8_t channel, uint8_t angle) {
     m_servo_driver.set_angle(channel, angle);
 }
+
+// --- NVS Storage Interface ---
+bool MotionController::delete_action_from_nvs(const std::string& action_name) {
+    ESP_LOGI(TAG, "Attempting to delete action '%s' from NVS...", action_name.c_str());
+    bool success = m_storage->delete_action(action_name.c_str());
+    if (success) {
+        // Also remove from cache if it exists
+        if (m_action_cache.count(action_name)) {
+            m_action_cache.erase(action_name);
+            ESP_LOGI(TAG, "Action '%s' removed from cache.", action_name.c_str());
+        }
+    }
+    return success;
+}
+
+bool MotionController::delete_group_from_nvs(const std::string& group_name) {
+    ESP_LOGI(TAG, "Attempting to delete group '%s' from NVS...", group_name.c_str());
+    bool success = m_storage->delete_group(group_name.c_str());
+    if (success) {
+        // Also remove from cache if it exists
+        if (m_group_cache.count(group_name)) {
+            m_group_cache.erase(group_name);
+            ESP_LOGI(TAG, "Group '%s' removed from cache.", group_name.c_str());
+        }
+    }
+    return success;
+}
+
+std::vector<std::string> MotionController::list_actions_from_nvs() {
+    std::vector<std::string> actions;
+    m_storage->list_actions(actions);
+    ESP_LOGI(TAG, "Found %d actions in NVS.", actions.size());
+    return actions;
+}
+
+std::vector<std::string> MotionController::list_groups_from_nvs() {
+    std::vector<std::string> groups;
+    m_storage->list_groups(groups);
+    ESP_LOGI(TAG, "Found %d groups in NVS.", groups.size());
+    return groups;
+}
+
+/*
+Current params sutiable for ear wiggle:
+    RegisteredAction forward = {};
+    strcpy(forward.name, "walk_forward");
+    forward.type = ActionType::GAIT_PERIODIC;
+    forward.is_atomic = false;
+    forward.default_steps = 4;
+    forward.default_speed_ms = 800;
+
+    forward.params.amplitude[static_cast<uint8_t>(ServoChannel::LEFT_LEG_ROTATE)]  = 30;
+    forward.params.amplitude[static_cast<uint8_t>(ServoChannel::RIGHT_LEG_ROTATE)] = 30;
+    forward.params.amplitude[static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT)]   = 15;
+    forward.params.amplitude[static_cast<uint8_t>(ServoChannel::RIGHT_ANKLE_LIFT)]  = 15;
+
+    forward.params.offset[static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT)]    = 5;
+    forward.params.offset[static_cast<uint8_t>(ServoChannel::RIGHT_ANKLE_LIFT)]   = -5;
+
+    forward.params.phase_diff[static_cast<uint8_t>(ServoChannel::LEFT_LEG_ROTATE)]  = 0;
+    forward.params.phase_diff[static_cast<uint8_t>(ServoChannel::RIGHT_LEG_ROTATE)] = PI;
+    forward.params.phase_diff[static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT)]   = -PI / 2;
+    forward.params.phase_diff[static_cast<uint8_t>(ServoChannel::RIGHT_ANKLE_LIFT)]  = -PI / 2;
+    
+    m_storage->save_action(forward);
+    m_action_cache[forward.name] = forward;
+*/

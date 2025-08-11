@@ -6,19 +6,6 @@
 
 static const char* TAG = "MotionStorage";
 
-// Helper to manage the index of keys
-static esp_err_t update_key_index(nvs_handle_t handle, const char* index_key, const char* item_key, bool add) {
-    // Implementation for adding/removing keys from an index will be added in a future step
-    // For now, we will just log the operation
-    if (add) {
-        ESP_LOGI(TAG, "Adding key '%s' to index '%s' (not implemented yet)", item_key, index_key);
-    } else {
-        ESP_LOGI(TAG, "Removing key '%s' from index '%s' (not implemented yet)", item_key, index_key);
-    }
-    return ESP_OK;
-}
-
-
 MotionStorage::MotionStorage(const char* nvs_namespace) : m_nvs_namespace(nvs_namespace) {}
 
 MotionStorage::~MotionStorage() {}
@@ -47,23 +34,23 @@ bool MotionStorage::save_action(const RegisteredAction& action) {
         return false;
     }
 
-    err = nvs_set_blob(handle, action.name, &action, sizeof(RegisteredAction));
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to save action '%s'. Error: %s", action.name, esp_err_to_name(err));
-        nvs_close(handle);
-        return false;
-    }
+    char key[NVS_KEY_NAME_MAX_SIZE];
+    snprintf(key, sizeof(key), "%s", action.name);
 
-    err = nvs_commit(handle);
+    err = nvs_set_blob(handle, key, &action, sizeof(RegisteredAction));
     if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to commit NVS changes. Error: %s", esp_err_to_name(err));
-        nvs_close(handle);
-        return false;
+        ESP_LOGE(TAG, "Failed to save action '%s'. Error: %s", key, esp_err_to_name(err));
+    } else {
+        err = nvs_commit(handle);
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to commit NVS changes. Error: %s", esp_err_to_name(err));
+        } else {
+            ESP_LOGI(TAG, "Action '%s' saved successfully.", key);
+        }
     }
 
     nvs_close(handle);
-    ESP_LOGI(TAG, "Action '%s' saved successfully.", action.name);
-    return true;
+    return err == ESP_OK;
 }
 
 bool MotionStorage::load_action(const char* name, RegisteredAction& action) {
@@ -76,18 +63,18 @@ bool MotionStorage::load_action(const char* name, RegisteredAction& action) {
         return false;
     }
 
+    char key[NVS_KEY_NAME_MAX_SIZE];
+    snprintf(key, sizeof(key), "%s", name);
+
     size_t required_size = sizeof(RegisteredAction);
-    err = nvs_get_blob(handle, name, &action, &required_size);
+    err = nvs_get_blob(handle, key, &action, &required_size);
     nvs_close(handle);
 
-    if (err != ESP_OK) {
-        if (err != ESP_ERR_NVS_NOT_FOUND) {
-             ESP_LOGE(TAG, "Failed to load action '%s'. Error: %s", name, esp_err_to_name(err));
-        }
-        return false;
+    if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND) {
+        ESP_LOGE(TAG, "Failed to load action '%s'. Error: %s", key, esp_err_to_name(err));
     }
     
-    return true;
+    return err == ESP_OK;
 }
 
 bool MotionStorage::delete_action(const char* name) {
@@ -97,23 +84,53 @@ bool MotionStorage::delete_action(const char* name) {
     esp_err_t err = nvs_open(m_nvs_namespace, NVS_READWRITE, &handle);
     if (err != ESP_OK) return false;
 
-    err = nvs_erase_key(handle, name);
+    char key[NVS_KEY_NAME_MAX_SIZE];
+    snprintf(key, sizeof(key), "%s", name);
+
+    err = nvs_erase_key(handle, key);
     if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to delete action '%s'. Error: %s", name, esp_err_to_name(err));
-        nvs_close(handle);
-        return false;
+        ESP_LOGE(TAG, "Failed to delete action '%s'. Error: %s", key, esp_err_to_name(err));
+    } else {
+        err = nvs_commit(handle);
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to commit deletion for '%s'. Error: %s", key, esp_err_to_name(err));
+        } else {
+            ESP_LOGI(TAG, "Action '%s' deleted successfully.", key);
+        }
     }
 
-    err = nvs_commit(handle);
     nvs_close(handle);
     return err == ESP_OK;
 }
 
 bool MotionStorage::list_actions(std::vector<std::string>& action_names) {
-    // This is a simplified implementation. A robust solution would require managing an index.
-    // For now, we cannot list keys directly from NVS. Returning true with an empty list.
-    ESP_LOGW(TAG, "list_actions is not fully implemented and will return an empty list.");
     action_names.clear();
+    if (!m_initialized) return false;
+
+    nvs_iterator_t it = nullptr; // 初始化为 nullptr
+    esp_err_t err = nvs_entry_find(NVS_DEFAULT_PART_NAME, m_nvs_namespace, NVS_TYPE_BLOB, &it);
+    if (err == ESP_ERR_NVS_NOT_FOUND || it == nullptr) {
+        ESP_LOGI(TAG, "No actions found in NVS namespace '%s'.", m_nvs_namespace);
+        return true;
+    } else if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Error finding NVS entries: %s", esp_err_to_name(err));
+        return false;
+    }
+
+    const std::string prefix = "";
+    while (it != nullptr) {
+        nvs_entry_info_t info;
+        nvs_entry_info(it, &info);
+        if (strncmp(info.key, prefix.c_str(), prefix.length()) == 0) {
+            action_names.push_back(info.key + prefix.length());
+        }
+        err = nvs_entry_next(&it); // 传递迭代器指针
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "Error iterating NVS entries: %s", esp_err_to_name(err));
+            break;
+        }
+    }
+    nvs_release_iterator(it);
     return true;
 }
 
@@ -128,20 +145,22 @@ bool MotionStorage::save_group(const RegisteredGroup& group) {
         return false;
     }
 
-    err = nvs_set_blob(handle, group.name, &group, sizeof(RegisteredGroup));
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to save group '%s'. Error: %s", group.name, esp_err_to_name(err));
-        nvs_close(handle);
-        return false;
-    }
+    char key[NVS_KEY_NAME_MAX_SIZE];
+    snprintf(key, sizeof(key), "%s", group.name);
 
-    err = nvs_commit(handle);
+    err = nvs_set_blob(handle, key, &group, sizeof(RegisteredGroup));
     if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to commit NVS for group. Error: %s", esp_err_to_name(err));
+        ESP_LOGE(TAG, "Failed to save group '%s'. Error: %s", key, esp_err_to_name(err));
+    } else {
+        err = nvs_commit(handle);
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to commit NVS for group. Error: %s", esp_err_to_name(err));
+        } else {
+            ESP_LOGI(TAG, "Group '%s' saved successfully.", key);
+        }
     }
 
     nvs_close(handle);
-    ESP_LOGI(TAG, "Group '%s' saved successfully.", group.name);
     return err == ESP_OK;
 }
 
@@ -152,12 +171,15 @@ bool MotionStorage::load_group(const char* name, RegisteredGroup& group) {
     esp_err_t err = nvs_open(m_nvs_namespace, NVS_READONLY, &handle);
     if (err != ESP_OK) return false;
 
+    char key[NVS_KEY_NAME_MAX_SIZE];
+    snprintf(key, sizeof(key), "%s", name);
+
     size_t required_size = sizeof(RegisteredGroup);
-    err = nvs_get_blob(handle, name, &group, &required_size);
+    err = nvs_get_blob(handle, key, &group, &required_size);
     nvs_close(handle);
 
     if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND) {
-        ESP_LOGE(TAG, "Failed to load group '%s'. Error: %s", name, esp_err_to_name(err));
+        ESP_LOGE(TAG, "Failed to load group '%s'. Error: %s", key, esp_err_to_name(err));
     }
 
     return err == ESP_OK;
@@ -170,20 +192,52 @@ bool MotionStorage::delete_group(const char* name) {
     esp_err_t err = nvs_open(m_nvs_namespace, NVS_READWRITE, &handle);
     if (err != ESP_OK) return false;
 
-    err = nvs_erase_key(handle, name);
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to delete group '%s'. Error: %s", name, esp_err_to_name(err));
-        nvs_close(handle);
-        return false;
-    }
+    char key[NVS_KEY_NAME_MAX_SIZE];
+    snprintf(key, sizeof(key), "%s", name);
 
-    err = nvs_commit(handle);
+    err = nvs_erase_key(handle, key);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to delete group '%s'. Error: %s", key, esp_err_to_name(err));
+    } else {
+        err = nvs_commit(handle);
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to commit deletion for group '%s'. Error: %s", key, esp_err_to_name(err));
+        } else {
+            ESP_LOGI(TAG, "Group '%s' deleted successfully.", key);
+        }
+    }
+    
     nvs_close(handle);
     return err == ESP_OK;
 }
 
 bool MotionStorage::list_groups(std::vector<std::string>& group_names) {
-    ESP_LOGW(TAG, "list_groups is not fully implemented and will return an empty list.");
     group_names.clear();
+    if (!m_initialized) return false;
+
+    nvs_iterator_t it = nullptr; // 初始化为 nullptr
+    esp_err_t err = nvs_entry_find(NVS_DEFAULT_PART_NAME, m_nvs_namespace, NVS_TYPE_BLOB, &it);
+    if (err == ESP_ERR_NVS_NOT_FOUND || it == nullptr) {
+        ESP_LOGI(TAG, "No groups found in NVS namespace '%s'.", m_nvs_namespace);
+        return true;
+    } else if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Error finding NVS entries: %s", esp_err_to_name(err));
+        return false;
+    }
+
+    const std::string prefix = "";
+    while (it != nullptr) {
+        nvs_entry_info_t info;
+        nvs_entry_info(it, &info);
+        if (strncmp(info.key, prefix.c_str(), prefix.length()) == 0) {
+            group_names.push_back(info.key + prefix.length());
+        }
+        err = nvs_entry_next(&it); // 传递迭代器指针
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "Error iterating NVS entries: %s", esp_err_to_name(err));
+            break;
+        }
+    }
+    nvs_release_iterator(it);
     return true;
 }

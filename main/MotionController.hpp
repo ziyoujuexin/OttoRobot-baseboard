@@ -19,6 +19,12 @@ public:
     bool queue_command(const motion_command_t& cmd);
     void servo_test(uint8_t channel, uint8_t angle);
 
+    // --- NVS Storage Interface ---
+    bool delete_action_from_nvs(const std::string& action_name);
+    bool delete_group_from_nvs(const std::string& group_name);
+    std::vector<std::string> list_actions_from_nvs();
+    std::vector<std::string> list_groups_from_nvs();
+
 private:
     Servo& m_servo_driver; 
     QueueHandle_t m_motion_queue; 

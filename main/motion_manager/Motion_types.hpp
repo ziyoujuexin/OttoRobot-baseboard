@@ -2,14 +2,15 @@
 
 #include <cstdint>
 #include "config.h"
+#include "nvs.h"
 
-#define MOTION_NAME_MAX_LEN 32
+#define MOTION_NAME_MAX_LEN NVS_KEY_NAME_MAX_SIZE
 #define MAX_ACTIONS_PER_GROUP 10
 #pragma once
 
 #include <cstdint>
 
-#define MOTION_NAME_MAX_LEN 32
+#define MOTION_NAME_MAX_LEN NVS_KEY_NAME_MAX_SIZE
 #define MAX_ACTIONS_PER_GROUP 10
 
 const int GAIT_JOINT_COUNT = static_cast<int>(ServoChannel::SERVO_COUNT);

@@ -231,7 +231,10 @@ extern "C" void app_main(void)
 
     motion_controller_ptr->queue_command({MOTION_STOP, 0});
     vTaskDelay(pdMS_TO_TICKS(2000));
-    // motion_controller_ptr->queue_command({MOTION_FORWARD, 0});
+    // motion_controller_ptr->delete_action_from_nvs("walk_forward");
+    // motion_controller_ptr->delete_action_from_nvs("walk_backward");
+    // motion_controller_ptr->delete_action_from_nvs("turn_left");
+    // motion_controller_ptr->delete_action_from_nvs("turn_right");
     // 保持主任务运行，以确保 unique_ptr 不会被销毁
     while (true) {
         motion_controller_ptr->servo_test(15, 90); // 15通道总是用来校准舵机，方便机械安装
