@@ -21,17 +21,22 @@ extern const char index_html_end[]   asm("_binary_index_html_end");
 
 class WebServerImpl {
 public:
-    WebServerImpl(MotionController& controller) : m_motion_controller(controller) {}
+    WebServerImpl(ActionManager& action_manager, MotionController& motion_controller) 
+        : m_action_manager(action_manager), m_motion_controller(motion_controller) {}
 
     void start() {
         wifi_init();
     }
 
 private:
+    ActionManager& m_action_manager;
     MotionController& m_motion_controller;
     httpd_handle_t m_server = NULL;
 
     void wifi_init() {
+        // This should be called only once in the app. 
+        // Assuming this is the only component that needs it.
+        // A better approach would be to have a central init function in main.
         ESP_ERROR_CHECK(nvs_flash_init());
         ESP_ERROR_CHECK(esp_netif_init());
         ESP_ERROR_CHECK(esp_event_loop_create_default());
@@ -58,28 +63,13 @@ private:
 
         ESP_LOGI(TAG, "Starting server on port: \'%d\'", config.server_port);
         if (httpd_start(&m_server, &config) == ESP_OK) {
-            httpd_uri_t root = {
-                .uri      = "/",
-                .method   = HTTP_GET,
-                .handler  = root_handler,
-                .user_ctx = this
-            };
+            httpd_uri_t root = { .uri = "/", .method = HTTP_GET, .handler = root_handler, .user_ctx = this };
             httpd_register_uri_handler(m_server, &root);
 
-            httpd_uri_t control = {
-                .uri      = "/control",
-                .method   = HTTP_POST,
-                .handler  = command_api_handler,
-                .user_ctx = this
-            };
+            httpd_uri_t control = { .uri = "/control", .method = HTTP_POST, .handler = command_api_handler, .user_ctx = this };
             httpd_register_uri_handler(m_server, &control);
 
-            httpd_uri_t tune = {
-                .uri       = "/api/tune",
-                .method    = HTTP_POST,
-                .handler   = tuning_api_handler,
-                .user_ctx  = this
-            };
+            httpd_uri_t tune = { .uri = "/api/tune", .method = HTTP_POST, .handler = tuning_api_handler, .user_ctx = this };
             httpd_register_uri_handler(m_server, &tune);
             return;
         }
@@ -92,11 +82,10 @@ private:
     friend void wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data);
 };
 
-// --- Static Handlers ---
+// --- Static Handlers --- 
 
 esp_err_t root_handler(httpd_req_t *req)
 {
-    WebServerImpl* server = (WebServerImpl*)req->user_ctx;
     const uint32_t index_html_len = index_html_end - index_html_start;
     httpd_resp_set_type(req, "text/html");
     httpd_resp_send(req, index_html_start, index_html_len);
@@ -127,10 +116,7 @@ esp_err_t tuning_api_handler(httpd_req_t *req)
     WebServerImpl* server = (WebServerImpl*)req->user_ctx;
     char content[512];
     int ret = httpd_req_recv(req, content, sizeof(content) - 1);
-    if (ret <= 0) {
-        if (ret == HTTPD_SOCK_ERR_TIMEOUT) httpd_resp_send_408(req);
-        return ESP_FAIL;
-    }
+    if (ret <= 0) { if (ret == HTTPD_SOCK_ERR_TIMEOUT) httpd_resp_send_408(req); return ESP_FAIL; }
     content[ret] = '\0';
 
     jparse_ctx_t jctx;
@@ -146,7 +132,7 @@ esp_err_t tuning_api_handler(httpd_req_t *req)
     if (command == "get_params") {
         char action_buf[64];
         if (json_obj_get_string(&jctx, "action", action_buf, sizeof(action_buf)) == 0) {
-            std::string json_response = server->m_motion_controller.get_action_params_json(action_buf);
+            std::string json_response = server->m_action_manager.get_action_params_json(action_buf);
             httpd_resp_set_type(req, "application/json");
             httpd_resp_send(req, json_response.c_str(), json_response.length());
             return ESP_OK;
@@ -158,7 +144,7 @@ esp_err_t tuning_api_handler(httpd_req_t *req)
             json_obj_get_int(&jctx, "servo", &servo_index) == 0 &&
             json_obj_get_string(&jctx, "param", param_type_buf, sizeof(param_type_buf)) == 0 &&
             json_obj_get_float(&jctx, "value", &value) == 0) {
-            server->m_motion_controller.tune_gait_parameter(action_buf, servo_index, param_type_buf, value);
+            server->m_action_manager.tune_gait_parameter(action_buf, servo_index, param_type_buf, value);
             httpd_resp_send(req, "Tune OK", HTTPD_RESP_USE_STRLEN);
             return ESP_OK;
         }
@@ -170,14 +156,14 @@ esp_err_t tuning_api_handler(httpd_req_t *req)
             json_obj_get_bool(&jctx, "is_atomic", &is_atomic) == 0 &&
             json_obj_get_int(&jctx, "default_steps", &default_steps) == 0 &&
             json_obj_get_int(&jctx, "gait_period_ms", &gait_period_ms) == 0) {
-            server->m_motion_controller.update_action_properties(action_buf, is_atomic, default_steps, gait_period_ms);
+            server->m_action_manager.update_action_properties(action_buf, is_atomic, default_steps, gait_period_ms);
             httpd_resp_send(req, "Update OK", HTTPD_RESP_USE_STRLEN);
             return ESP_OK;
         }
     } else if (command == "save_params") {
         char action_buf[64];
         if (json_obj_get_string(&jctx, "action", action_buf, sizeof(action_buf)) == 0) {
-            bool success = server->m_motion_controller.save_action_to_nvs(action_buf);
+            bool success = server->m_action_manager.save_action_to_nvs(action_buf);
             httpd_resp_set_type(req, "application/json");
             if (success) httpd_resp_send(req, "{\"success\":true}", HTTPD_RESP_USE_STRLEN);
             else httpd_resp_send(req, "{\"success\":false, \"error\":\"Failed to save action to NVS\"}", HTTPD_RESP_USE_STRLEN);
@@ -204,14 +190,12 @@ void wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t event_id
     }
 }
 
-// --- Public WebServer Class ---
+// --- Public WebServer Class --- 
 
-WebServer::WebServer(MotionController& motion_controller)
-    : m_motion_controller(motion_controller) {}
+WebServer::WebServer(ActionManager& action_manager, MotionController& motion_controller)
+    : m_action_manager(action_manager), m_motion_controller(motion_controller) {}
 
 void WebServer::start() {
-    // The implementation is moved to a PIMPL-like class to hide ESP-IDF details
-    // from the header file, which makes for cleaner includes.
-    WebServerImpl* impl = new WebServerImpl(m_motion_controller);
+    WebServerImpl* impl = new WebServerImpl(m_action_manager, m_motion_controller);
     impl->start();
 }
