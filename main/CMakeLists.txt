@@ -4,12 +4,14 @@ set(SRCS
     "UartHandler.cpp"
     "driver/PCA9685.cpp"
     "motion_manager/MotionStorage.cpp"
+    "web_server/WebServer.cpp"
 )
 
 set(INCLUDE_DIRS
     "./"
     "driver"
     "motion_manager"
+    "web_server"
 )
 
 set(EMBED_TXTFILES
