@@ -33,7 +33,7 @@ typedef struct {
     ActionType type;                // 动作类型
     bool is_atomic;                 // 是否为原子操作，执行时不可中断
     uint32_t default_steps;         // 执行该动作的默认步数
-    uint32_t default_speed_ms;      // 执行该动作的默认速度 (周期)
+    uint32_t gait_period_ms;        // 单个步态周期的默认时长 (ms)
     motion_params_t params;         // 动作参数
 } RegisteredAction;
 

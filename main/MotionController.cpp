@@ -145,9 +145,22 @@ void MotionController::execute_action(const RegisteredAction& action) {
 }
 
 void MotionController::execute_gait(const RegisteredAction& action) {
-    int control_rate = 50;
-    int total_frames = action.default_steps * control_rate;
-    int frame_delay_ms = action.default_speed_ms / control_rate;
+    const int control_period_ms = 20; // 50Hz control rate
+    if (action.gait_period_ms == 0) {
+        ESP_LOGE(TAG, "Gait period cannot be zero.");
+        return;
+    }
+
+    // Correctly calculate total frames and frames per gait cycle
+    int frames_per_gait = action.gait_period_ms / control_period_ms;
+    if (frames_per_gait == 0) {
+        ESP_LOGE(TAG, "Gait period is too short for the control rate.");
+        return;
+    }
+    int total_frames = action.default_steps * frames_per_gait;
+
+    ESP_LOGI(TAG, "Executing gait '%s': %d steps, %dms/step, %d total frames", 
+             action.name, (int)action.default_steps, (int)action.gait_period_ms, total_frames);
 
     for (int frame = 0; frame < total_frames; frame++) {
         if (m_interrupt_flag.load()) {
@@ -155,25 +168,30 @@ void MotionController::execute_gait(const RegisteredAction& action) {
             break;
         }
 
-        float t = (float)frame / 20.0f;
+        // Correctly calculate t as the number of cycles elapsed
+        float t = (float)frame / frames_per_gait;
+
         for (int i = 0; i < GAIT_JOINT_COUNT; ++i) {
             float amp = action.params.amplitude[i];
-            if (amp - 0.0f < 0.01f) {
-                continue; // 如果振幅接近0，则跳过该舵机
+            // Skip servos with no amplitude to save computation
+            if (std::abs(amp) < 0.01f) {
+                continue;
             }
             float offset = action.params.offset[i];
             float phase = action.params.phase_diff[i];
 
             float angle = 90.0f + offset + amp * sin(2 * PI * t + phase);
+            
+            // Clamp angle to valid range
             if (angle < 0) angle = 0;
             if (angle > 180) angle = 180;
 
             uint8_t channel = m_joint_channel_map[i];
-            // ESP_LOGI("execute_gait", "Setting channel %d to angle %.2f", channel, angle);
             m_servo_driver.set_angle(channel, static_cast<int>(angle));
         }
-        vTaskDelay(pdMS_TO_TICKS(frame_delay_ms));
+        vTaskDelay(pdMS_TO_TICKS(control_period_ms));
     }
+
     if (!m_interrupt_flag.load()) {
         home();
     }
@@ -185,7 +203,7 @@ void MotionController::register_default_actions() {
     RegisteredAction temp_action;
     if (m_storage->load_action("walk_forward", temp_action)) {
         ESP_LOGI(TAG, "Default actions found in NVS. Loading from storage.");
-        m_storage->load_action("walk_forward", m_action_cache["walk_forward"]);
+        m_action_cache["walk_forward"] = temp_action; // Load into cache
         m_storage->load_action("walk_backward", m_action_cache["walk_backward"]);
         m_storage->load_action("turn_left", m_action_cache["turn_left"]);
         m_storage->load_action("turn_right", m_action_cache["turn_right"]);
@@ -199,11 +217,10 @@ void MotionController::register_default_actions() {
     forward.type = ActionType::GAIT_PERIODIC;
     forward.is_atomic = false;
     forward.default_steps = 4;
-    forward.default_speed_ms = 10000;
-    // 腿旋转的幅度一致并且同频是正确的（考虑舵机反装，其实控制幅度是负值）
-    forward.params.amplitude[static_cast<uint8_t>(ServoChannel::LEFT_LEG_ROTATE)]  = 30;
-    forward.params.amplitude[static_cast<uint8_t>(ServoChannel::RIGHT_LEG_ROTATE)] = 30;
-    // 前进的时候，重心也以周期在左右脚之间运动，表现为：重心脚的抬起幅度小一点。
+    forward.gait_period_ms = 1500; // Set a more reasonable gait period: 1.5 seconds per step
+
+    forward.params.amplitude[static_cast<uint8_t>(ServoChannel::LEFT_LEG_ROTATE)]  = 25;
+    forward.params.amplitude[static_cast<uint8_t>(ServoChannel::RIGHT_LEG_ROTATE)] = 25;
     forward.params.amplitude[static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT)]   = 20;
     forward.params.amplitude[static_cast<uint8_t>(ServoChannel::RIGHT_ANKLE_LIFT)]  = 20;
 
@@ -211,7 +228,7 @@ void MotionController::register_default_actions() {
     forward.params.offset[static_cast<uint8_t>(ServoChannel::RIGHT_ANKLE_LIFT)]   = 0;
 
     forward.params.phase_diff[static_cast<uint8_t>(ServoChannel::LEFT_LEG_ROTATE)]  = 0;
-    forward.params.phase_diff[static_cast<uint8_t>(ServoChannel::RIGHT_LEG_ROTATE)] = PI;
+    forward.params.phase_diff[static_cast<uint8_t>(ServoChannel::RIGHT_LEG_ROTATE)] = 0;
     forward.params.phase_diff[static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT)]   = PI / 2;
     forward.params.phase_diff[static_cast<uint8_t>(ServoChannel::RIGHT_ANKLE_LIFT)]  = -PI / 2;
     
@@ -247,7 +264,7 @@ void MotionController::print_action_details(const RegisteredAction &action) {
     ESP_LOGI(TAG, "  - Type: %s", action.type == ActionType::GAIT_PERIODIC ? "Gait Periodic" : "Unknown");
     ESP_LOGI(TAG, "  - Atomic: %s", action.is_atomic ? "Yes" : "No");
     ESP_LOGI(TAG, "  - Steps: %d", (int)action.default_steps);
-    ESP_LOGI(TAG, "  - Speed: %d ms", (int)action.default_speed_ms);
+    ESP_LOGI(TAG, "  - Period: %d ms", (int)action.gait_period_ms);
     
     auto print_float_array = [](const char* prefix, const float* arr) {
         char buffer[256];
@@ -348,6 +365,27 @@ std::vector<std::string> MotionController::list_groups_from_nvs() {
 }
 
 // --- Real-time Gait Tuning ---
+bool MotionController::update_action_properties(const std::string& action_name, bool is_atomic, uint32_t default_steps, uint32_t gait_period_ms) {
+    auto it = m_action_cache.find(action_name);
+    if (it == m_action_cache.end()) {
+        ESP_LOGE(TAG, "Action '%s' not found in cache for property update.", action_name.c_str());
+        return false;
+    }
+
+    RegisteredAction& action = it->second;
+    action.is_atomic = is_atomic;
+    action.default_steps = default_steps;
+    action.gait_period_ms = gait_period_ms;
+
+    ESP_LOGI(TAG, "Updated properties for action '%s': is_atomic=%s, steps=%d, period=%dms", 
+             action_name.c_str(), is_atomic ? "true" : "false", (int)default_steps, (int)gait_period_ms);
+    
+    // After updating, we can optionally print the details to confirm
+    print_action_details(action);
+
+    return true;
+}
+
 bool MotionController::tune_gait_parameter(const std::string& action_name, int servo_index, const std::string& param_type, float value) {
     auto it = m_action_cache.find(action_name);
     if (it == m_action_cache.end()) {
@@ -400,11 +438,17 @@ std::string MotionController::get_action_params_json(const std::string& action_n
 
     // Use std::string for dynamic allocation on the heap to avoid stack overflow
     std::string json_str;
-    json_str.reserve(512); // Pre-allocate memory to improve performance
+    json_str.reserve(1024); // Increased buffer size for new fields
 
-    char temp_buf[40]; // Small temporary buffer for formatting floats and names
+    char temp_buf[128]; 
 
-    snprintf(temp_buf, sizeof(temp_buf), "{\"name\":\"%s\",\"params\":{", action.name);
+    // Add top-level properties
+    snprintf(temp_buf, sizeof(temp_buf), 
+        "{\"name\":\"%s\",\"is_atomic\":%s,\"default_steps\":%d,\"gait_period_ms\":%d,\"params\":{", 
+        action.name, 
+        action.is_atomic ? "true" : "false",
+        (int)action.default_steps, 
+        (int)action.gait_period_ms);
     json_str += temp_buf;
 
     auto& params = action.params;
@@ -416,7 +460,7 @@ std::string MotionController::get_action_params_json(const std::string& action_n
         json_str += temp_buf;
         if (i < GAIT_JOINT_COUNT - 1) json_str += ",";
     }
-    json_str += "],"; // Comma after amplitude array
+    json_str += "],";
 
     // Offset Array
     json_str += "\"offset\":[";
@@ -425,7 +469,7 @@ std::string MotionController::get_action_params_json(const std::string& action_n
         json_str += temp_buf;
         if (i < GAIT_JOINT_COUNT - 1) json_str += ",";
     }
-    json_str += "],"; // Comma after offset array
+    json_str += "],";
 
     // Phase Difference Array
     json_str += "\"phase_diff\":[";
@@ -434,36 +478,8 @@ std::string MotionController::get_action_params_json(const std::string& action_n
         json_str += temp_buf;
         if (i < GAIT_JOINT_COUNT - 1) json_str += ",";
     }
-    json_str += "]}}"; // End of JSON
+    json_str += "]}}"; // End of params object and main object
 
     return json_str;
 }
 
-
-
-
-/*
-Current params sutiable for ear wiggle:
-    RegisteredAction forward = {};
-    strcpy(forward.name, "walk_forward");
-    forward.type = ActionType::GAIT_PERIODIC;
-    forward.is_atomic = false;
-    forward.default_steps = 4;
-    forward.default_speed_ms = 800;
-
-    forward.params.amplitude[static_cast<uint8_t>(ServoChannel::LEFT_LEG_ROTATE)]  = 30;
-    forward.params.amplitude[static_cast<uint8_t>(ServoChannel::RIGHT_LEG_ROTATE)] = 30;
-    forward.params.amplitude[static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT)]   = 15;
-    forward.params.amplitude[static_cast<uint8_t>(ServoChannel::RIGHT_ANKLE_LIFT)]  = 15;
-
-    forward.params.offset[static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT)]    = 5;
-    forward.params.offset[static_cast<uint8_t>(ServoChannel::RIGHT_ANKLE_LIFT)]   = -5;
-
-    forward.params.phase_diff[static_cast<uint8_t>(ServoChannel::LEFT_LEG_ROTATE)]  = 0;
-    forward.params.phase_diff[static_cast<uint8_t>(ServoChannel::RIGHT_LEG_ROTATE)] = PI;
-    forward.params.phase_diff[static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT)]   = -PI / 2;
-    forward.params.phase_diff[static_cast<uint8_t>(ServoChannel::RIGHT_ANKLE_LIFT)]  = -PI / 2;
-    
-    m_storage->save_action(forward);
-    m_action_cache[forward.name] = forward;
-*/

@@ -69,11 +69,30 @@ static esp_err_t tuning_api_handler(httpd_req_t *req)
             httpd_resp_send(req, "Tune OK", HTTPD_RESP_USE_STRLEN);
             return ESP_OK;
         }
+    } else if (command == "update_action_props") {
+        char action_buf[64];
+        bool is_atomic;
+        int default_steps, gait_period_ms;
+
+        if (json_obj_get_string(&jctx, "action", action_buf, sizeof(action_buf)) == 0 &&
+            json_obj_get_bool(&jctx, "is_atomic", &is_atomic) == 0 &&
+            json_obj_get_int(&jctx, "default_steps", &default_steps) == 0 &&
+            json_obj_get_int(&jctx, "gait_period_ms", &gait_period_ms) == 0) {
+            
+            motion_controller_ptr->update_action_properties(action_buf, is_atomic, default_steps, gait_period_ms);
+            httpd_resp_send(req, "Update OK", HTTPD_RESP_USE_STRLEN);
+            return ESP_OK;
+        }
     } else if (command == "save_params") {
         char action_buf[64];
         if (json_obj_get_string(&jctx, "action", action_buf, sizeof(action_buf)) == 0) {
-            motion_controller_ptr->save_action_to_nvs(action_buf);
-            httpd_resp_send(req, "Save OK", HTTPD_RESP_USE_STRLEN);
+            bool success = motion_controller_ptr->save_action_to_nvs(action_buf);
+            httpd_resp_set_type(req, "application/json");
+            if (success) {
+                httpd_resp_send(req, "{\"success\":true}", HTTPD_RESP_USE_STRLEN);
+            } else {
+                httpd_resp_send(req, "{\"success\":false, \"error\":\"Failed to save action to NVS\"}", HTTPD_RESP_USE_STRLEN);
+            }
             return ESP_OK;
         }
     }
@@ -81,6 +100,7 @@ static esp_err_t tuning_api_handler(httpd_req_t *req)
     httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid JSON format or command");
     return ESP_FAIL;
 }
+
 
 // 旧的API处理器保持不变
 static esp_err_t command_api_handler(httpd_req_t *req)

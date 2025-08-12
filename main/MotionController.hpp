@@ -26,6 +26,7 @@ public:
     std::vector<std::string> list_groups_from_nvs();
 
     // --- Real-time Gait Tuning ---
+    bool update_action_properties(const std::string& action_name, bool is_atomic, uint32_t default_steps, uint32_t gait_period_ms);
     bool tune_gait_parameter(const std::string& action_name, int servo_index, const std::string& param_type, float value);
     bool save_action_to_nvs(const std::string& action_name);
     std::string get_action_params_json(const std::string& action_name);
