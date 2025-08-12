@@ -33,6 +33,8 @@ void MotionController::init() {
     m_gait_command_map[MOTION_BACKWARD] = "walk_backward";
     m_gait_command_map[MOTION_LEFT] = "turn_left";
     m_gait_command_map[MOTION_RIGHT] = "turn_right";
+    m_gait_command_map[MOTION_WAVE_HAND] = "wave_hand";
+    m_gait_command_map[MOTION_MOVE_EAR] = "wiggle_ears";
 
     m_motion_queue = xQueueCreate(10, sizeof(motion_command_t));
     if (m_motion_queue == NULL) {
@@ -79,12 +81,12 @@ void MotionController::motion_engine_task() {
                 case MOTION_STOP:
                     home();
                     break;
-                case MOTION_WAVE_HAND:
-                    wave_hand();
-                    break;
-                case MOTION_MOVE_EAR:
-                    move_ear();
-                    break;
+                // case MOTION_WAVE_HAND:
+                //     wave_hand();
+                //     break;
+                // case MOTION_MOVE_EAR:
+                //     move_ear();
+                //     break;
                 // TODO: Group execution should also use the ActionManager
                 case MOTION_RUN_DEMO_GROUP:
                     ESP_LOGW(TAG, "Demo group execution is not yet refactored.");
@@ -106,7 +108,7 @@ void MotionController::execute_action(const RegisteredAction& action) {
 }
 
 void MotionController::execute_gait(const RegisteredAction& action) {
-    const int control_period_ms = 20; // 50Hz control rate
+    const int control_period_ms = 10; // 50Hz control rate
     if (action.gait_period_ms == 0) {
         ESP_LOGE(TAG, "Gait period cannot be zero.");
         return;

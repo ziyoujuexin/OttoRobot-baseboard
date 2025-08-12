@@ -48,11 +48,11 @@ extern "C" void app_main(void)
 
     // alawys keep following code for NVS storage debugging
     // Clean and re-register default actions for debugging
-    // action_manager_ptr->delete_action_from_nvs("walk_forward");
-    // action_manager_ptr->delete_action_from_nvs("walk_backward");
-    // action_manager_ptr->delete_action_from_nvs("turn_left");
-    // action_manager_ptr->delete_action_from_nvs("turn_right");
-    // action_manager_ptr->register_default_actions();
+    action_manager_ptr->delete_action_from_nvs("walk_forward");
+    action_manager_ptr->delete_action_from_nvs("walk_backward");
+    action_manager_ptr->delete_action_from_nvs("turn_left");
+    action_manager_ptr->delete_action_from_nvs("turn_right");
+    action_manager_ptr->register_default_actions();
 
     while (true) {
         motion_controller_ptr->servo_test(15, 90); // 15通道总是用来校准舵机，方便机械安装

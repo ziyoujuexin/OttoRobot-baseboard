@@ -1,8 +1,8 @@
 set(SRCS
     "main.cpp"
-    "MotionController.cpp"
     "UartHandler.cpp"
     "driver/PCA9685.cpp"
+    "motion_manager/MotionController.cpp"
     "motion_manager/MotionStorage.cpp"
     "motion_manager/ActionManager.cpp"
     "web_server/WebServer.cpp"

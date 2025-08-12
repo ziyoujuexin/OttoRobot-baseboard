@@ -39,6 +39,8 @@ void ActionManager::register_default_actions() {
         m_storage->load_action("walk_backward", m_action_cache["walk_backward"]);
         m_storage->load_action("turn_left", m_action_cache["turn_left"]);
         m_storage->load_action("turn_right", m_action_cache["turn_right"]);
+        m_storage->load_action("wiggle_ears", m_action_cache["wiggle_ears"]);
+        m_storage->load_action("wave_hand", m_action_cache["wave_hand"]);
         return;
     }
 
@@ -49,7 +51,7 @@ void ActionManager::register_default_actions() {
     forward.type = ActionType::GAIT_PERIODIC;
     forward.is_atomic = false;
     forward.default_steps = 4;
-    forward.gait_period_ms = 1000;
+    forward.gait_period_ms = 1500;
     
     forward.params.amplitude[static_cast<uint8_t>(ServoChannel::LEFT_LEG_ROTATE)]  = 33;
     forward.params.amplitude[static_cast<uint8_t>(ServoChannel::RIGHT_LEG_ROTATE)] = 33;
@@ -107,7 +109,7 @@ void ActionManager::register_default_actions() {
     wiggle_ears.type = ActionType::GAIT_PERIODIC;
     wiggle_ears.is_atomic = false;
     wiggle_ears.default_steps = 2;
-    wiggle_ears.gait_period_ms = 1000;
+    wiggle_ears.gait_period_ms = 1500;
     wiggle_ears.params.amplitude[static_cast<uint8_t>(ServoChannel::LEFT_EAR_LIFT)] = 15;
     wiggle_ears.params.amplitude[static_cast<uint8_t>(ServoChannel::RIGHT_EAR_LIFT)] = 15;
     wiggle_ears.params.amplitude[static_cast<uint8_t>(ServoChannel::LEFT_EAR_SWING)] = 10;
@@ -117,10 +119,10 @@ void ActionManager::register_default_actions() {
 
     RegisteredAction wave_hand = {};
     strcpy(wave_hand.name, "wave_hand");
-    wiggle_ears.type = ActionType::GAIT_PERIODIC;
-    wiggle_ears.is_atomic = false;
-    wiggle_ears.default_steps = 2;
-    wiggle_ears.gait_period_ms = 1000;
+    wave_hand.type = ActionType::GAIT_PERIODIC;
+    wave_hand.is_atomic = false;
+    wave_hand.default_steps = 2;
+    wave_hand.gait_period_ms = 1500;
     wave_hand.params.amplitude[static_cast<uint8_t>(ServoChannel::LEFT_ARM_SWING)] = 30;
     wave_hand.params.amplitude[static_cast<uint8_t>(ServoChannel::RIGHT_ARM_SWING)] = 30;
     wave_hand.params.amplitude[static_cast<uint8_t>(ServoChannel::LEFT_ARM_LIFT)] = 20;
