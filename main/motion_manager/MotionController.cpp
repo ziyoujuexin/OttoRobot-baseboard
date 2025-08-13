@@ -35,6 +35,8 @@ void MotionController::init() {
     m_gait_command_map[MOTION_RIGHT] = "turn_right";
     m_gait_command_map[MOTION_WAVE_HAND] = "wave_hand";
     m_gait_command_map[MOTION_MOVE_EAR] = "wiggle_ears";
+    m_gait_command_map[MOTION_NOD_HEAD] = "nod_head";
+    m_gait_command_map[MOTION_SHAKE_HEAD] = "shake_head";
 
     m_motion_queue = xQueueCreate(10, sizeof(motion_command_t));
     if (m_motion_queue == NULL) {
@@ -81,13 +83,6 @@ void MotionController::motion_engine_task() {
                 case MOTION_STOP:
                     home();
                     break;
-                // case MOTION_WAVE_HAND:
-                //     wave_hand();
-                //     break;
-                // case MOTION_MOVE_EAR:
-                //     move_ear();
-                //     break;
-                // TODO: Group execution should also use the ActionManager
                 case MOTION_RUN_DEMO_GROUP:
                     ESP_LOGW(TAG, "Demo group execution is not yet refactored.");
                     break;
@@ -108,7 +103,7 @@ void MotionController::execute_action(const RegisteredAction& action) {
 }
 
 void MotionController::execute_gait(const RegisteredAction& action) {
-    const int control_period_ms = 10; // 50Hz control rate
+    const int control_period_ms = 10; // 100Hz control rate
     if (action.gait_period_ms == 0) {
         ESP_LOGE(TAG, "Gait period cannot be zero.");
         return;
@@ -157,34 +152,6 @@ void MotionController::home() {
     ESP_LOGI(TAG, "Homing all servos to 90 degrees.");
     m_servo_driver.home_all();
     vTaskDelay(pdMS_TO_TICKS(100));
-}
-
-void MotionController::wave_hand() {
-    ESP_LOGI(TAG, "Executing wave hand");
-    for (int wave = 0; wave < 3; wave++) {
-        m_servo_driver.set_angle(static_cast<uint8_t>(ServoChannel::LEFT_ARM_SWING), 135);
-        m_servo_driver.set_angle(static_cast<uint8_t>(ServoChannel::RIGHT_ARM_SWING), 45);
-        vTaskDelay(pdMS_TO_TICKS(500));
-        m_servo_driver.set_angle(static_cast<uint8_t>(ServoChannel::LEFT_ARM_SWING), 90);
-        m_servo_driver.set_angle(static_cast<uint8_t>(ServoChannel::RIGHT_ARM_SWING), 90);
-        vTaskDelay(pdMS_TO_TICKS(500));
-    }
-    m_servo_driver.set_angle(static_cast<uint8_t>(ServoChannel::LEFT_ARM_SWING), 90);
-    m_servo_driver.set_angle(static_cast<uint8_t>(ServoChannel::RIGHT_ARM_SWING), 90);
-}
-
-void MotionController::move_ear() {
-    ESP_LOGI(TAG, "Executing move ear");
-    for (int move = 0; move < 5; move++) {
-        m_servo_driver.set_angle(static_cast<uint8_t>(ServoChannel::LEFT_EAR_LIFT), 60);
-        m_servo_driver.set_angle(static_cast<uint8_t>(ServoChannel::RIGHT_EAR_LIFT), 120);
-        vTaskDelay(pdMS_TO_TICKS(300));
-        m_servo_driver.set_angle(static_cast<uint8_t>(ServoChannel::LEFT_EAR_LIFT), 120);
-        m_servo_driver.set_angle(static_cast<uint8_t>(ServoChannel::RIGHT_EAR_LIFT), 60);
-        vTaskDelay(pdMS_TO_TICKS(300));
-    }
-    m_servo_driver.set_angle(static_cast<uint8_t>(ServoChannel::LEFT_EAR_LIFT), 90);
-    m_servo_driver.set_angle(static_cast<uint8_t>(ServoChannel::RIGHT_EAR_LIFT), 90);
 }
 
 void MotionController::servo_test(uint8_t channel, uint8_t angle) {

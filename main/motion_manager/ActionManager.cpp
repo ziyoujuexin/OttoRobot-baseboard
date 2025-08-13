@@ -41,6 +41,8 @@ void ActionManager::register_default_actions() {
         m_storage->load_action("turn_right", m_action_cache["turn_right"]);
         m_storage->load_action("wiggle_ears", m_action_cache["wiggle_ears"]);
         m_storage->load_action("wave_hand", m_action_cache["wave_hand"]);
+        m_storage->load_action("nod_head", m_action_cache["nod_head"]);
+        m_storage->load_action("shake_head", m_action_cache["shake_head"]);
         return;
     }
 
@@ -129,6 +131,23 @@ void ActionManager::register_default_actions() {
     wave_hand.params.amplitude[static_cast<uint8_t>(ServoChannel::RIGHT_ARM_LIFT)] = 20;
     m_storage->save_action(wave_hand);
     m_action_cache[wave_hand.name] = wave_hand;
+
+    RegisteredAction nod_head = {};
+    strcpy(nod_head.name, "nod_head");
+    nod_head.type = ActionType::GAIT_PERIODIC;
+    nod_head.is_atomic = false;
+    nod_head.default_steps = 2;
+    nod_head.gait_period_ms = 1500;
+    nod_head.params.amplitude[static_cast<uint8_t>(ServoChannel::HEAD_TILT)] = 20;
+    m_storage->save_action(nod_head);
+    m_action_cache[nod_head.name] = nod_head;
+
+    RegisteredAction shake_head = nod_head;
+    strcpy(shake_head.name, "shake_head");
+    shake_head.params.amplitude[static_cast<uint8_t>(ServoChannel::HEAD_PAN)] = 20;
+    shake_head.params.amplitude[static_cast<uint8_t>(ServoChannel::HEAD_TILT)] = 0;
+    m_storage->save_action(shake_head);
+    m_action_cache[shake_head.name] = shake_head;
 
     ESP_LOGI(TAG, "Default actions created and cached.");
 }

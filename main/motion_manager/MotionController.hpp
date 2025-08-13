@@ -37,8 +37,6 @@ private:
     void execute_action(const RegisteredAction& action);
     void execute_gait(const RegisteredAction& action);
     
-    void wave_hand();
-    void move_ear();
     void home();
 
     static void start_task_wrapper(void* _this) {

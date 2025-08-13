@@ -14,9 +14,6 @@ typedef struct {
     uint8_t motion_type; // 具体指令, e.g., MOVE_RIGHT, ARM_SWING
     uint8_t param;       // 指令的参数, e.g., 角度, 速度
 } motion_command_t;
-
-// 舵机数量定义 - 扩展为8个舵机
-
 // 运动状态定义
 #define MOTION_STOP        0x00
 #define MOTION_FORWARD     0x01
@@ -25,6 +22,8 @@ typedef struct {
 #define MOTION_RIGHT       0x04
 #define MOTION_WAVE_HAND   0x05
 #define MOTION_MOVE_EAR    0x06
+#define MOTION_NOD_HEAD    0x07
+#define MOTION_SHAKE_HEAD  0x08
 
 // Custom groups, hardcoded for UART compatibility
 #define MOTION_RUN_DEMO_GROUP 0x10
