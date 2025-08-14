@@ -24,6 +24,7 @@ typedef struct {
 #define MOTION_MOVE_EAR    0x06
 #define MOTION_NOD_HEAD    0x07
 #define MOTION_SHAKE_HEAD  0x08
+#define MOTION_SINGLE_LEG  0x09
 
 // Custom groups, hardcoded for UART compatibility
 #define MOTION_RUN_DEMO_GROUP 0x10

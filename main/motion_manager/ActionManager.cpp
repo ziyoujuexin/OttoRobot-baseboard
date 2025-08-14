@@ -33,7 +33,7 @@ void ActionManager::register_default_actions() {
     ESP_LOGI(TAG, "Checking and registering default actions...");
 
     RegisteredAction temp_action;
-    if (m_storage->load_action("walk_forward", temp_action)) {
+    if (m_storage->load_action("walk_forward", temp_action) && 0) {
         ESP_LOGI(TAG, "Default actions found in NVS. Loading from storage.");
         m_action_cache["walk_forward"] = temp_action;
         m_storage->load_action("walk_backward", m_action_cache["walk_backward"]);
@@ -43,6 +43,7 @@ void ActionManager::register_default_actions() {
         m_storage->load_action("wave_hand", m_action_cache["wave_hand"]);
         m_storage->load_action("nod_head", m_action_cache["nod_head"]);
         m_storage->load_action("shake_head", m_action_cache["shake_head"]);
+        m_storage->load_action("single_leg", m_action_cache["single_leg"]);
         return;
     }
 
@@ -148,6 +149,19 @@ void ActionManager::register_default_actions() {
     shake_head.params.amplitude[static_cast<uint8_t>(ServoChannel::HEAD_TILT)] = 0;
     m_storage->save_action(shake_head);
     m_action_cache[shake_head.name] = shake_head;
+
+    RegisteredAction single_leg = {};
+    strcpy(single_leg.name, "single_leg");
+    single_leg.type = ActionType::GAIT_PERIODIC;
+    single_leg.is_atomic = false;
+    single_leg.default_steps = 2;
+    single_leg.gait_period_ms = 1500;
+    single_leg.params.amplitude[static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT)] = 1; // can't move without amplitude
+    single_leg.params.amplitude[static_cast<uint8_t>(ServoChannel::RIGHT_ANKLE_LIFT)] = 1; 
+    single_leg.params.offset[static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT)] = 30;
+    single_leg.params.offset[static_cast<uint8_t>(ServoChannel::RIGHT_ANKLE_LIFT)] = 30;
+    m_storage->save_action(single_leg);
+    m_action_cache[single_leg.name] = single_leg;
 
     ESP_LOGI(TAG, "Default actions created and cached.");
 }

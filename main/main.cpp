@@ -56,6 +56,7 @@ extern "C" void app_main(void)
     // action_manager_ptr->delete_action_from_nvs("wave_hand");
     // action_manager_ptr->delete_action_from_nvs("nod_head");
     // action_manager_ptr->delete_action_from_nvs("shake_head");
+    // action_manager_ptr->delete_action_from_nvs("single_leg");
     // action_manager_ptr->register_default_actions();
 
     while (true) {

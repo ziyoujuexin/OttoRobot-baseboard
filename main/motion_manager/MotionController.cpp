@@ -37,6 +37,7 @@ void MotionController::init() {
     m_gait_command_map[MOTION_MOVE_EAR] = "wiggle_ears";
     m_gait_command_map[MOTION_NOD_HEAD] = "nod_head";
     m_gait_command_map[MOTION_SHAKE_HEAD] = "shake_head";
+    m_gait_command_map[MOTION_SINGLE_LEG] = "single_leg";
 
     m_motion_queue = xQueueCreate(10, sizeof(motion_command_t));
     if (m_motion_queue == NULL) {
