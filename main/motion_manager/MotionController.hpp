@@ -2,12 +2,14 @@
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
+#include "freertos/semphr.h"
 #include "driver/servo.hpp"
 #include "config.h"
 #include "motion_manager/Motion_types.hpp"
 #include "motion_manager/ActionManager.hpp"
 #include <memory>
 #include <string>
+#include <vector>
 #include <map>
 #include <atomic>
 
@@ -25,21 +27,29 @@ private:
     QueueHandle_t m_motion_queue; 
     std::map<uint8_t, std::string> m_gait_command_map; // Map command code to action name
 
+    // --- New members for Motion Mixer ---
+    SemaphoreHandle_t m_actions_mutex;
+    std::vector<RegisteredAction> m_active_actions;
+    // ---
+
     // Mapping from logical joint to physical servo channel
     uint8_t m_joint_channel_map[GAIT_JOINT_COUNT];
 
-    std::atomic<bool> m_interrupt_flag; // 用于抢占的原子中断标志
+    std::atomic<bool> m_interrupt_flag; // Used for global STOP
 
     void init_joint_channel_map();
 
-    void motion_engine_task();
-
-    void execute_action(const RegisteredAction& action);
-    void execute_gait(const RegisteredAction& action);
+    // --- Task Declarations ---
+    void motion_engine_task(); // Renamed to dispatcher task
+    void motion_mixer_task();  // The new mixer task
     
     void home();
 
+    // --- Task Wrappers ---
     static void start_task_wrapper(void* _this) {
         static_cast<MotionController*>(_this)->motion_engine_task();
+    }
+    static void start_mixer_task_wrapper(void* _this) {
+        static_cast<MotionController*>(_this)->motion_mixer_task();
     }
 };
