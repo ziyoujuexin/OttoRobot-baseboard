@@ -3,10 +3,12 @@
 #include "esp_log.h"
 #include "soc/gpio_num.h"
 #include <vector>
+#include <cstring> // For memcpy
+#include "MotionController.hpp" // For FaceLocation and motion commands
 
 #define UART_NUM           UART_NUM_1
-#define UART_TX_PIN        GPIO_NUM_NC  // TODO: CONFLICT! PLEASE CHANGE THIS PIN
-#define UART_RX_PIN        GPIO_NUM_NC  // TODO: CONFLICT! PLEASE CHANGE THIS PIN
+#define UART_TX_PIN        GPIO_NUM_47
+#define UART_RX_PIN        GPIO_NUM_48
 #define UART_BAUD_RATE     115200
 #define UART_BUFFER_SIZE   256
 #define FRAME_HEADER       0x55AA
@@ -122,19 +124,48 @@ void UartHandler::receive_task_handler() {
                         
                         // --- 阶段2: 验证并解析帧 ---
                         if (validate_frame(frame_buffer.data(), total_frame_len)) {
-                            // 帧有效，解析Payload
-                            motion_command_t cmd; // 使用默认构造函数
+                            motion_command_t cmd;
+                            uint8_t motion_type = frame_buffer[5]; // Payload[0] is the command
+                            cmd.motion_type = motion_type;
 
-                            // Payload[0] (帧内索引5) 是具体指令
-                            cmd.motion_type = frame_buffer[5];
+                            // Check if the command is for face tracking
+                            if (motion_type == MOTION_FACE_TRACE) {
+                                const size_t expected_data_len = 10; // x(2), y(2), w(2), h(2), detected(1), repeat(1)
+                                const size_t actual_data_len = payload_len > 0 ? payload_len - 1 : 0;
 
-                            // 如果负载长度大于1，则其余部分为参数
-                            if (payload_len > 1) {
-                                // 从 frame_buffer[6] 开始复制 payload_len - 1 个字节到 cmd.params
-                                cmd.params.assign(frame_buffer.begin() + 6, frame_buffer.begin() + 6 + (payload_len - 1));
+                                if (actual_data_len == expected_data_len) {
+                                    FaceLocation fl;
+                                    const uint8_t* data_ptr = frame_buffer.data() + 6; // Data starts after the command byte
+
+                                    // Manually deserialize from little-endian byte stream
+                                    fl.x = data_ptr[0] | (data_ptr[1] << 8);
+                                    fl.y = data_ptr[2] | (data_ptr[3] << 8);
+                                    fl.w = data_ptr[4] | (data_ptr[5] << 8);
+                                    fl.h = data_ptr[6] | (data_ptr[7] << 8);
+                                    fl.detected = (data_ptr[8] != 0);
+
+                                    // Re-serialize the struct into the params vector with correct memory layout for MotionController
+                                    cmd.params.resize(sizeof(FaceLocation));
+                                    memcpy(cmd.params.data(), &fl, sizeof(FaceLocation));
+                                    
+                                    ESP_LOGD(TAG, "Deserialized and re-serialized FaceLocation data.");
+
+                                } else {
+                                    ESP_LOGW(TAG, "Invalid payload length for face trace. Expected %d, got %d.", 
+                                             expected_data_len, actual_data_len);
+                                    // Clear buffer and continue to next frame to avoid processing a bad command
+                                    frame_buffer.clear();
+                                    frame_started = false;
+                                    continue; 
+                                }
+                            } else {
+                                // Generic handling for other commands
+                                if (payload_len > 1) {
+                                    cmd.params.assign(frame_buffer.begin() + 6, frame_buffer.begin() + 6 + (payload_len - 1));
+                                }
                             }
 
-                            // 将解析出的完整指令放入队列
+                            // Queue the command for the motion controller
                             if (!m_motion_controller.queue_command(cmd)) {
                                 ESP_LOGW(TAG, "Failed to queue motion command.");
                             } else {
@@ -145,7 +176,6 @@ void UartHandler::receive_task_handler() {
                         }
                         
                         // --- 阶段3: 重置状态以寻找下一个帧 ---
-                        // 注意：这里可以优化为只移除已处理的帧，而不是清空整个缓冲区
                         frame_buffer.clear();
                         frame_started = false;
                     }

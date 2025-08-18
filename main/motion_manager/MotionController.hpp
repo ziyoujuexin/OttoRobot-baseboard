@@ -51,8 +51,6 @@ private:
     FaceLocation m_last_face_location;
     float m_pid_pan_error_last;
     float m_pid_tilt_error_last;
-    float m_pid_pan_integral;
-    float m_pid_tilt_integral;
 
     // --- Task Wrappers ---
     static void start_task_wrapper(void* _this) {

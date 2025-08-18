@@ -54,6 +54,7 @@ typedef struct {
 } motion_command_t;
 
 // 定义面部位置结构体
+// #pragma pack(1)
 typedef struct {
     uint16_t x;
     uint16_t y;

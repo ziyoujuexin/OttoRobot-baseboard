@@ -69,8 +69,6 @@ void MotionController::init() {
     m_last_face_location = {0, 0, 0, 0, 0};
     m_pid_pan_error_last = 0;
     m_pid_tilt_error_last = 0;
-    m_pid_pan_integral = 0;
-    m_pid_tilt_integral = 0;
 
     xTaskCreate(start_task_wrapper, "motion_engine_task", 4096, this, 5, NULL);
     xTaskCreate(start_mixer_task_wrapper, "motion_mixer_task", 4096, this, 6, NULL); // Higher priority for mixer
@@ -136,7 +134,7 @@ void MotionController::motion_engine_task() {
                             if (xSemaphoreTake(m_face_data_mutex, portMAX_DELAY) == pdTRUE) {
                                 memcpy(&m_last_face_location, received_cmd.params.data(), sizeof(FaceLocation));
                                 xSemaphoreGive(m_face_data_mutex);
-                                ESP_LOGD(TAG, "Updated face location: x=%d, y=%d", m_last_face_location.x, m_last_face_location.y);
+                                ESP_LOGI(TAG, "Updated face location: x=%d, y=%d, w=%d, h=%d", m_last_face_location.x, m_last_face_location.y, m_last_face_location.w, m_last_face_location.h);
                             }
                         } else {
                             ESP_LOGW(TAG, "Invalid size for FACE_TRACE params. Expected %d, got %d.", 
@@ -157,6 +155,11 @@ void MotionController::motion_engine_task() {
                             }
                         } else {
                             ESP_LOGW(TAG, "Unknown motion type: 0x%02X", received_cmd.motion_type);
+                            // print original cmd vector
+                            ESP_LOGI(TAG, "Original command params: ");
+                            for (const auto& param : received_cmd.params) {
+                                ESP_LOGI(TAG, "0x%02X", param);
+                            }
                         }
                         xSemaphoreGive(m_actions_mutex);
                         break;
@@ -268,7 +271,8 @@ void MotionController::face_tracking_task() {
     ESP_LOGI(TAG, "Face tracking task running...");
 
     const int control_period_ms = 50; // 20Hz control rate
-    const float Kp = 0.1, Ki = 0.01, Kd = 0.05; // PID gains
+    const float Kp = 0.05f, Kd = 0.05f; // PD gains
+    const int deadzone_pixels = 10;      // Deadzone in pixels
 
     // Screen center
     const int screen_center_x = 320 / 2;
@@ -288,18 +292,22 @@ void MotionController::face_tracking_task() {
         }
 
         if (current_face_location.detected) {
-            // --- PID Calculation for PAN (Left/Right) ---
+            // --- PD Calculation for PAN (Left/Right) ---
             int error_pan = screen_center_x - (current_face_location.x + current_face_location.w / 2);
-            m_pid_pan_integral += error_pan;
+            if (std::abs(error_pan) < deadzone_pixels) {
+                error_pan = 0;
+            }
             float derivative_pan = error_pan - m_pid_pan_error_last;
-            float output_pan = Kp * error_pan + Ki * m_pid_pan_integral + Kd * derivative_pan;
+            float output_pan = Kp * error_pan + Kd * derivative_pan;
             m_pid_pan_error_last = error_pan;
 
-            // --- PID Calculation for TILT (Up/Down) ---
+            // --- PD Calculation for TILT (Up/Down) ---
             int error_tilt = screen_center_y - (current_face_location.y + current_face_location.h / 2);
-            m_pid_tilt_integral += error_tilt;
+            if (std::abs(error_tilt) < deadzone_pixels) {
+                error_tilt = 0;
+            }
             float derivative_tilt = error_tilt - m_pid_tilt_error_last;
-            float output_tilt = Kp * error_tilt + Ki * m_pid_tilt_integral + Kd * derivative_tilt;
+            float output_tilt = Kp * error_tilt + Kd * derivative_tilt;
             m_pid_tilt_error_last = error_tilt;
 
             // Update servo angles
@@ -307,23 +315,15 @@ void MotionController::face_tracking_task() {
             tilt_angle -= output_tilt; // Tilt is often inverted
 
             // Clamp angles to valid servo range (e.g., 0-180)
-            if (pan_angle < 0) pan_angle = 0;
-            if (pan_angle > 180) pan_angle = 180;
-            if (tilt_angle < 0) tilt_angle = 0;
-            if (tilt_angle > 180) tilt_angle = 180;
+            if (pan_angle < 0) pan_angle = 70;
+            if (pan_angle > 180) pan_angle = 110;
+            if (tilt_angle < 0) tilt_angle = 70;
+            if (tilt_angle > 180) tilt_angle = 110;
 
             // Apply angles to servos
-            m_servo_driver.set_angle(m_joint_channel_map[static_cast<uint8_t>(ServoChannel::HEAD_PAN)], static_cast<int>(pan_angle));
-            m_servo_driver.set_angle(m_joint_channel_map[static_cast<uint8_t>(ServoChannel::HEAD_TILT)], static_cast<int>(tilt_angle));
-
-        } else {
-            // Optional: If no face is detected, you could slowly return to center
-            // For now, we do nothing and hold the last position.
-            // Reset integral term when no face is detected to prevent windup
-            m_pid_pan_integral = 0;
-            m_pid_tilt_integral = 0;
+            m_servo_driver.set_angle(m_joint_channel_map[static_cast<uint8_t>(ServoChannel::HEAD_PAN)], static_cast<uint8_t>(pan_angle));
+            m_servo_driver.set_angle(m_joint_channel_map[static_cast<uint8_t>(ServoChannel::HEAD_TILT)], static_cast<uint8_t>(tilt_angle));
         }
-
         vTaskDelay(pdMS_TO_TICKS(control_period_ms));
     }
 }
