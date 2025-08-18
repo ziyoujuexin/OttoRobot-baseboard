@@ -17,3 +17,12 @@ dependencies:
   espressif/servo: ^0.1.0
   esp-idf-lib/pca9685: ^1.0.7
   espressif/json_parser: ^1.0.3
+  # add wifi components for ESP32-P4
+  espressif/esp_wifi_remote: 
+    version: "^0.15.0"
+    rules:
+      - if: "target == esp32p4"
+  espressif/esp_hosted:
+    version: "^2.2.3"
+    rules:
+      - if: "target == esp32p4"

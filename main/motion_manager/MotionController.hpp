@@ -42,8 +42,17 @@ private:
     // --- Task Declarations ---
     void motion_engine_task(); // Renamed to dispatcher task
     void motion_mixer_task();  // The new mixer task
-    
+    void face_tracking_task(); // New task for face tracking
+
     void home();
+
+    // --- Face Tracking Members ---
+    SemaphoreHandle_t m_face_data_mutex;
+    FaceLocation m_last_face_location;
+    float m_pid_pan_error_last;
+    float m_pid_tilt_error_last;
+    float m_pid_pan_integral;
+    float m_pid_tilt_integral;
 
     // --- Task Wrappers ---
     static void start_task_wrapper(void* _this) {
@@ -51,5 +60,8 @@ private:
     }
     static void start_mixer_task_wrapper(void* _this) {
         static_cast<MotionController*>(_this)->motion_mixer_task();
+    }
+    static void start_face_tracking_task_wrapper(void* _this) {
+        static_cast<MotionController*>(_this)->face_tracking_task();
     }
 };

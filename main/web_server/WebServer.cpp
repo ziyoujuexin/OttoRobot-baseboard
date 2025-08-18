@@ -102,7 +102,7 @@ esp_err_t command_api_handler(httpd_req_t *req)
 
     char param_val[32];
     if (httpd_query_key_value(buf, "motion", param_val, sizeof(param_val)) == ESP_OK) {
-        motion_command_t cmd = { .motion_type = (uint8_t)atoi(param_val), .param = 0 };
+        motion_command_t cmd = { .motion_type = (uint8_t)atoi(param_val) };
         server->m_motion_controller.queue_command(cmd);
         httpd_resp_send(req, "Command Queued", HTTPD_RESP_USE_STRLEN);
         return ESP_OK;

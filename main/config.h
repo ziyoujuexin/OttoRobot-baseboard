@@ -10,10 +10,7 @@
 #define WIFI_SSID     "LIANQIU-2"
 #define WIFI_PASSWORD "lianqiu123"
 
-typedef struct {
-    uint8_t motion_type; // 具体指令, e.g., MOVE_RIGHT, ARM_SWING
-    uint8_t param;       // 指令的参数, e.g., 角度, 速度
-} motion_command_t;
+
 // 运动状态定义
 #define MOTION_STOP        0x00
 #define MOTION_FORWARD     0x01
@@ -25,6 +22,7 @@ typedef struct {
 #define MOTION_NOD_HEAD    0x07
 #define MOTION_SHAKE_HEAD  0x08
 #define MOTION_SINGLE_LEG  0x09
+#define MOTION_FACE_TRACE  0x0A
 
 // Custom groups, hardcoded for UART compatibility
 #define MOTION_RUN_DEMO_GROUP 0x10

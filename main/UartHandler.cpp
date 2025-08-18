@@ -5,8 +5,8 @@
 #include <vector>
 
 #define UART_NUM           UART_NUM_1
-#define UART_TX_PIN        GPIO_NUM_18
-#define UART_RX_PIN        GPIO_NUM_19
+#define UART_TX_PIN        GPIO_NUM_NC  // TODO: CONFLICT! PLEASE CHANGE THIS PIN
+#define UART_RX_PIN        GPIO_NUM_NC  // TODO: CONFLICT! PLEASE CHANGE THIS PIN
 #define UART_BAUD_RATE     115200
 #define UART_BUFFER_SIZE   256
 #define FRAME_HEADER       0x55AA
@@ -123,26 +123,22 @@ void UartHandler::receive_task_handler() {
                         // --- 阶段2: 验证并解析帧 ---
                         if (validate_frame(frame_buffer.data(), total_frame_len)) {
                             // 帧有效，解析Payload
-                            motion_command_t cmd = {0}; // 初始化结构体
+                            motion_command_t cmd; // 使用默认构造函数
 
                             // Payload[0] (帧内索引5) 是具体指令
                             cmd.motion_type = frame_buffer[5];
 
-                            // 如果负载长度大于1，则包含参数
+                            // 如果负载长度大于1，则其余部分为参数
                             if (payload_len > 1) {
-                                // Payload[1] (帧内索引6) 是参数
-                                cmd.param = frame_buffer[6]; 
+                                // 从 frame_buffer[6] 开始复制 payload_len - 1 个字节到 cmd.params
+                                cmd.params.assign(frame_buffer.begin() + 6, frame_buffer.begin() + 6 + (payload_len - 1));
                             }
 
                             // 将解析出的完整指令放入队列
                             if (!m_motion_controller.queue_command(cmd)) {
                                 ESP_LOGW(TAG, "Failed to queue motion command.");
                             } else {
-                                if (payload_len > 1) {
-                                    ESP_LOGI(TAG, "Command %d with param %d queued.", cmd.motion_type, cmd.param);
-                                } else {
-                                    ESP_LOGI(TAG, "Command %d queued.", cmd.motion_type);
-                                }
+                                ESP_LOGI(TAG, "Command %d with %d bytes of params queued.", cmd.motion_type, cmd.params.size());
                             }
                         } else {
                             ESP_LOGW(TAG, "Invalid frame received");

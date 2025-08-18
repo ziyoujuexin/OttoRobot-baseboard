@@ -19,21 +19,20 @@ void ActionManager::init() {
     ESP_LOGI(TAG, "ActionManager initialized.");
 }
 
-bool ActionManager::get_action(const std::string& name, RegisteredAction& action) const {
+const RegisteredAction* ActionManager::get_action(const std::string& name) const {
     auto it = m_action_cache.find(name);
     if (it != m_action_cache.end()) {
-        action = it->second;
-        return true;
+        return &it->second;
     }
     ESP_LOGE(TAG, "Action '%s' not found in cache.", name.c_str());
-    return false;
+    return nullptr;
 }
 
 void ActionManager::register_default_actions() {
     ESP_LOGI(TAG, "Checking and registering default actions...");
 
     RegisteredAction temp_action;
-    if (m_storage->load_action("walk_forward", temp_action) && 0) {
+    if (m_storage->load_action("walk_forward", temp_action)) {
         ESP_LOGI(TAG, "Default actions found in NVS. Loading from storage.");
         m_action_cache["walk_forward"] = temp_action;
         m_storage->load_action("walk_backward", m_action_cache["walk_backward"]);

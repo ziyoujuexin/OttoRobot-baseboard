@@ -63,15 +63,12 @@ bool MotionStorage::load_action(const char* name, RegisteredAction& action) {
         return false;
     }
 
-    char key[NVS_KEY_NAME_MAX_SIZE];
-    snprintf(key, sizeof(key), "%s", name);
-
     size_t required_size = sizeof(RegisteredAction);
-    err = nvs_get_blob(handle, key, &action, &required_size);
+    err = nvs_get_blob(handle, name, &action, &required_size);
     nvs_close(handle);
 
     if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND) {
-        ESP_LOGE(TAG, "Failed to load action '%s'. Error: %s", key, esp_err_to_name(err));
+        ESP_LOGE(TAG, "Failed to load action '%s'. Error: %s", name, esp_err_to_name(err));
     }
     
     return err == ESP_OK;

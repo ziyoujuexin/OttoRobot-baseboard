@@ -7,6 +7,10 @@
 #include "UartHandler.hpp"
 #include "web_server/WebServer.hpp"
 #include <i2cdev.h>
+#include "nvs_flash.h"
+#include "esp_netif.h"
+#include "esp_event.h"
+#include "esp_wifi.h"
 
 static const char *TAG = "MAIN";
 
@@ -58,9 +62,6 @@ extern "C" void app_main(void)
     // action_manager_ptr->delete_action_from_nvs("shake_head");
     // action_manager_ptr->delete_action_from_nvs("single_leg");
     // action_manager_ptr->register_default_actions();
-
-    while (true) {
-        motion_controller_ptr->servo_test(15, 90); // 15通道总是用来校准舵机，方便机械安装
-        vTaskDelay(pdMS_TO_TICKS(500));
-    }
+    // motion_controller_ptr->queue_command({MOTION_STOP, {}});
+    
 }

@@ -1,14 +1,9 @@
 #pragma once
 
 #include <cstdint>
+#include <vector>
 #include "config.h"
 #include "nvs.h"
-
-#define MOTION_NAME_MAX_LEN NVS_KEY_NAME_MAX_SIZE
-#define MAX_ACTIONS_PER_GROUP 10
-#pragma once
-
-#include <cstdint>
 
 #define MOTION_NAME_MAX_LEN NVS_KEY_NAME_MAX_SIZE
 #define MAX_ACTIONS_PER_GROUP 10
@@ -50,3 +45,35 @@ typedef struct {
     uint8_t action_count;           // 组内动作数量
     char action_names[MAX_ACTIONS_PER_GROUP][MOTION_NAME_MAX_LEN]; // 组内包含的动作名称列表
 } RegisteredGroup;
+
+
+// 定义一个运动指令
+typedef struct {
+    uint8_t motion_type; // 运动类型 (例如：前进、后退、停止)
+    std::vector<uint8_t> params;       // 可变长度的参数
+} motion_command_t;
+
+// 定义面部位置结构体
+typedef struct {
+    uint16_t x;
+    uint16_t y;
+    uint16_t w;
+    uint16_t h;
+    bool detected;
+} FaceLocation;
+
+// 定义步态函数指针类型
+typedef float (*gait_function_t)(float);
+
+// 定义一个步态
+typedef struct {
+    gait_function_t function; // 步态函数
+    const char* name;         // 步态名称
+} Gait;
+
+// 定义一个动作实例
+typedef struct {
+    RegisteredAction action; // 动作定义
+    uint32_t remaining_steps; // 剩余步数
+    uint32_t start_time_ms;   // 开始时间
+} ActionInstance;

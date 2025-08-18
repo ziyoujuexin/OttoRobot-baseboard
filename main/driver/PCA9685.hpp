@@ -9,8 +9,8 @@ extern "C" {
 // Default I2C configuration, you may need to change these based on your hardware.
 #define PCA9685_I2C_ADDR PCA9685_ADDR_BASE 
 #define I2C_PORT 0
-#define SDA_PIN 0
-#define SCL_PIN 1
+#define SDA_PIN 23
+#define SCL_PIN 22
 #define PWM_FREQ_HZ             60      // 舵机PWM频率
 
 #define SERVO_MIN_PULSE        150     // 0度对应的脉冲宽度计数值
