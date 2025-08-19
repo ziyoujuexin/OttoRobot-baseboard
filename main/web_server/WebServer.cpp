@@ -13,6 +13,7 @@ static const char *TAG = "WebServer";
 // Forward declarations for static handlers
 static esp_err_t tuning_api_handler(httpd_req_t *req);
 static esp_err_t command_api_handler(httpd_req_t *req);
+static esp_err_t servo_api_handler(httpd_req_t *req);
 static esp_err_t root_handler(httpd_req_t *req);
 static void wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data);
 
@@ -71,10 +72,15 @@ private:
 
             httpd_uri_t tune = { .uri = "/api/tune", .method = HTTP_POST, .handler = tuning_api_handler, .user_ctx = this };
             httpd_register_uri_handler(m_server, &tune);
+
+            httpd_uri_t servo_uri = { .uri = "/servo", .method = HTTP_POST, .handler = servo_api_handler, .user_ctx = this };
+            httpd_register_uri_handler(m_server, &servo_uri);
             return;
         }
         ESP_LOGI(TAG, "Error starting server!");
     }
+
+    friend esp_err_t servo_api_handler(httpd_req_t *req);
 
     friend esp_err_t tuning_api_handler(httpd_req_t *req);
     friend esp_err_t command_api_handler(httpd_req_t *req);
@@ -172,6 +178,37 @@ esp_err_t tuning_api_handler(httpd_req_t *req)
     }
 
     httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid JSON");
+    return ESP_FAIL;
+}
+
+esp_err_t servo_api_handler(httpd_req_t *req)
+{
+    WebServerImpl* server = (WebServerImpl*)req->user_ctx;
+    char content[100];
+    int ret = httpd_req_recv(req, content, sizeof(content) - 1);
+    if (ret <= 0) {
+        if (ret == HTTPD_SOCK_ERR_TIMEOUT) {
+            httpd_resp_send_408(req);
+        }
+        return ESP_FAIL;
+    }
+    content[ret] = '\0';
+
+    jparse_ctx_t jctx;
+    json_parse_start(&jctx, content, ret);
+
+    int channel, angle;
+    if (json_obj_get_int(&jctx, "channel", &channel) == 0 &&
+        json_obj_get_int(&jctx, "angle", &angle) == 0) {
+        
+        if (channel >= 0 && channel < 16 && angle >= 0 && angle <= 180) {
+            server->m_motion_controller.set_single_servo(static_cast<uint8_t>(channel), static_cast<uint8_t>(angle));
+            httpd_resp_send(req, "Servo command OK", HTTPD_RESP_USE_STRLEN);
+            return ESP_OK;
+        }
+    }
+
+    httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid JSON or parameters");
     return ESP_FAIL;
 }
 

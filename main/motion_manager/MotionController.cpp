@@ -4,6 +4,9 @@
 #include <string.h>
 
 #define PI 3.1415926
+
+#define LIMIT_DELTA 8.0f
+
 static const char* TAG = "MotionController";
 
 // --- Constructor / Destructor ---
@@ -12,7 +15,8 @@ MotionController::MotionController(Servo& servo_driver, ActionManager& action_ma
       m_action_manager(action_manager),
       m_motion_queue(NULL),
       m_actions_mutex(NULL),
-      m_interrupt_flag(false) {}
+      m_interrupt_flag(false),
+      m_increment_was_limited_last_cycle(false) {}
 
 MotionController::~MotionController() {
     if (m_motion_queue != NULL) {
@@ -262,7 +266,7 @@ void MotionController::home() {
     vTaskDelay(pdMS_TO_TICKS(100));
 }
 
-void MotionController::servo_test(uint8_t channel, uint8_t angle) {
+void MotionController::set_single_servo(uint8_t channel, uint8_t angle) {
     m_servo_driver.set_angle(channel, angle);
 }
 
@@ -292,16 +296,23 @@ void MotionController::face_tracking_task() {
             xSemaphoreGive(m_face_data_mutex);
         }
 
-        // Check if the face location data is new
-        if (current_face_location.x == last_processed_location.x &&
-            current_face_location.y == last_processed_location.y &&
-            current_face_location.w == last_processed_location.w &&
-            current_face_location.h == last_processed_location.h &&
-            current_face_location.detected == last_processed_location.detected) {
-            // Data is not new, skip this cycle to avoid reprocessing
-            vTaskDelay(pdMS_TO_TICKS(control_period_ms));
-            continue;
+        bool is_same_location = (current_face_location.x == last_processed_location.x &&
+                                 current_face_location.y == last_processed_location.y &&
+                                 current_face_location.w == last_processed_location.w &&
+                                 current_face_location.h == last_processed_location.h &&
+                                 current_face_location.detected == last_processed_location.detected);
+
+        if (is_same_location) {
+            if (m_increment_was_limited_last_cycle) {
+                // One-time pass to re-process the same frame if the increment hit a limit last time.
+                m_increment_was_limited_last_cycle = false; // Consume the pass
+            } else {
+                // Data is not new and no pass is available, skip.
+                vTaskDelay(pdMS_TO_TICKS(control_period_ms));
+                continue;
+            }
         }
+
         last_processed_location = current_face_location;
 
         if (current_face_location.detected) {
@@ -323,11 +334,35 @@ void MotionController::face_tracking_task() {
             float output_tilt = Kp * error_tilt + Kd * derivative_tilt;
             m_pid_tilt_error_last = error_tilt;
 
+            // Check if the increment (delta) is being limited
+            bool is_increment_limited_this_cycle = false;
+            if (output_pan > LIMIT_DELTA) {
+                output_pan = LIMIT_DELTA;
+                is_increment_limited_this_cycle = true;
+            }
+            if (output_pan < -LIMIT_DELTA) {
+                output_pan = -LIMIT_DELTA;
+                is_increment_limited_this_cycle = true;
+            }
+            if (output_tilt > LIMIT_DELTA) {
+                output_tilt = LIMIT_DELTA;
+                is_increment_limited_this_cycle = true;
+            }
+            if (output_tilt < -LIMIT_DELTA) {
+                output_tilt = -LIMIT_DELTA;
+                is_increment_limited_this_cycle = true;
+            }
+
+            // Grant a pass for the next cycle ONLY if we hit the increment limit on NEW data.
+            if (is_increment_limited_this_cycle && !is_same_location) {
+                m_increment_was_limited_last_cycle = true;
+            }
+
             // Update servo angles
             pan_angle += output_pan;
             tilt_angle -= output_tilt; // Tilt is often inverted
 
-            // Clamp angles to valid servo range (e.g., 0-180)
+            // Clamp final angles to valid servo range (e.g., 0-180)
             if (pan_angle < 50) {
                 pan_angle = 50;
                 queue_command({MOTION_LEFT, {}});
@@ -336,12 +371,14 @@ void MotionController::face_tracking_task() {
                 pan_angle = 130;
                 queue_command({MOTION_RIGHT, {}});
             }
-            if (tilt_angle < 0) tilt_angle = 70;
-            if (tilt_angle > 180) tilt_angle = 110;
+            if (tilt_angle < 70) tilt_angle = 70;
+            if (tilt_angle > 160) tilt_angle = 160;
 
             // Apply angles to servos
             m_servo_driver.set_angle(m_joint_channel_map[static_cast<uint8_t>(ServoChannel::HEAD_PAN)], static_cast<uint8_t>(pan_angle));
             m_servo_driver.set_angle(m_joint_channel_map[static_cast<uint8_t>(ServoChannel::HEAD_TILT)], static_cast<uint8_t>(tilt_angle));
+        } else {
+            m_increment_was_limited_last_cycle = false; // No face detected, reset the flag
         }
         vTaskDelay(pdMS_TO_TICKS(control_period_ms));
     }

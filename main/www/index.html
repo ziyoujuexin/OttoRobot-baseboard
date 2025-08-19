@@ -73,6 +73,22 @@
             </div>
             <div id="param-display">Select a gait and click 'Get Parameters' to view and tune.</div>
         </div>
+
+        <div class="tuner">
+            <h2>Servo Debugger</h2>
+            <div class="form-group">
+                <label for="servo-channel">Servo Channel (0-15)</label>
+                <input type="number" id="servo-channel" value="0" min="0" max="15">
+            </div>
+            <div class="form-group">
+                <label for="servo-angle">Angle (0-180)</label>
+                <div class="input-group">
+                    <input type="range" id="servo-angle" min="0" max="180" value="90" oninput="document.getElementById('servo-angle-value').innerText = this.value">
+                    <span id="servo-angle-value" style="width: 40px;">90</span>
+                </div>
+            </div>
+            <button onclick="setServoAngle()" style="width: 100%; padding: 12px; margin-top: 10px;" class="btn">Set Angle</button>
+        </div>
     </div>
     <div id="toast-container"></div>
 
@@ -83,9 +99,15 @@
         fetch('/control', { method: 'POST', body: form });
     }
 
-    async function sendJsonCommand(payload) {
+    function setServoAngle() {
+        const channel = document.getElementById('servo-channel').value;
+        const angle = document.getElementById('servo-angle').value;
+        sendJsonCommand({ channel: parseInt(channel), angle: parseInt(angle) }, '/servo');
+    }
+
+    async function sendJsonCommand(payload, url = '/api/tune') {
         try {
-            const response = await fetch('/api/tune', {
+            const response = await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)

@@ -19,7 +19,7 @@ public:
     ~MotionController();
     void init();
     bool queue_command(const motion_command_t& cmd);
-    void servo_test(uint8_t channel, uint8_t angle);
+    void set_single_servo(uint8_t channel, uint8_t angle);
 
 private:
     Servo& m_servo_driver; 
@@ -51,6 +51,7 @@ private:
     FaceLocation m_last_face_location;
     float m_pid_pan_error_last;
     float m_pid_tilt_error_last;
+    bool m_increment_was_limited_last_cycle;
 
     // --- Task Wrappers ---
     static void start_task_wrapper(void* _this) {

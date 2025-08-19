@@ -55,16 +55,7 @@ void PCA9685::set_angle(uint8_t channel, uint8_t angle) {
     }
 
     // 将角度(0-180)线性映射到脉冲宽度计数值
-    uint16_t pulse = SERVO_MIN_PULSE + (uint16_t)(((SERVO_MAX_PULSE - SERVO_MIN_PULSE) * (uint32_t)angle) / 180);
-
-    // 安全检查，防止超出绝对范围
-    if (pulse < SERVO_ABSOLUTE_MIN_PULSE) {
-        pulse = SERVO_ABSOLUTE_MIN_PULSE;
-        ESP_LOGW(TAG, "Pulse clamped to safe minimum: %d", pulse);
-    } else if (pulse > SERVO_ABSOLUTE_MAX_PULSE) {
-        pulse = SERVO_ABSOLUTE_MAX_PULSE;
-        ESP_LOGW(TAG, "Pulse clamped to safe maximum: %d", pulse);
-    }
+    uint16_t pulse = map_angle_to_pwm(angle);
 
     ESP_LOGD(TAG, "Channel: %d, Angle: %d, Pulse: %d", channel, angle, pulse);
 
@@ -80,7 +71,7 @@ void PCA9685::home_all() {
     ESP_LOGI(TAG, "Homing all servos to 90 degrees.");
     for (uint8_t i = 0; i < 16; ++i) {
         set_angle(i, 90);
-        vTaskDelay(pdMS_TO_TICKS(10));
+        // vTaskDelay(pdMS_TO_TICKS(10));
     }
 }
 
