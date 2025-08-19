@@ -274,13 +274,14 @@ void MotionController::face_tracking_task() {
     const float Kp = 0.05f, Kd = 0.05f; // PD gains
     const int deadzone_pixels = 10;      // Deadzone in pixels
 
-    // Screen center
-    const int screen_center_x = 320 / 2;
-    const int screen_center_y = 240 / 2;
+    // Screen and servo center points
+    const int screen_center_x = 640 / 2;
+    const int screen_center_y = 480 / 2;
+    const float servo_center_angle = 90.0f;
+    float pan_angle = servo_center_angle; // Initial pan angle
+    float tilt_angle = servo_center_angle; // Initial tilt angle
 
-    // Initial servo positions (center)
-    float pan_angle = 90.0f;
-    float tilt_angle = 90.0f;
+    FaceLocation last_processed_location = {0, 0, 0, 0, false};
 
     while (1) {
         FaceLocation current_face_location;
@@ -290,6 +291,18 @@ void MotionController::face_tracking_task() {
             current_face_location = m_last_face_location;
             xSemaphoreGive(m_face_data_mutex);
         }
+
+        // Check if the face location data is new
+        if (current_face_location.x == last_processed_location.x &&
+            current_face_location.y == last_processed_location.y &&
+            current_face_location.w == last_processed_location.w &&
+            current_face_location.h == last_processed_location.h &&
+            current_face_location.detected == last_processed_location.detected) {
+            // Data is not new, skip this cycle to avoid reprocessing
+            vTaskDelay(pdMS_TO_TICKS(control_period_ms));
+            continue;
+        }
+        last_processed_location = current_face_location;
 
         if (current_face_location.detected) {
             // --- PD Calculation for PAN (Left/Right) ---
@@ -315,8 +328,14 @@ void MotionController::face_tracking_task() {
             tilt_angle -= output_tilt; // Tilt is often inverted
 
             // Clamp angles to valid servo range (e.g., 0-180)
-            if (pan_angle < 0) pan_angle = 70;
-            if (pan_angle > 180) pan_angle = 110;
+            if (pan_angle < 50) {
+                pan_angle = 50;
+                queue_command({MOTION_LEFT, {}});
+            }
+            if (pan_angle > 130) {
+                pan_angle = 130;
+                queue_command({MOTION_RIGHT, {}});
+            }
             if (tilt_angle < 0) tilt_angle = 70;
             if (tilt_angle > 180) tilt_angle = 110;
 
