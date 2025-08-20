@@ -52,6 +52,8 @@ private:
     float m_pid_pan_error_last;
     float m_pid_tilt_error_last;
     bool m_increment_was_limited_last_cycle;
+    ActionInstance m_head_tracking_action;
+    std::atomic<bool> m_is_tracking_active;
 
     // --- Task Wrappers ---
     static void start_task_wrapper(void* _this) {
