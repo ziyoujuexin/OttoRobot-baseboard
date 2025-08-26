@@ -32,7 +32,7 @@ void ActionManager::register_default_actions() {
     ESP_LOGI(TAG, "Checking and registering default actions...");
 
     RegisteredAction temp_action;
-    if (m_storage->load_action("walk_forward", temp_action)) {
+    if (m_storage->load_action("walk_forward", temp_action)) { // if new action added, comment this to force re-create
         ESP_LOGI(TAG, "Default actions found in NVS. Loading from storage.");
         m_action_cache["walk_forward"] = temp_action;
         m_storage->load_action("walk_backward", m_action_cache["walk_backward"]);
@@ -43,6 +43,8 @@ void ActionManager::register_default_actions() {
         m_storage->load_action("nod_head", m_action_cache["nod_head"]);
         m_storage->load_action("shake_head", m_action_cache["shake_head"]);
         m_storage->load_action("single_leg", m_action_cache["single_leg"]);
+        m_storage->load_action("tracking_L", m_action_cache["tracking_L"]);
+        m_storage->load_action("tracking_R", m_action_cache["tracking_R"]);
         return;
     }
 
@@ -161,6 +163,22 @@ void ActionManager::register_default_actions() {
     single_leg.params.offset[static_cast<uint8_t>(ServoChannel::RIGHT_ANKLE_LIFT)] = 30;
     m_storage->save_action(single_leg);
     m_action_cache[single_leg.name] = single_leg;
+
+    auto tracking_L = left;
+    strcpy(tracking_L.name, "tracking_L");
+    tracking_L.default_steps = 1;
+    tracking_L.is_atomic = true;
+    tracking_L.gait_period_ms = 1000;
+    m_storage->save_action(tracking_L);
+    m_action_cache[tracking_L.name] = tracking_L;
+
+    auto tracking_R = right;
+    strcpy(tracking_R.name, "tracking_R");
+    tracking_R.default_steps = 1;
+    tracking_R.is_atomic = true;
+    tracking_R.gait_period_ms = 1000;
+    m_storage->save_action(tracking_R);
+    m_action_cache[tracking_R.name] = tracking_R;
 
     ESP_LOGI(TAG, "Default actions created and cached.");
 }

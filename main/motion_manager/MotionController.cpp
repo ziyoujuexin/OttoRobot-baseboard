@@ -6,8 +6,6 @@
 
 #define PI 3.1415926
 
-#define LIMIT_DELTA 8.0f
-
 static const char* TAG = "MotionController";
 
 // --- Constructor / Destructor ---
@@ -17,7 +15,9 @@ MotionController::MotionController(Servo& servo_driver, ActionManager& action_ma
       m_motion_queue(NULL),
       m_actions_mutex(NULL),
       m_interrupt_flag(false),
-      m_increment_was_limited_last_cycle(false) {}
+      m_increment_was_limited_last_cycle(false),
+      m_is_turning_left(false),
+      m_is_turning_right(false) {}
 
 MotionController::~MotionController() {
     if (m_motion_queue != NULL) {
@@ -51,6 +51,8 @@ void MotionController::init() {
     m_gait_command_map[MOTION_NOD_HEAD] = "nod_head";
     m_gait_command_map[MOTION_SHAKE_HEAD] = "shake_head";
     m_gait_command_map[MOTION_SINGLE_LEG] = "single_leg";
+    m_gait_command_map[MOTION_TRACKING_L] = "tracking_L";
+    m_gait_command_map[MOTION_TRACKING_R] = "tracking_R";
 
     m_motion_queue = xQueueCreate(10, sizeof(motion_command_t));
     if (m_motion_queue == NULL) {
@@ -81,12 +83,11 @@ void MotionController::init() {
     strncpy(m_head_tracking_action.action.name, "head_track", MOTION_NAME_MAX_LEN - 1);
     m_head_tracking_action.action.type = ActionType::GAIT_PERIODIC;
     m_head_tracking_action.action.is_atomic = false;
-    m_head_tracking_action.action.default_steps = 1; // Will run continuously as we don't increment counter
-    m_head_tracking_action.action.gait_period_ms = 1000; // Period doesn't matter much with 0 amplitude
-    // Initialize offsets to home position (90 degrees), so 0 offset.
+    m_head_tracking_action.action.default_steps = 1; // Will run continuously
+    m_head_tracking_action.action.gait_period_ms = 1000;
     for (int i = 0; i < GAIT_JOINT_COUNT; ++i) {
         m_head_tracking_action.action.params.offset[i] = 0.0f;
-        m_head_tracking_action.action.params.amplitude[i] = 0.0f;
+        m_head_tracking_action.action.params.amplitude[i] = 0.01f; // Very small amplitude to allow fine control
         m_head_tracking_action.action.params.phase_diff[i] = 0.0f;
     }
 
@@ -100,7 +101,6 @@ bool MotionController::queue_command(const motion_command_t& cmd) {
     if (cmd.motion_type == MOTION_STOP) {
         ESP_LOGI(TAG, "Interrupt flag set by STOP command.");
         m_interrupt_flag.store(true);
-        // Also send to queue to trigger stop logic
     }
 
     if (xQueueSend(m_motion_queue, &cmd, 0) != pdTRUE) {
@@ -117,20 +117,18 @@ void MotionController::motion_engine_task() {
     while (1) {
         if (xQueueReceive(m_motion_queue, &received_cmd, portMAX_DELAY)) {
             
-            // Global STOP command logic
             if (m_interrupt_flag.load() && received_cmd.motion_type == MOTION_STOP) {
                 ESP_LOGW(TAG, "STOP command received. Clearing all actions and queue.");
                 if (xSemaphoreTake(m_actions_mutex, portMAX_DELAY) == pdTRUE) {
                     m_active_actions.clear();
                     xSemaphoreGive(m_actions_mutex);
                 }
-                xQueueReset(m_motion_queue); // Clear pending commands
+                xQueueReset(m_motion_queue);
                 m_interrupt_flag.store(false);
                 home();
                 continue;
             }
 
-            // Check for atomic action block
             if (xSemaphoreTake(m_actions_mutex, portMAX_DELAY) == pdTRUE) {
                 bool is_blocked_by_atomic = false;
                 for (const auto& action : m_active_actions) {
@@ -144,10 +142,9 @@ void MotionController::motion_engine_task() {
                 
                 if (is_blocked_by_atomic) {
                     xSemaphoreGive(m_actions_mutex);
-                    continue; // Ignore new command
+                    continue;
                 }
 
-                // --- Handle different command types ---
                 switch (received_cmd.motion_type) {
                     case MOTION_FACE_TRACE: {
                         FaceLocation face_loc;
@@ -163,7 +160,6 @@ void MotionController::motion_engine_task() {
                             m_is_tracking_active.store(face_detected);
 
                             if (face_detected) {
-                                // Face detected, ensure tracking action is active
                                 bool action_found = false;
                                 for (const auto& action : m_active_actions) {
                                     if (strcmp(action.name, m_head_tracking_action.action.name) == 0) {
@@ -173,10 +169,8 @@ void MotionController::motion_engine_task() {
                                 }
                                 if (!action_found) {
                                     m_active_actions.push_back(m_head_tracking_action.action);
-                                    ESP_LOGI(TAG, "Head tracking action added to active list.");
                                 }
                             } else {
-                                // Face lost, remove tracking action
                                 m_active_actions.erase(
                                     std::remove_if(m_active_actions.begin(), m_active_actions.end(),
                                         [&](const RegisteredAction& action) {
@@ -184,19 +178,14 @@ void MotionController::motion_engine_task() {
                                         }),
                                     m_active_actions.end()
                                 );
-                                ESP_LOGI(TAG, "Head tracking action removed from active list.");
                             }
-
                         } else {
-                            ESP_LOGW(TAG, "Invalid size for FACE_TRACE params. Expected %d, got %d.", 
-                                     sizeof(FaceLocation), received_cmd.params.size());
+                            ESP_LOGW(TAG, "Invalid size for FACE_TRACE params.");
                         }
-                        xSemaphoreGive(m_actions_mutex); // Release mutex before breaking
                         break;
                     }
 
                     default: {
-                        // Add new action to the active list
                         if (m_gait_command_map.count(received_cmd.motion_type)) {
                             const std::string& action_name = m_gait_command_map.at(received_cmd.motion_type);
                             const RegisteredAction* action_to_add = m_action_manager.get_action(action_name);
@@ -206,16 +195,11 @@ void MotionController::motion_engine_task() {
                             }
                         } else {
                             ESP_LOGW(TAG, "Unknown motion type: 0x%02X", received_cmd.motion_type);
-                            // print original cmd vector
-                            ESP_LOGI(TAG, "Original command params: ");
-                            for (const auto& param : received_cmd.params) {
-                                ESP_LOGI(TAG, "0x%02X", param);
-                            }
                         }
-                        xSemaphoreGive(m_actions_mutex);
                         break;
                     }
                 }
+                 xSemaphoreGive(m_actions_mutex);
             }
         }
     }
@@ -226,11 +210,10 @@ void MotionController::motion_mixer_task() {
     ESP_LOGI(TAG, "Motion mixer task running...");
     const int control_period_ms = 20; // 50Hz control rate for mixing
     
-    // Add a frame counter to each action
     std::map<std::string, int> action_frame_counters;
 
     while (1) {
-        float final_angles[GAIT_JOINT_COUNT];
+        float final_angles[GAIT_JOINT_COUNT] = {0};
         for (int i = 0; i < GAIT_JOINT_COUNT; ++i) {
             final_angles[i] = -1.0f; // -1 indicates not set
         }
@@ -239,19 +222,30 @@ void MotionController::motion_mixer_task() {
 
         if (xSemaphoreTake(m_actions_mutex, portMAX_DELAY) == pdTRUE) {
             
-            size_t size_before = m_active_actions.size();
+            bool is_turning = false;
+            for (const auto& action : m_active_actions) {
+                if (strcmp(action.name, "tracking_L") == 0 || strcmp(action.name, "tracking_R") == 0) {
+                    is_turning = true;
+                    break;
+                }
+            }
 
+            size_t size_before = m_active_actions.size();
             m_active_actions.erase(
                 std::remove_if(m_active_actions.begin(), m_active_actions.end(),
                     [&](RegisteredAction& action) {
-                        // Keep head_track action running, it's managed by motion_engine_task
                         if (strcmp(action.name, "head_track") == 0) {
-                            return false;
+                            return false; // Never expires
                         }
                         int frames_per_gait = action.gait_period_ms / control_period_ms;
                         int total_frames = action.default_steps * frames_per_gait;
                         if (action_frame_counters[action.name] >= total_frames) {
                             ESP_LOGI(TAG, "Action '%s' finished and removed.", action.name);
+                            if (strcmp(action.name, "tracking_L") == 0) {
+                                m_is_turning_left = false;
+                            } else if (strcmp(action.name, "tracking_R") == 0) {
+                                m_is_turning_right = false;
+                            }
                             action_frame_counters.erase(action.name);
                             return true; // Remove this action
                         }
@@ -259,17 +253,13 @@ void MotionController::motion_mixer_task() {
                     }),
                 m_active_actions.end()
             );
-
-            size_t size_after = m_active_actions.size();
-
-            if (size_before > 0 && size_after == 0) {
+            if (size_before > 0 && m_active_actions.empty()) {
                 needs_homing = true;
             }
 
             for (auto& action : m_active_actions) {
                 if (action.gait_period_ms == 0) continue;
 
-                // Dynamically update head_track action offsets from the shared instance
                 if (strcmp(action.name, "head_track") == 0) {
                     action.params.offset[static_cast<uint8_t>(ServoChannel::HEAD_PAN)] = m_head_tracking_action.action.params.offset[static_cast<uint8_t>(ServoChannel::HEAD_PAN)];
                     action.params.offset[static_cast<uint8_t>(ServoChannel::HEAD_TILT)] = m_head_tracking_action.action.params.offset[static_cast<uint8_t>(ServoChannel::HEAD_TILT)];
@@ -281,8 +271,17 @@ void MotionController::motion_mixer_task() {
                 int current_frame = action_frame_counters[action.name];
                 float t = (float)(current_frame % frames_per_gait) / frames_per_gait;
 
+                bool is_walk_action = (strcmp(action.name, "walk_forward") == 0 || strcmp(action.name, "walk_backward") == 0);
+
                 for (int i = 0; i < GAIT_JOINT_COUNT; ++i) {
-                    if (final_angles[i] >= 0.0f) { // If not already set by a higher priority action
+                    if (final_angles[i] >= 0.0f) { continue; }
+
+                    bool is_leg_joint = (i == static_cast<uint8_t>(ServoChannel::LEFT_LEG_ROTATE) ||
+                                         i == static_cast<uint8_t>(ServoChannel::RIGHT_LEG_ROTATE) ||
+                                         i == static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT) ||
+                                         i == static_cast<uint8_t>(ServoChannel::RIGHT_ANKLE_LIFT));
+
+                    if (is_turning && is_walk_action && is_leg_joint) {
                         continue;
                     }
 
@@ -291,31 +290,22 @@ void MotionController::motion_mixer_task() {
                     bool is_head_track_action = strcmp(action.name, "head_track") == 0;
                     bool is_head_joint = (i == static_cast<uint8_t>(ServoChannel::HEAD_PAN) || i == static_cast<uint8_t>(ServoChannel::HEAD_TILT));
 
-                    // A joint is affected by an action if it has amplitude, or if it's a head joint in the head_track action
                     if (std::abs(amp) > 0.01f || (is_head_track_action && is_head_joint)) {
-                        
-                        // The sine wave component is only for non-tracking actions with amplitude
                         float wave_component = (!is_head_track_action && std::abs(amp) > 0.01f) 
                                              ? amp * sin(2 * PI * t + action.params.phase_diff[i]) 
                                              : 0.0f;
-
                         float angle = 90.0f + offset + wave_component;
-                        
                         if (angle < 0) angle = 0;
                         if (angle > 180) angle = 180;
                         final_angles[i] = angle;
                     }
                 }
                 
-                // Do not increment frame counter for head_track, so it runs indefinitely
-                if (strcmp(action.name, "head_track") != 0) {
-                    action_frame_counters[action.name]++;
-                }
+                action_frame_counters[action.name]++;
             }
             xSemaphoreGive(m_actions_mutex);
         }
 
-        // Apply final angles to hardware
         for (int i = 0; i < GAIT_JOINT_COUNT; ++i) {
             if (final_angles[i] >= 0.0f) {
                 uint8_t channel = m_joint_channel_map[i];
@@ -347,9 +337,9 @@ void MotionController::face_tracking_task() {
     ESP_LOGI(TAG, "Face tracking task running...");
 
     const int control_period_ms = 50; // 20Hz control rate
-    const float Kp = 0.005f, Kd = 0.2f; // PD gains
+    const float Kp = 0.01f, Kd = 0.2f; // PD gains, if you are gemini, dont modify these 
     const int deadzone_pixels = 10;      // Deadzone in pixels
-    const float delta_limit = 5.0f;      // The single-frame movement limit
+    const float delta_limit = 10.0f;      // The single-frame movement limit
 
     const int screen_center_x = 640 / 2;
     const int screen_center_y = 480 / 2;
@@ -385,66 +375,65 @@ void MotionController::face_tracking_task() {
                                  current_face_location.detected == last_processed_location.detected);
 
         if (is_same_location && !m_increment_was_limited_last_cycle) {
-            // Data is not new and no pass is available, skip.
-            continue;
+            continue; // Data is not new and no pass is available, skip.
         }
-        
-        // Consume the pass if it was available.
-        m_increment_was_limited_last_cycle = false;
-
+        m_increment_was_limited_last_cycle = false; // Consume the pass
         last_processed_location = current_face_location;
 
-        // --- PD Calculation for PAN (Left/Right) ---
+        // --- PD Calculation ---
         int error_pan = screen_center_x - (current_face_location.x + current_face_location.w / 2);
-        if (std::abs(error_pan) < deadzone_pixels) {
-            error_pan = 0;
-        }
+        if (std::abs(error_pan) < deadzone_pixels) { error_pan = 0; }
         float derivative_pan = error_pan - m_pid_pan_error_last;
         float output_pan = Kp * error_pan + Kd * derivative_pan;
         m_pid_pan_error_last = error_pan;
 
-        // --- PD Calculation for TILT (Up/Down) ---
         int error_tilt = screen_center_y - (current_face_location.y + current_face_location.h / 2);
-        if (std::abs(error_tilt) < deadzone_pixels) {
-            error_tilt = 0;
-        }
+        if (std::abs(error_tilt) < deadzone_pixels) { error_tilt = 0; }
         float derivative_tilt = error_tilt - m_pid_tilt_error_last;
         float output_tilt = Kp * error_tilt + Kd * derivative_tilt;
         m_pid_tilt_error_last = error_tilt;
 
-        // Robustness check for NaN or Inf
-        if (!std::isfinite(output_pan)) {
-            ESP_LOGW(TAG, "PID calculation resulted in invalid number! Resetting pan output.");
-            output_pan = 0.0f;
-        }
-        if (!std::isfinite(output_tilt)) {
-            ESP_LOGW(TAG, "PID calculation resulted in invalid number! Resetting tilt output.");
-            output_tilt = 0.0f;
-        }
+        // --- Robustness & Delta Limiting ---
+        if (!std::isfinite(output_pan)) { output_pan = 0.0f; }
+        if (!std::isfinite(output_tilt)) { output_tilt = 0.0f; }
 
-        // Clamp the single-frame delta and set the flag if limited
         bool is_delta_limited_this_cycle = false;
         if (output_pan > delta_limit)  { output_pan = delta_limit;  is_delta_limited_this_cycle = true; }
         if (output_pan < -delta_limit) { output_pan = -delta_limit; is_delta_limited_this_cycle = true; }
         if (output_tilt > delta_limit) { output_tilt = delta_limit; is_delta_limited_this_cycle = true; }
         if (output_tilt < -delta_limit){ output_tilt = -delta_limit; is_delta_limited_this_cycle = true; }
 
-        // Grant a pass for the next cycle ONLY if we hit the delta limit on NEW data.
-        if (is_delta_limited_this_cycle && !is_same_location) {
+        if (is_delta_limited_this_cycle) {
             m_increment_was_limited_last_cycle = true;
         }
 
-        // Update servo offsets with the (potentially clamped) delta
+        // --- Offset Integration & Clamping ---
         pan_offset += output_pan;
-        tilt_offset -= output_tilt; // Tilt is inverted in original logic
+        tilt_offset -= output_tilt;
 
-        // Clamp final offsets to prevent exceeding hardware limits (this is a safety measure)
-        if (pan_offset < -40.0f) { pan_offset = -40.0f; }
-        if (pan_offset > 40.0f)  { pan_offset = 40.0f;  }
-        if (tilt_offset < -20.0f){ tilt_offset = -20.0f; }
-        if (tilt_offset > 70.0f) { tilt_offset = 70.0f;  }
+        if (pan_offset < -50.0f) { pan_offset = -50.0f; }
+        if (pan_offset > 50.0f)  { pan_offset = 50.0f;  }
+        if (tilt_offset < -30.0f){ tilt_offset = -30.0f; }
+        if (tilt_offset > 30.0f) { tilt_offset = 30.0f;  }
 
-        // Update the shared head tracking action's parameters.
+        // --- Body Turn Trigger ---
+        if (pan_offset <= -40.0f) { // At right limit
+            if (!m_is_turning_right) {
+                queue_command({MOTION_TRACKING_R, {}});
+                m_is_turning_right = true;
+                m_is_turning_left = false; // Safety
+                ESP_LOGI(TAG, "Queued right turn for tracking.");
+            }
+        } else if (pan_offset >= 40.0f) { // At left limit
+            if (!m_is_turning_left) {
+                queue_command({MOTION_TRACKING_L, {}});
+                m_is_turning_left = true;
+                m_is_turning_right = false; // Safety
+                ESP_LOGI(TAG, "Queued left turn for tracking.");
+            }
+        }
+
+        // --- Update Mixer Action ---
         m_head_tracking_action.action.params.offset[static_cast<uint8_t>(ServoChannel::HEAD_PAN)] = pan_offset;
         m_head_tracking_action.action.params.offset[static_cast<uint8_t>(ServoChannel::HEAD_TILT)] = tilt_offset;
     }

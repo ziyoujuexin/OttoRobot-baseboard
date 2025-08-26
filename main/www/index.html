@@ -45,7 +45,8 @@
             <button class="btn" onclick="sendCommand(7)">Nod Head</button>
             <button class="btn" onclick="sendCommand(8)">Shake Head</button>
             <button class="btn" onclick="sendCommand(9)">Single Leg</button>
-            
+            <button class="btn" onclick="sendCommand(0x11)">Track Left</button>
+            <button class="btn" onclick="sendCommand(0x12)">Track Right</button>
             <button class="btn btn-stop" onclick="sendCommand(0)">STOP</button>
         </div>
 
@@ -64,6 +65,8 @@
                         <option value="nod_head">Nod Head</option>
                         <option value="shake_head">Shake Head</option>
                         <option value="single_leg">Single Leg</option>
+                        <option value="tracking_L">Tracking Left</option>
+                        <option value="tracking_R">Tracking Right</option>
                     </select>
                 </div>
                 <div class="tuner-actions">

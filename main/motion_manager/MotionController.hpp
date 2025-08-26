@@ -54,6 +54,8 @@ private:
     bool m_increment_was_limited_last_cycle;
     ActionInstance m_head_tracking_action;
     std::atomic<bool> m_is_tracking_active;
+    bool m_is_turning_left;
+    bool m_is_turning_right;
 
     // --- Task Wrappers ---
     static void start_task_wrapper(void* _this) {

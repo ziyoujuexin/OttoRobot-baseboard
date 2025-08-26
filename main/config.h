@@ -24,6 +24,10 @@
 #define MOTION_SINGLE_LEG  0x09
 #define MOTION_FACE_TRACE  0x0A
 
+// Custom commands for face tracking coordination
+#define MOTION_TRACKING_L 0x11
+#define MOTION_TRACKING_R 0x12
+
 // Custom groups, hardcoded for UART compatibility
 #define MOTION_RUN_DEMO_GROUP 0x10
 

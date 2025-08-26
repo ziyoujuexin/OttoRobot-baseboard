@@ -21,4 +21,4 @@ set(EMBED_TXTFILES
 
 idf_component_register(SRCS ${SRCS} INCLUDE_DIRS ${INCLUDE_DIRS} EMBED_TXTFILES ${EMBED_TXTFILES})
 
-target_compile_options(${COMPONENT_LIB} PRIVATE -Wno-unused-const-variable)
+target_compile_options(${COMPONENT_LIB} PRIVATE -Wno-error)

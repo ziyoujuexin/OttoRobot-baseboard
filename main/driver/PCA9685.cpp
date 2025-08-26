@@ -76,9 +76,7 @@ void PCA9685::home_all() {
 }
 
 uint16_t PCA9685::map_angle_to_pwm(uint8_t angle) {
-    // Standard servo range is 500-2500us for 0-180 degrees.
     // PCA9685 resolution is 12-bit (4096 steps).
-    // PWM frequency is 50Hz, so each step is (1/50)/4096 = 4.88us.
     const uint16_t min_pulse_us = 900;
     const uint16_t max_pulse_us = 2100;
     const float us_per_step = 1000000.0f / (PWM_FREQ_HZ * 4096.0f);
