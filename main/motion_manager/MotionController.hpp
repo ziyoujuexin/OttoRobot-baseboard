@@ -13,6 +13,13 @@
 #include <map>
 #include <atomic>
 
+// Defines the mode for the home() method
+enum class HomeMode {
+    All,        // Home all servos
+    Whitelist,  // Home only servos in the provided list
+    Blacklist   // Home all servos except those in the provided list
+};
+
 class MotionController {
 public:
     explicit MotionController(Servo& servo_driver, ActionManager& action_manager);
@@ -20,6 +27,7 @@ public:
     void init();
     bool queue_command(const motion_command_t& cmd);
     void set_single_servo(uint8_t channel, uint8_t angle);
+    void home(HomeMode mode = HomeMode::All, const std::vector<ServoChannel>& channels = {});
 
 private:
     Servo& m_servo_driver; 
@@ -44,8 +52,6 @@ private:
     void motion_mixer_task();  // The new mixer task
     void face_tracking_task(); // New task for face tracking
 
-    void home();
-
     // --- Face Tracking Members ---
     SemaphoreHandle_t m_face_data_mutex;
     FaceLocation m_last_face_location;
@@ -54,8 +60,6 @@ private:
     bool m_increment_was_limited_last_cycle;
     ActionInstance m_head_tracking_action;
     std::atomic<bool> m_is_tracking_active;
-    bool m_is_turning_left;
-    bool m_is_turning_right;
 
     // --- Task Wrappers ---
     static void start_task_wrapper(void* _this) {

@@ -164,19 +164,31 @@ void ActionManager::register_default_actions() {
     m_storage->save_action(single_leg);
     m_action_cache[single_leg.name] = single_leg;
 
-    auto tracking_L = left;
+    RegisteredAction tracking_L = {};
     strcpy(tracking_L.name, "tracking_L");
     tracking_L.default_steps = 1;
-    tracking_L.is_atomic = true;
+    tracking_L.is_atomic = false;
     tracking_L.gait_period_ms = 1000;
-    m_storage->save_action(tracking_L);
+    tracking_L.params.amplitude[static_cast<uint8_t>(ServoChannel::LEFT_LEG_ROTATE)]  = -30;
+    tracking_L.params.amplitude[static_cast<uint8_t>(ServoChannel::RIGHT_LEG_ROTATE)] = 30;
+    tracking_L.params.amplitude[static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT)] = 25;
+    tracking_L.params.amplitude[static_cast<uint8_t>(ServoChannel::RIGHT_ANKLE_LIFT)] = 20;
+    tracking_L.params.offset[static_cast<uint8_t>(ServoChannel::LEFT_LEG_ROTATE)] = -20;
+    tracking_L.params.offset[static_cast<uint8_t>(ServoChannel::RIGHT_LEG_ROTATE)] = -25;
+    tracking_L.params.phase_diff[static_cast<uint8_t>(ServoChannel::LEFT_LEG_ROTATE)] = PI / 2;
+    m_storage->save_action(tracking_L); 
     m_action_cache[tracking_L.name] = tracking_L;
 
-    auto tracking_R = right;
+    auto tracking_R = tracking_L;
     strcpy(tracking_R.name, "tracking_R");
-    tracking_R.default_steps = 1;
-    tracking_R.is_atomic = true;
-    tracking_R.gait_period_ms = 1000;
+    tracking_R.params.amplitude[static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT)] = 20;
+    tracking_R.params.amplitude[static_cast<uint8_t>(ServoChannel::RIGHT_ANKLE_LIFT)] = 25;
+    tracking_R.params.offset[static_cast<uint8_t>(ServoChannel::LEFT_LEG_ROTATE)] = 25;
+    tracking_R.params.offset[static_cast<uint8_t>(ServoChannel::RIGHT_LEG_ROTATE)] = 20;
+    tracking_R.params.phase_diff[static_cast<uint8_t>(ServoChannel::LEFT_LEG_ROTATE)] = 0;
+    tracking_R.params.phase_diff[static_cast<uint8_t>(ServoChannel::RIGHT_LEG_ROTATE)] = PI / 2;
+    tracking_R.params.phase_diff[static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT)] = PI / 2;
+    tracking_R.params.phase_diff[static_cast<uint8_t>(ServoChannel::RIGHT_ANKLE_LIFT)] = PI / 2;
     m_storage->save_action(tracking_R);
     m_action_cache[tracking_R.name] = tracking_R;
 

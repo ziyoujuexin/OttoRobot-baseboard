@@ -15,9 +15,7 @@ MotionController::MotionController(Servo& servo_driver, ActionManager& action_ma
       m_motion_queue(NULL),
       m_actions_mutex(NULL),
       m_interrupt_flag(false),
-      m_increment_was_limited_last_cycle(false),
-      m_is_turning_left(false),
-      m_is_turning_right(false) {}
+      m_increment_was_limited_last_cycle(false) {}
 
 MotionController::~MotionController() {
     if (m_motion_queue != NULL) {
@@ -241,11 +239,15 @@ void MotionController::motion_mixer_task() {
                         int total_frames = action.default_steps * frames_per_gait;
                         if (action_frame_counters[action.name] >= total_frames) {
                             ESP_LOGI(TAG, "Action '%s' finished and removed.", action.name);
-                            if (strcmp(action.name, "tracking_L") == 0) {
-                                m_is_turning_left = false;
-                            } else if (strcmp(action.name, "tracking_R") == 0) {
-                                m_is_turning_right = false;
+
+                            if (strcmp(action.name, "tracking_L") == 0 || strcmp(action.name, "tracking_R") == 0) {
+                                std::vector<ServoChannel> head_servos = {
+                                    ServoChannel::HEAD_PAN,
+                                    ServoChannel::HEAD_TILT
+                                };
+                                home(HomeMode::Blacklist, head_servos);
                             }
+
                             action_frame_counters.erase(action.name);
                             return true; // Remove this action
                         }
@@ -321,10 +323,32 @@ void MotionController::motion_mixer_task() {
     }
 }
 
+void MotionController::home(HomeMode mode, const std::vector<ServoChannel>& channels) {
+    ESP_LOGI(TAG, "Homing servos with specified mode...");
+    for (uint8_t i = 0; i < static_cast<uint8_t>(ServoChannel::SERVO_COUNT); ++i) {
+        ServoChannel current_channel = static_cast<ServoChannel>(i);
+        bool should_home = false;
 
-void MotionController::home() {
-    ESP_LOGI(TAG, "Homing all servos to 90 degrees.");
-    m_servo_driver.home_all();
+        switch (mode) {
+            case HomeMode::All:
+                should_home = true;
+                break;
+            case HomeMode::Whitelist:
+                if (std::find(channels.begin(), channels.end(), current_channel) != channels.end()) {
+                    should_home = true;
+                }
+                break;
+            case HomeMode::Blacklist:
+                if (std::find(channels.begin(), channels.end(), current_channel) == channels.end()) {
+                    should_home = true;
+                }
+                break;
+        }
+
+        if (should_home) {
+            m_servo_driver.set_angle(i, 90);
+        }
+    }
     vTaskDelay(pdMS_TO_TICKS(100));
 }
 
@@ -417,18 +441,23 @@ void MotionController::face_tracking_task() {
         if (tilt_offset > 30.0f) { tilt_offset = 30.0f;  }
 
         // --- Body Turn Trigger ---
-        if (pan_offset <= -40.0f) { // At right limit
-            if (!m_is_turning_right) {
-                queue_command({MOTION_TRACKING_R, {}});
-                m_is_turning_right = true;
-                m_is_turning_left = false; // Safety
-                ESP_LOGI(TAG, "Queued right turn for tracking.");
+        bool is_turning = false;
+        if (xSemaphoreTake(m_actions_mutex, pdMS_TO_TICKS(10)) == pdTRUE) {
+            for (const auto& action : m_active_actions) {
+                if (strcmp(action.name, "tracking_L") == 0 || strcmp(action.name, "tracking_R") == 0) {
+                    is_turning = true;
+                    break;
+                }
             }
-        } else if (pan_offset >= 40.0f) { // At left limit
-            if (!m_is_turning_left) {
+            xSemaphoreGive(m_actions_mutex);
+        }
+
+        if (!is_turning) {
+            if (pan_offset <= -40.0f) { // At right limit
+                queue_command({MOTION_TRACKING_R, {}});
+                ESP_LOGI(TAG, "Queued right turn for tracking.");
+            } else if (pan_offset >= 40.0f) { // At left limit
                 queue_command({MOTION_TRACKING_L, {}});
-                m_is_turning_left = true;
-                m_is_turning_right = false; // Safety
                 ESP_LOGI(TAG, "Queued left turn for tracking.");
             }
         }
@@ -438,4 +467,3 @@ void MotionController::face_tracking_task() {
         m_head_tracking_action.action.params.offset[static_cast<uint8_t>(ServoChannel::HEAD_TILT)] = tilt_offset;
     }
 }
-
