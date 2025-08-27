@@ -1,0 +1,104 @@
+#include "SoundManager.hpp"
+#include "esp_log.h"
+#include <string>
+
+static const char* TAG = "SoundManager";
+
+SoundManager::SoundManager()
+    : m_is_speaking(false),
+      m_last_angle(-1),
+      m_task_handle(nullptr) {
+
+    ESP_LOGI(TAG, "Initializing SoundManager...");
+
+    // Allocate the C-style buffers required by the libraries.
+    // These will be deallocated in the destructor.
+    m_i2s_buffer.resize(NUM_MICS);
+    m_srp_buffer.resize(NUM_MICS);
+    for (int i = 0; i < NUM_MICS; ++i) {
+        m_i2s_buffer[i] = new int32_t[FRAME_SIZE];
+        m_srp_buffer[i] = new int16_t[FRAME_SIZE];
+    }
+}
+
+SoundManager::~SoundManager() {
+    ESP_LOGI(TAG, "Deinitializing SoundManager...");
+
+    if (m_task_handle) {
+        vTaskDelete(m_task_handle);
+        m_task_handle = nullptr;
+    }
+
+    // Deallocate the buffers
+    for (int i = 0; i < NUM_MICS; ++i) {
+        delete[] m_i2s_buffer[i];
+        delete[] m_srp_buffer[i];
+    }
+}
+
+void SoundManager::start() {
+    // Use std::make_unique for safe, automatic memory management of modules
+    m_reader = std::make_unique<DualI2SReader>();
+    m_vad = std::make_unique<VAD>(I2S_SAMPLE_RATE, 20); // 20ms frame duration
+    m_srp_localizer = std::make_unique<SrpSoundLocalizer>(I2S_SAMPLE_RATE, SRP_FFT_SIZE, MIC_RADIUS);
+
+    m_reader->begin();
+
+    // --- Configure VAD Callback ---
+    m_vad->on_vad_state_change([this](bool speaking) {
+        this->m_is_speaking = speaking;
+        if (!speaking) {
+            // When speech stops, reset the localizer to be ready for the next utterance.
+            this->m_srp_localizer->reset();
+        }
+    });
+
+    ESP_LOGI(TAG, "Starting sound processing task.");
+    BaseType_t result = xTaskCreate(
+        sound_processing_task_entry,
+        "SoundProcTask",
+        4096, // Stack size
+        this, // Task parameter
+        5,    // Priority
+        &m_task_handle);
+
+    if (result != pdPASS) {
+        ESP_LOGE(TAG, "Failed to create sound processing task");
+    }
+}
+
+int SoundManager::get_last_detected_angle() const {
+    return m_last_angle.load();
+}
+
+void SoundManager::sound_processing_task_entry(void* arg) {
+    static_cast<SoundManager*>(arg)->sound_processing_task();
+}
+
+void SoundManager::sound_processing_task() {
+    ESP_LOGI(TAG, "Sound processing loop started.");
+    while (1) {
+        size_t samples_read = m_reader->read(m_i2s_buffer.data(), portMAX_DELAY);
+        if (samples_read > 0) {
+            // Convert 32-bit I2S data to 16-bit and re-order channels for SRP
+            for (size_t i = 0; i < samples_read; i++) {
+                m_srp_buffer[0][i] = (int16_t)(m_i2s_buffer[0][i] >> 16);
+                m_srp_buffer[1][i] = (int16_t)(m_i2s_buffer[2][i] >> 16);
+                m_srp_buffer[2][i] = (int16_t)(m_i2s_buffer[1][i] >> 16);
+                m_srp_buffer[3][i] = (int16_t)(m_i2s_buffer[3][i] >> 16);
+            }
+
+            // Feed one channel to VAD
+            m_vad->feed((const int16_t**)m_srp_buffer.data(), samples_read, 0);
+
+            if (m_is_speaking) {
+                int angle = -1;
+                if (m_srp_localizer->processChunk((const int16_t* const*)m_srp_buffer.data(), samples_read, angle, nullptr)) {
+                    ESP_LOGD(TAG, "Sound event processed. Detected Angle: %d", angle);
+                    m_last_angle = angle; // Store the detected angle
+                    m_is_speaking = false; // Reset speaking flag after processing one event
+                }
+            }
+        }
+    }
+}

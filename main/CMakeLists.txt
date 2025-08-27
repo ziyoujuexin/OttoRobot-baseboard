@@ -2,6 +2,10 @@ set(SRCS
     "main.cpp"
     "UartHandler.cpp"
     "driver/PCA9685.cpp"
+    "sound/DualI2SReader.cpp"
+    "sound/VAD.cpp"
+    "sound/SrpSoundLocalizer.cpp"
+    "sound/SoundManager.cpp"
     "motion_manager/MotionController.cpp"
     "motion_manager/MotionStorage.cpp"
     "motion_manager/ActionManager.cpp"
@@ -11,6 +15,7 @@ set(SRCS
 set(INCLUDE_DIRS
     "./"
     "driver"
+    "sound"
     "motion_manager"
     "web_server"
 )

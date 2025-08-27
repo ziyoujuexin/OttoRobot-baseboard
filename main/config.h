@@ -36,6 +36,8 @@
 #define MOTION_SAVE_PARAMS   0x21
 #define MOTION_GET_PARAMS    0x22
 
+#define MOTION_WAKE_DETECT   0xC0
+
 enum class ServoChannel : uint8_t {
     // EAR
     LEFT_EAR_LIFT = 0,

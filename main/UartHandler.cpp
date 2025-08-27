@@ -33,8 +33,27 @@ void UartHandler::init() {
     uart_set_pin(UART_NUM, UART_TX_PIN, UART_RX_PIN, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
     uart_driver_install(UART_NUM, UART_BUFFER_SIZE, UART_BUFFER_SIZE, 0, NULL, 0);
 
+    esp_timer_create_args_t timer_args = {
+        .callback = &wake_word_timer_callback,
+        .arg = this,
+        .name = "wake_word_timer"
+    };
+    esp_timer_create(&timer_args, &m_wake_word_timer);
+
     xTaskCreate(start_task_wrapper, "uart_receive_task", 4096, this, 5, NULL);
     ESP_LOGI(TAG, "UART Handler initialized and task started.");
+}
+
+void UartHandler::wake_word_timer_callback(void* arg) {
+    UartHandler* handler = static_cast<UartHandler*>(arg);
+    handler->m_isWakeWordDetected = false;
+    ESP_LOGI(TAG, "Wake word timer expired, m_isWakeWordDetected set to false.");
+}
+
+void UartHandler::start_wake_word_timer() {
+    const uint8_t timeout_seconds = 4;
+    esp_timer_start_once(m_wake_word_timer, timeout_seconds * 1000000);
+    ESP_LOGI(TAG, "Started %d second timer for wake word detection.", timeout_seconds);
 }
 
 bool UartHandler::validate_frame(uint8_t *frame, int len) {
@@ -158,6 +177,11 @@ void UartHandler::receive_task_handler() {
                                     frame_started = false;
                                     continue; 
                                 }
+                            } else if(motion_type == MOTION_WAKE_DETECT) {
+                                ESP_LOGI(TAG, "Wake word detected command received.");
+                                m_isWakeWordDetected = true;
+                                start_wake_word_timer();
+                                // No additional params expected for wake detect
                             } else {
                                 // Generic handling for other commands
                                 if (payload_len > 1) {
@@ -184,3 +208,4 @@ void UartHandler::receive_task_handler() {
         }
     }
 }
+

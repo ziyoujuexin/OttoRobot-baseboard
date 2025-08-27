@@ -1,0 +1,96 @@
+#include "esp_log.h"
+#include "esp_task_wdt.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "DualI2SReader.hpp"
+#include "VAD.hpp"
+#include "SrpSoundLocalizer.hpp"
+#include "WebServer.hpp"
+#include <atomic>
+#include <string>
+#include <vector>
+
+// --- Global State & Instances ---
+std::atomic<bool> g_is_speaking(false);
+static WebServer g_web_server;
+
+// --- Constants ---
+#define FRAME_SIZE              320   
+#define NUM_MICS                4
+#define I2S_SAMPLE_RATE         16000
+const float MIC_RADIUS = 0.043f; // Microphone array radius
+
+extern "C" void app_main(void) {
+    // Disable watchdog timer for debugging if needed
+    esp_task_wdt_deinit();
+
+    ESP_LOGI("main", "Starting up...");
+
+    // --- Start Web Server ---
+    g_web_server.start();
+    ESP_LOGI("main", "Web server initialized.");
+
+    // --- Initialize Audio Processing Modules ---
+    DualI2SReader reader;
+    reader.begin();
+    SrpSoundLocalizer srp_localizer(I2S_SAMPLE_RATE, 512, MIC_RADIUS);
+    VAD vad(I2S_SAMPLE_RATE, 20); // 20ms frame duration
+
+    // --- Allocate Buffers ---
+    int32_t** i2s_buffer = new int32_t*[NUM_MICS];
+    int16_t** srp_buffer = new int16_t*[NUM_MICS];
+    for(int i = 0; i < NUM_MICS; i++) {
+        i2s_buffer[i] = new int32_t[FRAME_SIZE];
+        srp_buffer[i] = new int16_t[FRAME_SIZE];
+    }
+
+    // --- Configure VAD Callback ---
+    vad.on_vad_state_change([](bool speaking) {
+        g_is_speaking = speaking;
+        // Optional: Log VAD state changes
+        // ESP_LOGI("VAD", "State changed to: %s", speaking ? "SPEECH" : "SILENCE");
+    });
+
+    // --- Define SRP Result Callback ---
+    auto srp_callback = [](const std::vector<float>& probabilities) {
+        // Format the probabilities into a JSON string
+        std::string json = "{\"probabilities\":[";
+        for (size_t i = 0; i < probabilities.size(); ++i) {
+            char buffer[10];
+            snprintf(buffer, sizeof(buffer), "%.4f", probabilities[i]);
+            json += buffer;
+            if (i < probabilities.size() - 1) {
+                json += ",";
+            }
+        }
+        json += "]}";
+
+        // Send the JSON string to all connected WebSocket clients
+        g_web_server.sendToAllClients(json);
+    };
+
+    ESP_LOGI("main", "Entering main processing loop.");
+
+    // --- Main Processing Loop ---
+    while(1) {
+        size_t samples_read = reader.read(i2s_buffer, portMAX_DELAY);
+        if (samples_read > 0) {
+            for (size_t i = 0; i < samples_read; i++) {
+                srp_buffer[0][i] = (int16_t)(i2s_buffer[0][i] >> 16);
+                srp_buffer[1][i] = (int16_t)(i2s_buffer[2][i] >> 16);
+                srp_buffer[2][i] = (int16_t)(i2s_buffer[1][i] >> 16);
+                srp_buffer[3][i] = (int16_t)(i2s_buffer[3][i] >> 16);
+                }
+            vad.feed((const int16_t**)srp_buffer, samples_read, 0);
+            // Process audio if VAD detects speech (or force with `|| 1` for testing)
+            if (g_is_speaking) {
+
+                int angle = -1;
+                if(srp_localizer.processChunk((const int16_t* const*)srp_buffer, samples_read, angle, srp_callback)) {
+                    ESP_LOGI("main", "Sound event processed. Detected Angle: %d", angle);
+                    g_is_speaking = false; // Reset speaking flag after processing
+                } 
+            }
+        }
+    }
+}

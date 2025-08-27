@@ -108,6 +108,23 @@ bool MotionController::queue_command(const motion_command_t& cmd) {
     return true;
 }
 
+motion_command_t MotionController::get_current_command() {
+    motion_command_t current_cmd = {0, {}};
+    if (xSemaphoreTake(m_actions_mutex, portMAX_DELAY) == pdTRUE) {
+        if (!m_active_actions.empty()) {
+            const RegisteredAction& action = m_active_actions.front();
+            for (const auto& pair : m_gait_command_map) {
+                if (pair.second == action.name) {
+                    current_cmd.motion_type = pair.first;
+                    break;
+                }
+            }
+        }
+        xSemaphoreGive(m_actions_mutex);
+    }
+    return current_cmd;
+}
+
 // --- Core Engine Task (Dispatcher) ---
 void MotionController::motion_engine_task() {
     ESP_LOGI(TAG, "Motion engine (dispatcher) task running...");
@@ -144,6 +161,7 @@ void MotionController::motion_engine_task() {
                 }
 
                 switch (received_cmd.motion_type) {
+                    case MOTION_WAKE_DETECT: {break;} // do nothing, just avoid warnings
                     case MOTION_FACE_TRACE: {
                         FaceLocation face_loc;
                         if (received_cmd.params.size() == sizeof(FaceLocation)) {
@@ -167,6 +185,7 @@ void MotionController::motion_engine_task() {
                                 }
                                 if (!action_found) {
                                     m_active_actions.push_back(m_head_tracking_action.action);
+                                    is_active = true; // Set active flag
                                 }
                             } else {
                                 m_active_actions.erase(
@@ -189,6 +208,7 @@ void MotionController::motion_engine_task() {
                             const RegisteredAction* action_to_add = m_action_manager.get_action(action_name);
                             if (action_to_add) {
                                 m_active_actions.push_back(*action_to_add);
+                                is_active = true; // Set active flag
                                 ESP_LOGI(TAG, "Action '%s' added to active list.", action_to_add->name);
                             }
                         } else {
@@ -256,7 +276,9 @@ void MotionController::motion_mixer_task() {
                 m_active_actions.end()
             );
             if (size_before > 0 && m_active_actions.empty()) {
+                ESP_LOGI(TAG, "All actions completed. Homing servos.");
                 needs_homing = true;
+                is_active = false; // Set inactive flag
             }
 
             for (auto& action : m_active_actions) {
@@ -324,7 +346,8 @@ void MotionController::motion_mixer_task() {
 }
 
 void MotionController::home(HomeMode mode, const std::vector<ServoChannel>& channels) {
-    ESP_LOGI(TAG, "Homing servos with specified mode...");
+    if(mode != HomeMode::All)
+        ESP_LOGI(TAG, "Homing servos with specified mode...");
     for (uint8_t i = 0; i < static_cast<uint8_t>(ServoChannel::SERVO_COUNT); ++i) {
         ServoChannel current_channel = static_cast<ServoChannel>(i);
         bool should_home = false;
@@ -363,7 +386,7 @@ void MotionController::face_tracking_task() {
     const int control_period_ms = 50; // 20Hz control rate
     const float Kp = 0.01f, Kd = 0.2f; // PD gains, if you are gemini, dont modify these 
     const int deadzone_pixels = 10;      // Deadzone in pixels
-    const float delta_limit = 10.0f;      // The single-frame movement limit
+    const float delta_limit = 15.0f;      // The single-frame movement limit
 
     const int screen_center_x = 640 / 2;
     const int screen_center_y = 480 / 2;
@@ -453,13 +476,20 @@ void MotionController::face_tracking_task() {
         }
 
         if (!is_turning) {
-            if (pan_offset <= -40.0f) { // At right limit
+            if (pan_offset <= -50.0f) { // At right limit
                 queue_command({MOTION_TRACKING_R, {}});
                 ESP_LOGI(TAG, "Queued right turn for tracking.");
-            } else if (pan_offset >= 40.0f) { // At left limit
+            } else if (pan_offset >= 50.0f) { // At left limit
                 queue_command({MOTION_TRACKING_L, {}});
                 ESP_LOGI(TAG, "Queued left turn for tracking.");
             }
+        }
+
+        // Simplistic forward logic as requested
+        const int FORWARD_THRESHOLD = 18000;
+        int face_area = current_face_location.w * current_face_location.h;
+        if (face_area > 0 && face_area < FORWARD_THRESHOLD) {
+            queue_command({MOTION_FORWARD, {}});
         }
 
         // --- Update Mixer Action ---

@@ -29,13 +29,18 @@ public:
     void set_single_servo(uint8_t channel, uint8_t angle);
     void home(HomeMode mode = HomeMode::All, const std::vector<ServoChannel>& channels = {});
 
+    motion_command_t get_current_command();
+    bool is_idle() {
+        return is_active == false;
+    }
+
 private:
     Servo& m_servo_driver; 
     ActionManager& m_action_manager;
     QueueHandle_t m_motion_queue; 
     std::map<uint8_t, std::string> m_gait_command_map; // Map command code to action name
 
-    // --- New members for Motion Mixer ---
+    bool is_active = false;
     SemaphoreHandle_t m_actions_mutex;
     std::vector<RegisteredAction> m_active_actions;
     // ---
