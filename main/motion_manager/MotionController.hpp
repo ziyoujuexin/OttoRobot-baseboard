@@ -69,6 +69,7 @@ private:
     ActionInstance m_head_tracking_action;
     std::atomic<bool> m_is_tracking_active;
     int64_t m_last_tracking_turn_end_time;
+    std::atomic<bool> m_is_head_frozen;
 
     // --- Task Wrappers ---
     static void start_task_wrapper(void* _this) {

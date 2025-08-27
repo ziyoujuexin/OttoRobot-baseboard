@@ -77,6 +77,7 @@ void MotionController::init() {
     m_pan_offset = 0.0f;
     m_tilt_offset = 0.0f;
     m_last_tracking_turn_end_time = 0;
+    m_is_head_frozen = false;
 
     // Initialize Face Tracking Action state
     m_is_tracking_active = false;
@@ -222,6 +223,10 @@ void MotionController::motion_engine_task() {
                             if (!action_already_exists) {
                                 const RegisteredAction* action_to_add = m_action_manager.get_action(action_name);
                                 if (action_to_add) {
+                                    // If starting a tracking turn, freeze the head
+                                    if (strcmp(action_name.c_str(), "tracking_L") == 0 || strcmp(action_name.c_str(), "tracking_R") == 0) {
+                                        m_is_head_frozen.store(true);
+                                    }
                                     m_active_actions.push_back(*action_to_add);
                                     is_active = true; // Set active flag
                                     ESP_LOGI(TAG, "Action '%s' added to active list.", action_to_add->name);
@@ -277,11 +282,8 @@ void MotionController::motion_mixer_task() {
                             ESP_LOGI(TAG, "Action '%s' finished and removed.", action.name);
 
                             if (strcmp(action.name, "tracking_L") == 0 || strcmp(action.name, "tracking_R") == 0) {
-                                // BODY TURN IS FINISHED, RESET PAN OFFSET TO SYNC STATE
-                                if (xSemaphoreTake(m_face_data_mutex, portMAX_DELAY) == pdTRUE) {
-                                    m_pan_offset = 0.0f;
-                                    xSemaphoreGive(m_face_data_mutex);
-                                }
+                                // Body turn finished. Unfreeze head and update cooldown timer.
+                                m_is_head_frozen.store(false);
                                 m_last_tracking_turn_end_time = esp_timer_get_time();
 
                                 std::vector<ServoChannel> head_servos = {
@@ -418,6 +420,11 @@ void MotionController::face_tracking_task() {
 
     while (1) {
         vTaskDelay(pdMS_TO_TICKS(control_period_ms));
+
+        // If head is frozen (due to body turning), skip all logic
+        if (m_is_head_frozen.load()) {
+            continue;
+        }
 
         if (!m_is_tracking_active.load()) {
             m_pid_pan_error_last = 0;
