@@ -3,6 +3,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/semphr.h"
+#include "esp_timer.h"
 #include "driver/servo.hpp"
 #include "config.h"
 #include "motion_manager/Motion_types.hpp"
@@ -62,9 +63,12 @@ private:
     FaceLocation m_last_face_location;
     float m_pid_pan_error_last;
     float m_pid_tilt_error_last;
+    float m_pan_offset;  // Current pan offset for head tracking
+    float m_tilt_offset; // Current tilt offset for head tracking
     bool m_increment_was_limited_last_cycle;
     ActionInstance m_head_tracking_action;
     std::atomic<bool> m_is_tracking_active;
+    int64_t m_last_tracking_turn_end_time;
 
     // --- Task Wrappers ---
     static void start_task_wrapper(void* _this) {

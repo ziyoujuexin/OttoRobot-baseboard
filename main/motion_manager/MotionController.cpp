@@ -74,6 +74,9 @@ void MotionController::init() {
     m_last_face_location = {0, 0, 0, 0, 0};
     m_pid_pan_error_last = 0;
     m_pid_tilt_error_last = 0;
+    m_pan_offset = 0.0f;
+    m_tilt_offset = 0.0f;
+    m_last_tracking_turn_end_time = 0;
 
     // Initialize Face Tracking Action state
     m_is_tracking_active = false;
@@ -172,11 +175,11 @@ void MotionController::motion_engine_task() {
                                 xSemaphoreGive(m_face_data_mutex);
                             }
 
-                            bool face_detected = face_loc.w > 0 && face_loc.h > 0;
+                            bool face_detected = face_loc.w > 30 && face_loc.h > 30;
                             m_is_tracking_active.store(face_detected);
 
                             if (face_detected) {
-                                bool action_found = false;
+                                bool action_found = false; // already in head tracking?
                                 for (const auto& action : m_active_actions) {
                                     if (strcmp(action.name, m_head_tracking_action.action.name) == 0) {
                                         action_found = true;
@@ -205,11 +208,24 @@ void MotionController::motion_engine_task() {
                     default: {
                         if (m_gait_command_map.count(received_cmd.motion_type)) {
                             const std::string& action_name = m_gait_command_map.at(received_cmd.motion_type);
-                            const RegisteredAction* action_to_add = m_action_manager.get_action(action_name);
-                            if (action_to_add) {
-                                m_active_actions.push_back(*action_to_add);
-                                is_active = true; // Set active flag
-                                ESP_LOGI(TAG, "Action '%s' added to active list.", action_to_add->name);
+
+                            // Check if the action already exists in the active list
+                            bool action_already_exists = false;
+                            for (const auto& existing_action : m_active_actions) {
+                                if (strcmp(existing_action.name, action_name.c_str()) == 0) {
+                                    action_already_exists = true;
+                                    ESP_LOGW(TAG, "Action '%s' is already active. Ignoring command.", action_name.c_str());
+                                    break;
+                                }
+                            }
+
+                            if (!action_already_exists) {
+                                const RegisteredAction* action_to_add = m_action_manager.get_action(action_name);
+                                if (action_to_add) {
+                                    m_active_actions.push_back(*action_to_add);
+                                    is_active = true; // Set active flag
+                                    ESP_LOGI(TAG, "Action '%s' added to active list.", action_to_add->name);
+                                }
                             }
                         } else {
                             ESP_LOGW(TAG, "Unknown motion type: 0x%02X", received_cmd.motion_type);
@@ -261,6 +277,13 @@ void MotionController::motion_mixer_task() {
                             ESP_LOGI(TAG, "Action '%s' finished and removed.", action.name);
 
                             if (strcmp(action.name, "tracking_L") == 0 || strcmp(action.name, "tracking_R") == 0) {
+                                // BODY TURN IS FINISHED, RESET PAN OFFSET TO SYNC STATE
+                                if (xSemaphoreTake(m_face_data_mutex, portMAX_DELAY) == pdTRUE) {
+                                    m_pan_offset = 0.0f;
+                                    xSemaphoreGive(m_face_data_mutex);
+                                }
+                                m_last_tracking_turn_end_time = esp_timer_get_time();
+
                                 std::vector<ServoChannel> head_servos = {
                                     ServoChannel::HEAD_PAN,
                                     ServoChannel::HEAD_TILT
@@ -384,15 +407,12 @@ void MotionController::face_tracking_task() {
     ESP_LOGI(TAG, "Face tracking task running...");
 
     const int control_period_ms = 50; // 20Hz control rate
-    const float Kp = 0.01f, Kd = 0.2f; // PD gains, if you are gemini, dont modify these 
+    const float Kp = 0.03f, Kd = 0.5f; // PD gains, if you are gemini, dont modify these 
     const int deadzone_pixels = 10;      // Deadzone in pixels
     const float delta_limit = 15.0f;      // The single-frame movement limit
 
     const int screen_center_x = 640 / 2;
     const int screen_center_y = 480 / 2;
-    
-    float pan_offset = 0.0f;
-    float tilt_offset = 0.0f;
 
     FaceLocation last_processed_location = {0, 0, 0, 0, false};
 
@@ -402,8 +422,8 @@ void MotionController::face_tracking_task() {
         if (!m_is_tracking_active.load()) {
             m_pid_pan_error_last = 0;
             m_pid_tilt_error_last = 0;
-            pan_offset = 0.0f;
-            tilt_offset = 0.0f;
+            m_pan_offset = 0.0f;
+            m_tilt_offset = 0.0f;
             m_increment_was_limited_last_cycle = false;
             last_processed_location = {0, 0, 0, 0, false};
             continue;
@@ -413,6 +433,10 @@ void MotionController::face_tracking_task() {
         if (xSemaphoreTake(m_face_data_mutex, portMAX_DELAY) == pdTRUE) {
             current_face_location = m_last_face_location;
             xSemaphoreGive(m_face_data_mutex);
+        }
+
+        if (current_face_location.w < 30 || current_face_location.h < 30) {
+            continue; // No valid face detected
         }
 
         bool is_same_location = (current_face_location.x == last_processed_location.x &&
@@ -455,15 +479,16 @@ void MotionController::face_tracking_task() {
         }
 
         // --- Offset Integration & Clamping ---
-        pan_offset += output_pan;
-        tilt_offset -= output_tilt;
+        m_pan_offset += output_pan;
+        m_tilt_offset -= output_tilt;
 
-        if (pan_offset < -50.0f) { pan_offset = -50.0f; }
-        if (pan_offset > 50.0f)  { pan_offset = 50.0f;  }
-        if (tilt_offset < -30.0f){ tilt_offset = -30.0f; }
-        if (tilt_offset > 30.0f) { tilt_offset = 30.0f;  }
+        if (m_pan_offset < -50.0f) { m_pan_offset = -50.0f; }
+        if (m_pan_offset > 50.0f)  { m_pan_offset = 50.0f;  }
+        if (m_tilt_offset < -30.0f){ m_tilt_offset = -30.0f; }
+        if (m_tilt_offset > 30.0f) { m_tilt_offset = 30.0f;  }
 
         // --- Body Turn Trigger ---
+        const int64_t COOLDOWN_PERIOD_US = 2000000; // 2 seconds
         bool is_turning = false;
         if (xSemaphoreTake(m_actions_mutex, pdMS_TO_TICKS(10)) == pdTRUE) {
             for (const auto& action : m_active_actions) {
@@ -476,24 +501,28 @@ void MotionController::face_tracking_task() {
         }
 
         if (!is_turning) {
-            if (pan_offset <= -50.0f) { // At right limit
-                queue_command({MOTION_TRACKING_R, {}});
-                ESP_LOGI(TAG, "Queued right turn for tracking.");
-            } else if (pan_offset >= 50.0f) { // At left limit
-                queue_command({MOTION_TRACKING_L, {}});
-                ESP_LOGI(TAG, "Queued left turn for tracking.");
+            int64_t current_time = esp_timer_get_time();
+            if ((current_time - m_last_tracking_turn_end_time) > COOLDOWN_PERIOD_US) {
+                if (m_pan_offset <= -50.0f) { // At right limit
+                    queue_command({MOTION_TRACKING_R, {}});
+                    ESP_LOGI(TAG, "Queued right turn for tracking.");
+                } else if (m_pan_offset >= 50.0f) { // At left limit
+                    queue_command({MOTION_TRACKING_L, {}});
+                    ESP_LOGI(TAG, "Queued left turn for tracking.");
+                }
             }
         }
 
         // Simplistic forward logic as requested
-        const int FORWARD_THRESHOLD = 18000;
+        const int FORWARD_THRESHOLD_MAX = 18000;
+        const int FORWARD_THRESHOLD_MIN = 2000;
         int face_area = current_face_location.w * current_face_location.h;
-        if (face_area > 0 && face_area < FORWARD_THRESHOLD) {
+        if (face_area > 0 && face_area < FORWARD_THRESHOLD_MAX && face_area > FORWARD_THRESHOLD_MIN) {
             queue_command({MOTION_FORWARD, {}});
         }
 
         // --- Update Mixer Action ---
-        m_head_tracking_action.action.params.offset[static_cast<uint8_t>(ServoChannel::HEAD_PAN)] = pan_offset;
-        m_head_tracking_action.action.params.offset[static_cast<uint8_t>(ServoChannel::HEAD_TILT)] = tilt_offset;
+        m_head_tracking_action.action.params.offset[static_cast<uint8_t>(ServoChannel::HEAD_PAN)] = m_pan_offset;
+        m_head_tracking_action.action.params.offset[static_cast<uint8_t>(ServoChannel::HEAD_TILT)] = m_tilt_offset;
     }
 }
