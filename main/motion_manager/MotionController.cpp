@@ -49,6 +49,7 @@ void MotionController::init() {
     m_gait_command_map[MOTION_NOD_HEAD] = "nod_head";
     m_gait_command_map[MOTION_SHAKE_HEAD] = "shake_head";
     m_gait_command_map[MOTION_SINGLE_LEG] = "single_leg";
+    m_gait_command_map[MOTION_FACE_TRACE] = "face_trace";
     m_gait_command_map[MOTION_TRACKING_L] = "tracking_L";
     m_gait_command_map[MOTION_TRACKING_R] = "tracking_R";
 
@@ -150,6 +151,8 @@ void MotionController::motion_engine_task() {
                     xSemaphoreGive(m_actions_mutex);
                 }
                 xQueueReset(m_motion_queue);
+                xQueueReset(m_face_location_queue); // Clear face location queue
+                m_is_tracking_active.store(false); // Deactivate face tracking
                 m_interrupt_flag.store(false);
                 home();
                 continue;
@@ -173,7 +176,18 @@ void MotionController::motion_engine_task() {
 
                 switch (received_cmd.motion_type) {
                     case MOTION_WAKE_DETECT: {break;} // do nothing, just avoid warnings
-
+                    case MOTION_FACE_TRACE: { // Special handling for face trace because it's action is decided by face location queue instead of NVS
+                        for(auto & action : m_active_actions) {
+                            if(strcmp(action.name, "face_trace") == 0) {
+                                // Already active
+                                break; // using break to exit case, so no need for xSemaphoreGive again
+                            }
+                        }
+                        m_active_actions.push_back(m_head_tracking_action.action);
+                        ESP_LOGI(TAG, "Face tracking action activated.");
+                        is_active = true; // Set active flag
+                        break;
+                    }
                     default: {
                         if (m_gait_command_map.count(received_cmd.motion_type)) {
                             const std::string& action_name = m_gait_command_map.at(received_cmd.motion_type);
@@ -377,7 +391,7 @@ void MotionController::face_tracking_task() {
     ESP_LOGI(TAG, "Face tracking task running...");
 
     const int control_period_ms = 50; // 20Hz control rate
-    const float Kp = 0.005f, Kd = 0.5f; // PD gains, if you are gemini, dont modify these 
+    const float Kp = 0.005f, Kd = 0.8f; // PD gains, if you are gemini, dont modify these 
     const int deadzone_pixels = 10;      // Deadzone in pixels
     const float delta_limit = 10.0f;      // The single-frame movement limit
 
@@ -398,44 +412,47 @@ void MotionController::face_tracking_task() {
                 m_pan_offset = 0.0f;
                 m_tilt_offset = 0.0f;
                 m_increment_was_limited_last_cycle = false;
-                last_processed_location = {0, 0, 0, 0, false};
+                // last_processed_location = {0, 0, 0, 0, false}; // Do not reset here, keep last known data
                 m_is_tracking_active.store(false); // Deactivate tracking if frozen
             }
             continue;
         }
 
         FaceLocation current_face_location;
-        // Try to receive face location from the dedicated queue
+        // Always try to receive face location from the dedicated queue
         if (xQueueReceive(m_face_location_queue, &current_face_location, 0) == pdTRUE) { // Non-blocking receive
             // A new face location was received
-            m_is_tracking_active.store(true); // Activate tracking
-            ESP_LOGD(TAG, "Received new face location from queue: x=%d, y=%d, w=%d, h=%d, detected=%d", 
-                     current_face_location.x, current_face_location.y, 
+            ESP_LOGD(TAG, "Received new face location from queue: x=%d, y=%d, w=%d, h=%d, detected=%d",
+                     current_face_location.x, current_face_location.y,
                      current_face_location.w, current_face_location.h, current_face_location.detected);
+
+            if (current_face_location.w > 30 && current_face_location.h > 30) {
+                m_is_tracking_active.store(true); // Activate tracking if valid face
+            } else {
+                m_is_tracking_active.store(false); // Deactivate tracking if no valid face
+            }
             m_increment_was_limited_last_cycle = false; // New data, so allow processing
             last_processed_location = current_face_location; // Update last processed
         } else {
-            // No new data from queue. Check if we were tracking and if the last data is still valid.
-            // If no new data for a while, or if last data indicated no face, deactivate.
+            // No new data from queue. Use last known data.
+            current_face_location = last_processed_location;
+            // If tracking was active but no new data, consider deactivating after a timeout
             // For simplicity, if no new data, and last processed was not detected, deactivate.
             if (!last_processed_location.detected && m_is_tracking_active.load()) {
                 m_is_tracking_active.store(false);
                 ESP_LOGI(TAG, "No new face data, deactivating tracking.");
             }
-            // If no new data, and last processed was detected, continue with last processed data
-            // This allows the PID to continue adjusting even if no new frames arrive for a short period.
-            current_face_location = last_processed_location;
         }
 
-        // If tracking is not active (either no face detected or no data received for a while), reset PID and continue.
+        // If tracking is not active (either no face detected or m_is_tracking_active is false), reset PID and continue.
         if (!m_is_tracking_active.load() || current_face_location.w < 30 || current_face_location.h < 30) {
             m_pid_pan_error_last = 0;
             m_pid_tilt_error_last = 0;
             m_pan_offset = 0.0f;
             m_tilt_offset = 0.0f;
             m_increment_was_limited_last_cycle = false;
-            last_processed_location = {0, 0, 0, 0, false}; // Reset last processed
-            continue;
+            // last_processed_location = {0, 0, 0, 0, false}; // Do not reset here, it should persist until new data arrives
+            continue; // Skip PID calculations and servo updates
         }
 
         // ESP_LOGI(TAG, "Processing new face location: x=%d, y=%d, w=%d, h=%d", 
@@ -500,12 +517,10 @@ void MotionController::face_tracking_task() {
                     queue_command({MOTION_TRACKING_R, {}});
                     m_pan_offset += 2 * delta_limit;
                     ESP_LOGI(TAG, "Queued right turn for tracking.");
-                    ESP_LOGI(TAG, "Current pan offset: %.2f", m_pan_offset);
                 } else if (m_pan_offset >= 50.0f) { // At left limit
                     queue_command({MOTION_TRACKING_L, {}});
                     m_pan_offset -= 2 * delta_limit;
                     ESP_LOGI(TAG, "Queued left turn for tracking.");
-                    ESP_LOGI(TAG, "Current pan offset: %.2f", m_pan_offset);
                 }
             }
         }

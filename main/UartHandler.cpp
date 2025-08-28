@@ -168,6 +168,12 @@ void UartHandler::receive_task_handler() {
                                         ESP_LOGW(TAG, "Failed to queue face location.");
                                     } else {
                                         ESP_LOGD(TAG, "FaceLocation queued: x=%d, y=%d, w=%d, h=%d, detected=%d", fl.x, fl.y, fl.w, fl.h, fl.detected);
+                                        // also queue the command to engine to activate tracking action if queue location success
+                                        if (!m_motion_controller.queue_command(cmd)) {
+                                            ESP_LOGW(TAG, "queue face location succeeded, but failed to queue motion command.");
+                                        } else {
+                                            ESP_LOGD(TAG, "Command %d with %d bytes of params queued.", cmd.motion_type, cmd.params.size());
+                                        }
                                     }
 
                                 } else {
