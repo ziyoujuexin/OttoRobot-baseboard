@@ -51,6 +51,9 @@ private:
 
     std::atomic<bool> m_interrupt_flag; // Used for global STOP
 
+    // --- New Face Location Queue ---
+    QueueHandle_t m_face_location_queue;
+
     void init_joint_channel_map();
 
     // --- Task Declarations ---
@@ -58,9 +61,7 @@ private:
     void motion_mixer_task();  // The new mixer task
     void face_tracking_task(); // New task for face tracking
 
-    // --- Face Tracking Members ---
-    SemaphoreHandle_t m_face_data_mutex;
-    FaceLocation m_last_face_location;
+    // --- Face Tracking Members (some moved to local in task) ---
     float m_pid_pan_error_last;
     float m_pid_tilt_error_last;
     float m_pan_offset;  // Current pan offset for head tracking
@@ -70,6 +71,12 @@ private:
     std::atomic<bool> m_is_tracking_active;
     int64_t m_last_tracking_turn_end_time;
     std::atomic<bool> m_is_head_frozen;
+
+    // --- Public method for UartHandler to queue face data ---
+public:
+    bool queue_face_location(const FaceLocation& face_loc);
+
+private:
 
     // --- Task Wrappers ---
     static void start_task_wrapper(void* _this) {

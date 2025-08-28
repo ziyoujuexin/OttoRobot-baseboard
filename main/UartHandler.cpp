@@ -163,11 +163,12 @@ void UartHandler::receive_task_handler() {
                                     fl.h = data_ptr[6] | (data_ptr[7] << 8);
                                     fl.detected = (data_ptr[8] != 0);
 
-                                    // Re-serialize the struct into the params vector with correct memory layout for MotionController
-                                    cmd.params.resize(sizeof(FaceLocation));
-                                    memcpy(cmd.params.data(), &fl, sizeof(FaceLocation));
-                                    
-                                    ESP_LOGD(TAG, "Deserialized and re-serialized FaceLocation data.");
+                                    // Queue FaceLocation directly to the new queue
+                                    if (!m_motion_controller.queue_face_location(fl)) {
+                                        ESP_LOGW(TAG, "Failed to queue face location.");
+                                    } else {
+                                        ESP_LOGD(TAG, "FaceLocation queued: x=%d, y=%d, w=%d, h=%d, detected=%d", fl.x, fl.y, fl.w, fl.h, fl.detected);
+                                    }
 
                                 } else {
                                     ESP_LOGW(TAG, "Invalid payload length for face trace. Expected %d, got %d.", 
@@ -182,18 +183,23 @@ void UartHandler::receive_task_handler() {
                                 m_isWakeWordDetected = true;
                                 start_wake_word_timer();
                                 // No additional params expected for wake detect
+                                // Queue the command for the motion controller
+                                if (!m_motion_controller.queue_command(cmd)) {
+                                    ESP_LOGW(TAG, "Failed to queue motion command.");
+                                } else {
+                                    ESP_LOGD(TAG, "Command %d with %d bytes of params queued.", cmd.motion_type, cmd.params.size());
+                                }
                             } else {
                                 // Generic handling for other commands
                                 if (payload_len > 1) {
                                     cmd.params.assign(frame_buffer.begin() + 6, frame_buffer.begin() + 6 + (payload_len - 1));
                                 }
-                            }
-
-                            // Queue the command for the motion controller
-                            if (!m_motion_controller.queue_command(cmd)) {
-                                ESP_LOGW(TAG, "Failed to queue motion command.");
-                            } else {
-                                ESP_LOGI(TAG, "Command %d with %d bytes of params queued.", cmd.motion_type, cmd.params.size());
+                                // Queue the command for the motion controller
+                                if (!m_motion_controller.queue_command(cmd)) {
+                                    ESP_LOGW(TAG, "Failed to queue motion command.");
+                                } else {
+                                    ESP_LOGD(TAG, "Command %d with %d bytes of params queued.", cmd.motion_type, cmd.params.size());
+                                }
                             }
                         } else {
                             ESP_LOGW(TAG, "Invalid frame received");
