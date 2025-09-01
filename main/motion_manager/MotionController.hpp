@@ -35,7 +35,9 @@ public:
     void set_single_servo(uint8_t channel, uint8_t angle);
     void home(HomeMode mode = HomeMode::All, const std::vector<ServoChannel>& channels = {});
     bool is_body_moving() const;
+    bool queue_face_location(const FaceLocation& face_loc);
     DecisionMaker* get_decision_maker() const;
+    bool is_face_tracking_active() const;
 
     motion_command_t get_current_command();
     bool is_idle() {

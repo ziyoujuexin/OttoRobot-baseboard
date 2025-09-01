@@ -41,6 +41,15 @@ void DecisionMaker::decision_maker_task()
     ESP_LOGI(TAG, "Decision maker task started");
     while (true)
     {
+        // Check if face tracking should be activated
+        if (m_last_face_location.detected && !m_motion_controller.is_face_tracking_active())
+        {
+            ESP_LOGI(TAG, "Face detected, starting face tracking.");
+            m_motion_controller.queue_command({MOTION_FACE_TRACE, {}});
+            vTaskDelay(pdMS_TO_TICKS(500)); // Give time for the action to start
+            continue; // Re-evaluate immediately
+        }
+
         // Check if the robot is already performing a major body movement
         if (m_motion_controller.is_body_moving())
         {

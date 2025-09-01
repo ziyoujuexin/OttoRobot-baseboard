@@ -117,13 +117,13 @@ bool MotionController::queue_command(const motion_command_t& cmd) {
     return true;
 }
 
-// bool MotionController::queue_face_location(const FaceLocation& face_loc) {
-//     if (xQueueSend(m_face_location_queue, &face_loc, 0) != pdTRUE) {
-//         ESP_LOGW(TAG, "Face location queue is full. Data dropped.");
-//         return false;
-//     }
-//     return true;
-// }
+bool MotionController::queue_face_location(const FaceLocation& face_loc) {
+    if (xQueueSend(m_face_location_queue, &face_loc, 0) != pdTRUE) {
+        ESP_LOGW(TAG, "Face location queue is full. Data dropped.");
+        return false;
+    }
+    return true;
+}
 
 motion_command_t MotionController::get_current_command() {
     motion_command_t current_cmd = {0, {}};
@@ -181,17 +181,19 @@ void MotionController::motion_engine_task() {
 
                 switch (received_cmd.motion_type) {
                     case MOTION_WAKE_DETECT: {break;} // do nothing, just avoid warnings
-                    case MOTION_FACE_TRACE: { // Special handling for face trace because it's action is decided by face location queue instead of NVS
-                        for(auto & action : m_active_actions) {
-                            if(strcmp(action.name, "face_trace") == 0) {
-                                // Already active
-                                break; // using break to exit case, so no need for xSemaphoreGive again
+                    case MOTION_FACE_TRACE: { 
+                        bool is_already_active = false;
+                        for(auto const& action : m_active_actions) {
+                            if(strcmp(action.name, "head_track") == 0) {
+                                is_already_active = true;
+                                break;
                             }
                         }
-                        m_active_actions.push_back(m_head_tracking_action.action);
-                        // ESP_LOGI(TAG, "Face tracking action activated.");
-                        is_active = true; // Set active flag
-                        m_is_executed.store(true);
+                        if (!is_already_active) {
+                            m_active_actions.push_back(m_head_tracking_action.action);
+                            ESP_LOGI(TAG, "Face tracking action activated.");
+                        }
+                        is_active = true;
                         break;
                     }
                     default: {
@@ -426,47 +428,66 @@ void MotionController::face_tracking_task() {
     while (1) {
         vTaskDelay(pdMS_TO_TICKS(control_period_ms));
 
-        if (m_is_head_frozen.load()) {
+        bool new_data_received = false;
+        FaceLocation current_face_location;
+
+        // Always try to get the latest face location
+        if (xQueueReceive(m_face_location_queue, &current_face_location, 0) == pdTRUE) {
+            new_data_received = true;
+            if (m_decision_maker) {
+                m_decision_maker->set_face_location(current_face_location);
+            }
+            last_processed_location = current_face_location;
+        } else {
+            // If no new data, use the last known location for decision making, but don't move
+            current_face_location = last_processed_location;
+        }
+
+        // If face is lost for a while, reset detected state
+        if (!current_face_location.detected && last_processed_location.detected) {
+             // Potentially add a timer here to only reset after a few frames of no detection
+            last_processed_location.detected = false;
+        }
+        
+        bool head_track_is_active = false;
+        if (xSemaphoreTake(m_actions_mutex, pdMS_TO_TICKS(10)) == pdTRUE) {
+            for (const auto& action : m_active_actions) {
+                if (strcmp(action.name, "head_track") == 0) {
+                    head_track_is_active = true;
+                    break;
+                }
+            }
+            xSemaphoreGive(m_actions_mutex);
+        }
+
+        if (!head_track_is_active || m_is_head_frozen.load()) {
             if (m_is_tracking_active.load()) {
                 m_pid_pan_error_last = 0;
                 m_pid_tilt_error_last = 0;
                 m_pan_offset = 0.0f;
                 m_tilt_offset = 0.0f;
-                m_increment_was_limited_last_cycle = false;
                 m_is_tracking_active.store(false);
             }
             continue;
         }
 
-        if (!m_is_executed.load()) {
+        // Only perform movement calculations if there is new data
+        if (!new_data_received) {
             continue;
         }
 
-        FaceLocation current_face_location;
-        if (xQueueReceive(m_face_location_queue, &current_face_location, 0) == pdTRUE) {
-            if (m_decision_maker) {
-                m_decision_maker->set_face_location(current_face_location);
-            }
-
-            if (current_face_location.w > 30 && current_face_location.h > 30) {
-                m_is_tracking_active.store(true);
-            } else {
-                m_is_tracking_active.store(false);
-            }
-            m_increment_was_limited_last_cycle = false;
-            last_processed_location = current_face_location;
+        // Update tracking state based on face size
+        if (current_face_location.w > 30 && current_face_location.h > 30) {
+            m_is_tracking_active.store(true);
         } else {
-            current_face_location = last_processed_location;
-            if (!last_processed_location.detected && m_is_tracking_active.load()) {
-                m_is_tracking_active.store(false);
-            }
+            m_is_tracking_active.store(false);
         }
 
-        if (!m_is_tracking_active.load() || current_face_location.w < 30 || current_face_location.h < 30) {
+        if (!m_is_tracking_active.load()) {
             m_pid_pan_error_last = 0;
             m_pid_tilt_error_last = 0;
-            m_pan_offset = 0.0f;
-            m_tilt_offset = 0.0f;
+            // m_pan_offset = 0.0f;
+            // m_tilt_offset = 0.0f;
             m_increment_was_limited_last_cycle = false;
             continue;
         }
@@ -494,6 +515,8 @@ void MotionController::face_tracking_task() {
 
         if (is_delta_limited_this_cycle) {
             m_increment_was_limited_last_cycle = true;
+        } else {
+            m_increment_was_limited_last_cycle = false;
         }
 
         m_pan_offset += output_pan;
@@ -529,10 +552,9 @@ void MotionController::face_tracking_task() {
             }
         }
 
-        // THE PROBLEMATIC LOGIC IS NOW REMOVED FROM HERE
-
         m_head_tracking_action.action.params.offset[static_cast<uint8_t>(ServoChannel::HEAD_PAN)] = m_pan_offset;
         m_head_tracking_action.action.params.offset[static_cast<uint8_t>(ServoChannel::HEAD_TILT)] = m_tilt_offset;
+        ESP_LOGI(TAG, "Face tracking offsets updated: Pan=%.2f, Tilt=%.2f", m_pan_offset, m_tilt_offset);
     }
 }
 
@@ -561,4 +583,19 @@ bool MotionController::is_body_moving() const
 DecisionMaker* MotionController::get_decision_maker() const
 {
     return m_decision_maker.get();
+}
+
+bool MotionController::is_face_tracking_active() const
+{
+    bool is_tracking = false;
+    if (xSemaphoreTake(m_actions_mutex, pdMS_TO_TICKS(10)) == pdTRUE) {
+        for (const auto& action : m_active_actions) {
+            if (strcmp(action.name, "head_track") == 0) {
+                is_tracking = true;
+                break;
+            }
+        }
+        xSemaphoreGive(m_actions_mutex);
+    }
+    return is_tracking;
 }
