@@ -12,8 +12,8 @@ const int screen_center_y = 480 / 2;
 const int FORWARD_THRESHOLD_IGNORE = 100*100; // faces small than this will be ignored
 const int FORWARD_THRESHOLD_MIN = 200 * 200; // faces small than this area will trigger forward
 const int FORWARD_THRESHOLD_MAX = 400 * 680; // faces larger than this area will quit face tracking
-const int FORWARD_THRESHOLD_CENTER_X = screen_center_x; // only in the center half of the screen will trigger forward
-const int FORWARD_THRESHOLD_CENTER_Y = screen_center_y;
+const int FORWARD_THRESHOLD_CENTER_X = screen_center_x * 0.6; // only in the center half of the screen will trigger forward
+const int FORWARD_THRESHOLD_CENTER_Y = screen_center_y * 0.6;
 
 DecisionMaker::DecisionMaker(MotionController& motion_controller)
     : m_motion_controller(motion_controller)
