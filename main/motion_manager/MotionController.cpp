@@ -464,8 +464,8 @@ void MotionController::face_tracking_task() {
             if (m_is_tracking_active.load()) {
                 m_pid_pan_error_last = 0;
                 m_pid_tilt_error_last = 0;
-                m_pan_offset = 0.0f;
-                m_tilt_offset = 0.0f;
+                // m_pan_offset = 0.0f;
+                // m_tilt_offset = 0.0f;
                 m_is_tracking_active.store(false);
             }
             continue;

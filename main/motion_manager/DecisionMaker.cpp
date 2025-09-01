@@ -7,8 +7,13 @@
 static const char* TAG = "DecisionMaker";
 
 // Thresholds for face area to trigger forward movement
-const int FORWARD_THRESHOLD_MIN = 150 * 150;
-const int FORWARD_THRESHOLD_MAX = 200 * 200;
+const int screen_center_x = 640 / 2;
+const int screen_center_y = 480 / 2;
+const int FORWARD_THRESHOLD_IGNORE = 100*100; // faces small than this will be ignored
+const int FORWARD_THRESHOLD_MIN = 200 * 200; // faces small than this area will trigger forward
+const int FORWARD_THRESHOLD_MAX = 400 * 680; // faces larger than this area will quit face tracking
+const int FORWARD_THRESHOLD_CENTER_X = screen_center_x; // only in the center half of the screen will trigger forward
+const int FORWARD_THRESHOLD_CENTER_Y = screen_center_y;
 
 DecisionMaker::DecisionMaker(MotionController& motion_controller)
     : m_motion_controller(motion_controller)
@@ -60,17 +65,37 @@ void DecisionMaker::decision_maker_task()
 
         // --- Decision Logic ---
         int face_area = m_last_face_location.w * m_last_face_location.h;
+        int face_center_x_delta = abs(screen_center_x - (m_last_face_location.x + m_last_face_location.w / 2));
+        int face_center_y_delta = abs(screen_center_y - (m_last_face_location.y + m_last_face_location.h / 2));
 
-        if (face_area > FORWARD_THRESHOLD_MIN && face_area < FORWARD_THRESHOLD_MAX)
+        if (face_area < FORWARD_THRESHOLD_IGNORE)
         {
-            ESP_LOGI(TAG, "Face detected at a suitable distance, moving forward.");
+            vTaskDelay(pdMS_TO_TICKS(200));
+            continue;
+        }
+
+        if (face_area < FORWARD_THRESHOLD_MIN)
+        {
+            if( face_center_x_delta > FORWARD_THRESHOLD_CENTER_X ||
+                face_center_y_delta > FORWARD_THRESHOLD_CENTER_Y )
+            {
+                vTaskDelay(pdMS_TO_TICKS(200));
+                continue; // Face not centered enough, which mean face is in the edge area so box is small
+            }
+            ESP_LOGI(TAG, "Face too far, moving forward.");
             m_motion_controller.queue_command({MOTION_FORWARD, {}});
             // Give the motion system time to start the action
             vTaskDelay(pdMS_TO_TICKS(1000)); 
         }
-        else
-        {
-            // No action needed, wait before checking again
+        else if(face_area < FORWARD_THRESHOLD_MAX) {
+            vTaskDelay(pdMS_TO_TICKS(200));
+            continue; // Face is close, should quit face tracking
+            // this logic wait for host quit
+        }
+        else { // face_area >= FORWARD_THRESHOLD_MAX
+            ESP_LOGI(TAG, "Face close enough, stopping face tracking.");
+            m_motion_controller.queue_command({MOTION_STOP, {}});
+            // avoid collision of users' face
             vTaskDelay(pdMS_TO_TICKS(200));
         }
     }
