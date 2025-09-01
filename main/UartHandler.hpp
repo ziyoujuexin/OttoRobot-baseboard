@@ -1,22 +1,20 @@
 #pragma once
 
-#include "MotionController.hpp"
-#include <memory>
+#include <functional>
+#include "motion_manager/Motion_types.hpp"
 #include "esp_timer.h"
 
 class UartHandler {
 public:
-    explicit UartHandler(MotionController& motion_controller);
+    using FaceLocationCallback = std::function<void(const FaceLocation&)>;
+
+    explicit UartHandler(FaceLocationCallback callback);
     void init();
 
-    bool m_isWakeWordDetected = false; // Public member to track wake word detection
+    bool m_isWakeWordDetected = false;
 
 private:
-    // 构造函数私有化
-    UartHandler(std::shared_ptr<MotionController> motion_controller);
-
-    // 成员变量现在是一个 shared_ptr
-    MotionController& m_motion_controller;
+    FaceLocationCallback m_face_location_callback;
 
     void receive_task_handler();
     bool validate_frame(uint8_t *frame, int len);

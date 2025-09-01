@@ -9,6 +9,7 @@ set(SRCS
     "motion_manager/MotionController.cpp"
     "motion_manager/MotionStorage.cpp"
     "motion_manager/ActionManager.cpp"
+    "motion_manager/DecisionMaker.cpp"
     "web_server/WebServer.cpp"
 )
 

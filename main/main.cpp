@@ -83,7 +83,20 @@ extern "C" void app_main(void)
     motion_controller_ptr->init();
 
     // Create the UART command handler on the heap
-    uart_handler_ptr = new UartHandler(*motion_controller_ptr);
+    // uart_handler_ptr = new UartHandler(*motion_controller_ptr);
+    auto face_location_callback = [&](const FaceLocation& loc) {
+        if (motion_controller_ptr) {
+            // The motion controller now owns the decision maker, get it from there
+            auto decision_maker = motion_controller_ptr->get_decision_maker();
+            if (decision_maker) {
+                // Pass the face location data to the decision maker
+                decision_maker->set_face_location(loc);
+                // Also, queue the command to the motion controller to enable the tracking action in the mixer
+                motion_controller_ptr->queue_command({MOTION_FACE_TRACE, {}});
+            }
+        }
+    };
+    uart_handler_ptr = new UartHandler(face_location_callback);
     uart_handler_ptr->init();
     
     // Create and start the web server on the heap

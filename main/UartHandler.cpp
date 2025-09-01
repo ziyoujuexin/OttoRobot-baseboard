@@ -4,7 +4,6 @@
 #include "soc/gpio_num.h"
 #include <vector>
 #include <cstring> // For memcpy
-#include "MotionController.hpp" // For FaceLocation and motion commands
 
 #define UART_NUM           UART_NUM_1
 #define UART_TX_PIN        GPIO_NUM_47
@@ -18,7 +17,7 @@
 
 static const char* TAG = "UartHandler";
 
-UartHandler::UartHandler(MotionController& motion_controller) : m_motion_controller(motion_controller) {}
+UartHandler::UartHandler(FaceLocationCallback callback) : m_face_location_callback(callback) {}
 
 void UartHandler::init() {
     uart_config_t uart_config = {
@@ -57,47 +56,19 @@ void UartHandler::start_wake_word_timer() {
 }
 
 bool UartHandler::validate_frame(uint8_t *frame, int len) {
-    // 最小帧长度：帧头(2) + ID(1) + 类型(1) + 长度(1) + 校验(1) + 帧尾(1) = 7
-    if (len < 7) {
-        ESP_LOGE(TAG, "[Line %d] Frame length too short: %d", __LINE__, len);
-        return false;
-    }
-    // 验证帧头
+    if (len < 7) return false;
     uint16_t header = (frame[0] << 8) | frame[1];
-    if (header != FRAME_HEADER) {
-        ESP_LOGE(TAG, "[Line %d] Frame header error: 0x%04X", __LINE__, header);
-        return false;
-    }
-    // 验证发送者ID
-    if (frame[2] != SENDER_ID) {
-        ESP_LOGE(TAG, "[Line %d] SENDER_ID error: 0x%02X", __LINE__, frame[2]);
-        return false;
-    }
-    // 验证数据类型（仅支持DATA_TYPE_MOTION）
-    if (frame[3] != DATA_TYPE_MOTION) {
-        ESP_LOGE(TAG, "[Line %d] DATA_TYPE_MOTION error: 0x%02X", __LINE__, frame[3]);
-        return false;
-    }
-    // 验证帧长度与长度字段一致
+    if (header != FRAME_HEADER) return false;
+    if (frame[2] != SENDER_ID) return false;
+    if (frame[3] != DATA_TYPE_MOTION) return false;
     uint8_t payload_len = frame[4];
-    if (len != 7 + payload_len) {
-        ESP_LOGE(TAG, "[Line %d] Frame length mismatch: expected %d, got %d", __LINE__, 7 + payload_len, len);
-        return false;
-    }
-    // 验证帧尾
-    if (frame[len - 1] != FRAME_TAIL) {
-        ESP_LOGE(TAG, "[Line %d] FRAME_TAIL error: 0x%02X", __LINE__, frame[len - 1]);
-        return false;
-    }
-    // 计算校验和（从帧头到负载结束）
+    if (len != 7 + payload_len) return false;
+    if (frame[len - 1] != FRAME_TAIL) return false;
     uint8_t checksum = 0;
     for (size_t i = 0; i < len - 2; ++i) {
         checksum += frame[i];
     }
-    if ((checksum & 0xFF) != frame[len - 2]) {
-        ESP_LOGE(TAG, "[Line %d] Checksum error: calc=0x%02X, recv=0x%02X", __LINE__, (checksum & 0xFF), frame[len - 2]);
-        return false;
-    }
+    if ((checksum & 0xFF) != frame[len - 2]) return false;
     return true;
 }
 
@@ -106,112 +77,57 @@ void UartHandler::receive_task_handler() {
     std::vector<uint8_t> frame_buffer;
     bool frame_started = false;
 
-    ESP_LOGI(TAG, "UART receive task handler started.");
-
     while (1) {
         int len = uart_read_bytes(UART_NUM, data, UART_BUFFER_SIZE, pdMS_TO_TICKS(50));
-
-        if (len <= 0) {
-            continue;
-        }
+        if (len <= 0) continue;
 
         for (int i = 0; i < len; i++) {
-            // --- 阶段1: 寻找并缓存一个完整的帧 ---
             if (!frame_started) {
-                // 寻找帧头 0x55
                 if (frame_buffer.empty() && data[i] == (FRAME_HEADER >> 8)) {
                     frame_buffer.push_back(data[i]);
-                }
-                // 寻找帧头 0xAA
-                else if (frame_buffer.size() == 1 && data[i] == (uint8_t)FRAME_HEADER) {
+                } else if (frame_buffer.size() == 1 && data[i] == (uint8_t)FRAME_HEADER) {
                     frame_buffer.push_back(data[i]);
                     frame_started = true;
                 } else {
-                    frame_buffer.clear(); // 不是有效的帧头，清空缓存
+                    frame_buffer.clear();
                 }
             } else {
-                // 已经找到帧头，开始接收帧的剩余部分
                 frame_buffer.push_back(data[i]);
-
-                // 检查是否已接收到包含负载长度的头部 (头2+ID1+类型1+长度1 = 5字节)
                 if (frame_buffer.size() >= 5) {
                     uint8_t payload_len = frame_buffer[4];
-                    size_t total_frame_len = 7 + payload_len; // 7 = 协议固定开销
+                    size_t total_frame_len = 7 + payload_len;
 
-                    // 检查是否已接收到一个完整的帧
                     if (frame_buffer.size() >= total_frame_len) {
-                        
-                        // --- 阶段2: 验证并解析帧 ---
                         if (validate_frame(frame_buffer.data(), total_frame_len)) {
-                            motion_command_t cmd;
-                            uint8_t motion_type = frame_buffer[5]; // Payload[0] is the command
-                            cmd.motion_type = motion_type;
+                            uint8_t motion_type = frame_buffer[5];
 
-                            // Check if the command is for face tracking
                             if (motion_type == MOTION_FACE_TRACE) {
-                                const size_t expected_data_len = 10; // x(2), y(2), w(2), h(2), detected(1), repeat(1)
+                                const size_t expected_data_len = 10;
                                 const size_t actual_data_len = payload_len > 0 ? payload_len - 1 : 0;
 
                                 if (actual_data_len == expected_data_len) {
                                     FaceLocation fl;
-                                    const uint8_t* data_ptr = frame_buffer.data() + 6; // Data starts after the command byte
-
-                                    // Manually deserialize from little-endian byte stream
+                                    const uint8_t* data_ptr = frame_buffer.data() + 6;
                                     fl.x = data_ptr[0] | (data_ptr[1] << 8);
                                     fl.y = data_ptr[2] | (data_ptr[3] << 8);
                                     fl.w = data_ptr[4] | (data_ptr[5] << 8);
                                     fl.h = data_ptr[6] | (data_ptr[7] << 8);
                                     fl.detected = (data_ptr[8] != 0);
 
-                                    // Queue FaceLocation directly to the new queue
-                                    if (!m_motion_controller.queue_face_location(fl)) {
-                                        ESP_LOGW(TAG, "Failed to queue face location.");
-                                    } else {
-                                        ESP_LOGD(TAG, "FaceLocation queued: x=%d, y=%d, w=%d, h=%d, detected=%d", fl.x, fl.y, fl.w, fl.h, fl.detected);
-                                        // also queue the command to engine to activate tracking action if queue location success
-                                        if (!m_motion_controller.queue_command(cmd)) {
-                                            ESP_LOGW(TAG, "queue face location succeeded, but failed to queue motion command.");
-                                        } else {
-                                            ESP_LOGD(TAG, "Command %d with %d bytes of params queued.", cmd.motion_type, cmd.params.size());
-                                        }
+                                    if (m_face_location_callback) {
+                                        m_face_location_callback(fl);
                                     }
-
                                 } else {
-                                    ESP_LOGW(TAG, "Invalid payload length for face trace. Expected %d, got %d.", 
-                                             expected_data_len, actual_data_len);
-                                    // Clear buffer and continue to next frame to avoid processing a bad command
-                                    frame_buffer.clear();
-                                    frame_started = false;
-                                    continue; 
+                                    ESP_LOGW(TAG, "Invalid payload for face trace: len=%d", actual_data_len);
                                 }
-                            } else if(motion_type == MOTION_WAKE_DETECT) {
-                                ESP_LOGI(TAG, "Wake word detected command received.");
+                            } else if (motion_type == MOTION_WAKE_DETECT) {
+                                ESP_LOGI(TAG, "Wake word detected.");
                                 m_isWakeWordDetected = true;
                                 start_wake_word_timer();
-                                // No additional params expected for wake detect
-                                // Queue the command for the motion controller
-                                if (!m_motion_controller.queue_command(cmd)) {
-                                    ESP_LOGW(TAG, "Failed to queue motion command.");
-                                } else {
-                                    ESP_LOGD(TAG, "Command %d with %d bytes of params queued.", cmd.motion_type, cmd.params.size());
-                                }
                             } else {
-                                // Generic handling for other commands
-                                if (payload_len > 1) {
-                                    cmd.params.assign(frame_buffer.begin() + 6, frame_buffer.begin() + 6 + (payload_len - 1));
-                                }
-                                // Queue the command for the motion controller
-                                if (!m_motion_controller.queue_command(cmd)) {
-                                    ESP_LOGW(TAG, "Failed to queue motion command.");
-                                } else {
-                                    ESP_LOGD(TAG, "Command %d with %d bytes of params queued.", cmd.motion_type, cmd.params.size());
-                                }
+                                // For other commands, we can consider a command callback if needed
                             }
-                        } else {
-                            ESP_LOGW(TAG, "Invalid frame received");
                         }
-                        
-                        // --- 阶段3: 重置状态以寻找下一个帧 ---
                         frame_buffer.clear();
                         frame_started = false;
                     }

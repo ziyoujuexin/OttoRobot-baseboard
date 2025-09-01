@@ -15,7 +15,10 @@ MotionController::MotionController(Servo& servo_driver, ActionManager& action_ma
       m_motion_queue(NULL),
       m_actions_mutex(NULL),
       m_interrupt_flag(false),
-      m_increment_was_limited_last_cycle(false) {}
+      m_increment_was_limited_last_cycle(false) 
+{
+    m_decision_maker = std::make_unique<DecisionMaker>(*this);
+}
 
 MotionController::~MotionController() {
     if (m_motion_queue != NULL) {
@@ -93,6 +96,8 @@ void MotionController::init() {
         m_head_tracking_action.action.params.phase_diff[i] = 0.0f;
     }
 
+    m_decision_maker->start(); // Start the new decision maker task
+
     xTaskCreate(start_task_wrapper, "motion_engine_task", 4096, this, 5, NULL);
     xTaskCreate(start_mixer_task_wrapper, "motion_mixer_task", 4096, this, 6, NULL); // Higher priority for mixer
     xTaskCreate(start_face_tracking_task_wrapper, "face_tracking_task", 4096, this, 5, NULL);
@@ -112,13 +117,13 @@ bool MotionController::queue_command(const motion_command_t& cmd) {
     return true;
 }
 
-bool MotionController::queue_face_location(const FaceLocation& face_loc) {
-    if (xQueueSend(m_face_location_queue, &face_loc, 0) != pdTRUE) {
-        ESP_LOGW(TAG, "Face location queue is full. Data dropped.");
-        return false;
-    }
-    return true;
-}
+// bool MotionController::queue_face_location(const FaceLocation& face_loc) {
+//     if (xQueueSend(m_face_location_queue, &face_loc, 0) != pdTRUE) {
+//         ESP_LOGW(TAG, "Face location queue is full. Data dropped.");
+//         return false;
+//     }
+//     return true;
+// }
 
 motion_command_t MotionController::get_current_command() {
     motion_command_t current_cmd = {0, {}};
@@ -184,8 +189,9 @@ void MotionController::motion_engine_task() {
                             }
                         }
                         m_active_actions.push_back(m_head_tracking_action.action);
-                        ESP_LOGI(TAG, "Face tracking action activated.");
+                        // ESP_LOGI(TAG, "Face tracking action activated.");
                         is_active = true; // Set active flag
+                        m_is_executed.store(true);
                         break;
                     }
                     default: {
@@ -205,8 +211,14 @@ void MotionController::motion_engine_task() {
                             if (!action_already_exists) {
                                 const RegisteredAction* action_to_add = m_action_manager.get_action(action_name);
                                 if (action_to_add) {
-                                    // If starting a tracking turn, freeze the head
-                                    if (strcmp(action_name.c_str(), "tracking_L") == 0 || strcmp(action_name.c_str(), "tracking_R") == 0) {
+                                    // If starting a body-moving action, freeze the head to prevent conflict.
+                                    if (strcmp(action_name.c_str(), "tracking_L") == 0 ||
+                                        strcmp(action_name.c_str(), "tracking_R") == 0 ||
+                                        strcmp(action_name.c_str(), "walk_forward") == 0 ||
+                                        strcmp(action_name.c_str(), "walk_backward") == 0 ||
+                                        strcmp(action_name.c_str(), "turn_left") == 0 ||
+                                        strcmp(action_name.c_str(), "turn_right") == 0)
+                                    {
                                         m_is_head_frozen.store(true);
                                     }
                                     m_active_actions.push_back(*action_to_add);
@@ -263,9 +275,20 @@ void MotionController::motion_mixer_task() {
                         if (action_frame_counters[action.name] >= total_frames) {
                             ESP_LOGI(TAG, "Action '%s' finished and removed.", action.name);
 
-                            if (strcmp(action.name, "tracking_L") == 0 || strcmp(action.name, "tracking_R") == 0) {
-                                // Body turn finished. Unfreeze head and update cooldown timer.
+                            // Unfreeze head if a body-moving action has finished.
+                            // This assumes only one such action runs at a time.
+                            if (strcmp(action.name, "tracking_L") == 0 ||
+                                strcmp(action.name, "tracking_R") == 0 ||
+                                strcmp(action.name, "walk_forward") == 0 ||
+                                strcmp(action.name, "walk_backward") == 0 ||
+                                strcmp(action.name, "turn_left") == 0 ||
+                                strcmp(action.name, "turn_right") == 0)
+                            {
                                 m_is_head_frozen.store(false);
+                            }
+
+                            // Special cleanup just for body turning actions
+                            if (strcmp(action.name, "tracking_L") == 0 || strcmp(action.name, "tracking_R") == 0) {
                                 m_last_tracking_turn_end_time = esp_timer_get_time();
 
                                 std::vector<ServoChannel> head_servos = {
@@ -391,8 +414,8 @@ void MotionController::face_tracking_task() {
     ESP_LOGI(TAG, "Face tracking task running...");
 
     const int control_period_ms = 50; // 20Hz control rate
-    const float Kp = 0.005f, Kd = 0.8f; // PD gains, if you are gemini, dont modify these 
-    const int deadzone_pixels = 10;      // Deadzone in pixels
+    const float Kp = 0.08f, Kd = 0.04f; // PD gains
+    const int deadzone_pixels = 5;      // Deadzone in pixels
     const float delta_limit = 10.0f;      // The single-frame movement limit
 
     const int screen_center_x = 640 / 2;
@@ -403,102 +426,85 @@ void MotionController::face_tracking_task() {
     while (1) {
         vTaskDelay(pdMS_TO_TICKS(control_period_ms));
 
-        // If head is frozen (due to body turning), skip all logic
         if (m_is_head_frozen.load()) {
-            // Reset PID state if tracking was active before freezing
             if (m_is_tracking_active.load()) {
                 m_pid_pan_error_last = 0;
                 m_pid_tilt_error_last = 0;
                 m_pan_offset = 0.0f;
                 m_tilt_offset = 0.0f;
                 m_increment_was_limited_last_cycle = false;
-                // last_processed_location = {0, 0, 0, 0, false}; // Do not reset here, keep last known data
-                m_is_tracking_active.store(false); // Deactivate tracking if frozen
+                m_is_tracking_active.store(false);
             }
             continue;
         }
 
+        if (!m_is_executed.load()) {
+            continue;
+        }
+
         FaceLocation current_face_location;
-        // Always try to receive face location from the dedicated queue
-        if (xQueueReceive(m_face_location_queue, &current_face_location, 0) == pdTRUE) { // Non-blocking receive
-            // A new face location was received
-            ESP_LOGD(TAG, "Received new face location from queue: x=%d, y=%d, w=%d, h=%d, detected=%d",
-                     current_face_location.x, current_face_location.y,
-                     current_face_location.w, current_face_location.h, current_face_location.detected);
+        if (xQueueReceive(m_face_location_queue, &current_face_location, 0) == pdTRUE) {
+            if (m_decision_maker) {
+                m_decision_maker->set_face_location(current_face_location);
+            }
 
             if (current_face_location.w > 30 && current_face_location.h > 30) {
-                m_is_tracking_active.store(true); // Activate tracking if valid face
+                m_is_tracking_active.store(true);
             } else {
-                m_is_tracking_active.store(false); // Deactivate tracking if no valid face
+                m_is_tracking_active.store(false);
             }
-            m_increment_was_limited_last_cycle = false; // New data, so allow processing
-            last_processed_location = current_face_location; // Update last processed
+            m_increment_was_limited_last_cycle = false;
+            last_processed_location = current_face_location;
         } else {
-            // No new data from queue. Use last known data.
             current_face_location = last_processed_location;
-            // If tracking was active but no new data, consider deactivating after a timeout
-            // For simplicity, if no new data, and last processed was not detected, deactivate.
             if (!last_processed_location.detected && m_is_tracking_active.load()) {
                 m_is_tracking_active.store(false);
-                ESP_LOGI(TAG, "No new face data, deactivating tracking.");
             }
         }
 
-        // If tracking is not active (either no face detected or m_is_tracking_active is false), reset PID and continue.
         if (!m_is_tracking_active.load() || current_face_location.w < 30 || current_face_location.h < 30) {
             m_pid_pan_error_last = 0;
             m_pid_tilt_error_last = 0;
             m_pan_offset = 0.0f;
             m_tilt_offset = 0.0f;
             m_increment_was_limited_last_cycle = false;
-            // last_processed_location = {0, 0, 0, 0, false}; // Do not reset here, it should persist until new data arrives
-            continue; // Skip PID calculations and servo updates
+            continue;
         }
 
-        // ESP_LOGI(TAG, "Processing new face location: x=%d, y=%d, w=%d, h=%d", 
-        //          current_face_location.x, current_face_location.y, 
-        //          current_face_location.w, current_face_location.h);
-
-        // --- PD Calculation ---
         int error_pan = screen_center_x - (current_face_location.x + current_face_location.w / 2);
         if (std::abs(error_pan) < deadzone_pixels) { error_pan = 0; }
         float derivative_pan = error_pan - m_pid_pan_error_last;
         float output_pan = Kp * error_pan + Kd * derivative_pan;
         m_pid_pan_error_last = error_pan;
 
-        int error_tilt = screen_center_y - (current_face_location.y + current_face_location.h / 2);
+        int error_tilt = (current_face_location.y + current_face_location.h / 2) - screen_center_y;
         if (std::abs(error_tilt) < deadzone_pixels) { error_tilt = 0; }
         float derivative_tilt = error_tilt - m_pid_tilt_error_last;
-        float output_tilt = Kp * 0.6 * error_tilt + Kd * derivative_tilt; // Tilt is less sensitive
+        float output_tilt = Kp * 0.6f * error_tilt + Kd * derivative_tilt;
         m_pid_tilt_error_last = error_tilt;
 
-        // --- Robustness & Delta Limiting ---
         if (!std::isfinite(output_pan)) { output_pan = 0.0f; }
         if (!std::isfinite(output_tilt)) { output_tilt = 0.0f; }
 
         bool is_delta_limited_this_cycle = false;
         if (output_pan > delta_limit)  { output_pan = delta_limit;  is_delta_limited_this_cycle = true; }
         if (output_pan < -delta_limit) { output_pan = -delta_limit; is_delta_limited_this_cycle = true; }
-        if (output_tilt > delta_limit) { output_tilt = delta_limit; is_delta_limited_this_cycle = true; }
-        if (output_tilt < -delta_limit){ output_tilt = -delta_limit; is_delta_limited_this_cycle = true; }
+        if (output_tilt > delta_limit * 0.6f) { output_tilt = delta_limit * 0.6f; is_delta_limited_this_cycle = true; }
+        if (output_tilt < -delta_limit * 0.6f){ output_tilt = -delta_limit * 0.6f; is_delta_limited_this_cycle = true; }
 
         if (is_delta_limited_this_cycle) {
             m_increment_was_limited_last_cycle = true;
         }
 
-        // --- Offset Integration & Clamping ---
         m_pan_offset += output_pan;
-        m_tilt_offset -= output_tilt;
-        // ESP_LOGI(TAG, "output Pan: %.2f, output Tilt: %.2f", output_pan, output_tilt);
-        // ESP_LOGI(TAG, "Pan Offset: %.2f, Tilt Offset: %.2f", m_pan_offset, m_tilt_offset);
+        m_tilt_offset += output_tilt;
 
-        if (m_pan_offset < -50.0f) { m_pan_offset = -50.0f; }
-        if (m_pan_offset > 50.0f)  { m_pan_offset = 50.0f;  }
-        if (m_tilt_offset < -30.0f){ m_tilt_offset = -30.0f; }
-        if (m_tilt_offset > 30.0f) { m_tilt_offset = 30.0f;  }
+        if (m_pan_offset < -70.0f) { m_pan_offset = -70.0f; }
+        if (m_pan_offset > 70.0f)  { m_pan_offset = 70.0f;  }
+        if (m_tilt_offset < -40.0f){ m_tilt_offset = -40.0f; }
+        if (m_tilt_offset > 40.0f) { m_tilt_offset = 40.0f;  }
 
-        // --- Body Turn Trigger ---
-        const int64_t COOLDOWN_PERIOD_US = 3000000; // 2 seconds
+        const int64_t COOLDOWN_PERIOD_US = 3000000; // 3 seconds
         bool is_turning = false;
         if (xSemaphoreTake(m_actions_mutex, pdMS_TO_TICKS(10)) == pdTRUE) {
             for (const auto& action : m_active_actions) {
@@ -513,28 +519,46 @@ void MotionController::face_tracking_task() {
         if (!is_turning) {
             int64_t current_time = esp_timer_get_time();
             if ((current_time - m_last_tracking_turn_end_time) > COOLDOWN_PERIOD_US) {
-                if (m_pan_offset <= -50.0f) { // At right limit
+                if (m_pan_offset <= -70.0f) { // At right limit
                     queue_command({MOTION_TRACKING_R, {}});
                     m_pan_offset += 2 * delta_limit;
-                    ESP_LOGI(TAG, "Queued right turn for tracking.");
-                } else if (m_pan_offset >= 50.0f) { // At left limit
+                } else if (m_pan_offset >= 70.0f) { // At left limit
                     queue_command({MOTION_TRACKING_L, {}});
                     m_pan_offset -= 2 * delta_limit;
-                    ESP_LOGI(TAG, "Queued left turn for tracking.");
                 }
             }
         }
 
-        // Simplistic forward logic as requested
-        const int FORWARD_THRESHOLD_MAX = 18000;
-        const int FORWARD_THRESHOLD_MIN = 2000;
-        int face_area = current_face_location.w * current_face_location.h;
-        if (face_area > 0 && face_area < FORWARD_THRESHOLD_MAX && face_area > FORWARD_THRESHOLD_MIN) {
-            queue_command({MOTION_FORWARD, {}});
-        }
+        // THE PROBLEMATIC LOGIC IS NOW REMOVED FROM HERE
 
-        // --- Update Mixer Action ---
         m_head_tracking_action.action.params.offset[static_cast<uint8_t>(ServoChannel::HEAD_PAN)] = m_pan_offset;
         m_head_tracking_action.action.params.offset[static_cast<uint8_t>(ServoChannel::HEAD_TILT)] = m_tilt_offset;
     }
+}
+
+// --- Appended Methods ---
+bool MotionController::is_body_moving() const
+{
+    bool moving = false;
+    if (xSemaphoreTake(m_actions_mutex, pdMS_TO_TICKS(10)) == pdTRUE) {
+        for (const auto& action : m_active_actions) {
+            if (strcmp(action.name, "walk_forward") == 0 ||
+                strcmp(action.name, "walk_backward") == 0 ||
+                strcmp(action.name, "turn_L") == 0 ||
+                strcmp(action.name, "turn_R") == 0 ||
+                strcmp(action.name, "tracking_L") == 0 ||
+                strcmp(action.name, "tracking_R") == 0)
+            {
+                moving = true;
+                break;
+            }
+        }
+        xSemaphoreGive(m_actions_mutex);
+    }
+    return moving;
+}
+
+DecisionMaker* MotionController::get_decision_maker() const
+{
+    return m_decision_maker.get();
 }

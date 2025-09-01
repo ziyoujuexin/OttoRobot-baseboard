@@ -8,11 +8,16 @@
 #include "config.h"
 #include "motion_manager/Motion_types.hpp"
 #include "motion_manager/ActionManager.hpp"
+#include "motion_manager/DecisionMaker.hpp" // Include the new header
 #include <memory>
 #include <string>
 #include <vector>
 #include <map>
 #include <atomic>
+#include <vector>
+#include <string>
+
+class DecisionMaker; // Forward declaration
 
 // Defines the mode for the home() method
 enum class HomeMode {
@@ -29,6 +34,8 @@ public:
     bool queue_command(const motion_command_t& cmd);
     void set_single_servo(uint8_t channel, uint8_t angle);
     void home(HomeMode mode = HomeMode::All, const std::vector<ServoChannel>& channels = {});
+    bool is_body_moving() const;
+    DecisionMaker* get_decision_maker() const;
 
     motion_command_t get_current_command();
     bool is_idle() {
@@ -43,7 +50,7 @@ private:
 
     bool is_active = false;
     SemaphoreHandle_t m_actions_mutex;
-    std::vector<RegisteredAction> m_active_actions;
+    mutable std::vector<RegisteredAction> m_active_actions;
     // ---
 
     // Mapping from logical joint to physical servo channel
@@ -53,6 +60,9 @@ private:
 
     // --- New Face Location Queue ---
     QueueHandle_t m_face_location_queue;
+
+    // --- Decision Maker ---
+    std::unique_ptr<DecisionMaker> m_decision_maker;
 
     void init_joint_channel_map();
 
@@ -71,10 +81,7 @@ private:
     std::atomic<bool> m_is_tracking_active;
     int64_t m_last_tracking_turn_end_time;
     std::atomic<bool> m_is_head_frozen;
-
-    // --- Public method for UartHandler to queue face data ---
-public:
-    bool queue_face_location(const FaceLocation& face_loc);
+    std::atomic<bool> m_is_executed{false};
 
 private:
 
