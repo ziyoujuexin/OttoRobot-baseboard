@@ -65,16 +65,6 @@ dependencies:
     - esp32s2
     - esp32s3
     version: 1.0.7
-  espressif/cmake_utilities:
-    component_hash: 351350613ceafba240b761b4ea991e0f231ac7a9f59a9ee901f751bddc0bb18f
-    dependencies:
-    - name: idf
-      require: private
-      version: '>=4.1'
-    source:
-      registry_url: https://components.espressif.com
-      type: service
-    version: 0.5.3
   espressif/dl_fft:
     component_hash: 7dadbd644c0d7ba4733cc3726ec4cff6edf27b043725e1115861dec1609a3d28
     dependencies:
@@ -213,7 +203,6 @@ direct_dependencies:
 - espressif/json_parser
 - espressif/servo
 - idf
-- nicolaielectronics/mpr121
-manifest_hash: ca7671db4416a7ef978ff63adab873c06bb45ac639193c3f52ddd326d2c8391b
+manifest_hash: 6ef48251f0f3e56dd6d63c213f88fd5df425cbe23086a48b1864d22a8d24d3d7
 target: esp32p4
 version: 2.0.0
