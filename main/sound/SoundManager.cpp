@@ -1,13 +1,20 @@
 #include "SoundManager.hpp"
 #include "esp_log.h"
 #include <string>
+#include "motion_manager/MotionController.hpp"
+#include "UartHandler.hpp"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
 static const char* TAG = "SoundManager";
 
-SoundManager::SoundManager()
+SoundManager::SoundManager(MotionController* motion_controller, UartHandler* uart_handler)
     : m_is_speaking(false),
       m_last_angle(-1),
-      m_task_handle(nullptr) {
+      m_processing_task_handle(nullptr),
+      m_reaction_task_handle(nullptr),
+      m_motion_controller_ptr(motion_controller),
+      m_uart_handler_ptr(uart_handler) {
 
     ESP_LOGI(TAG, "Initializing SoundManager...");
 
@@ -24,9 +31,13 @@ SoundManager::SoundManager()
 SoundManager::~SoundManager() {
     ESP_LOGI(TAG, "Deinitializing SoundManager...");
 
-    if (m_task_handle) {
-        vTaskDelete(m_task_handle);
-        m_task_handle = nullptr;
+    if (m_processing_task_handle) {
+        vTaskDelete(m_processing_task_handle);
+        m_processing_task_handle = nullptr;
+    }
+    if (m_reaction_task_handle) {
+        vTaskDelete(m_reaction_task_handle);
+        m_reaction_task_handle = nullptr;
     }
 
     // Deallocate the buffers
@@ -60,10 +71,23 @@ void SoundManager::start() {
         4096, // Stack size
         this, // Task parameter
         5,    // Priority
-        &m_task_handle);
+        &m_processing_task_handle);
 
     if (result != pdPASS) {
         ESP_LOGE(TAG, "Failed to create sound processing task");
+    }
+
+    ESP_LOGI(TAG, "Starting sound reaction task.");
+    result = xTaskCreate(
+        sound_reaction_task_entry,
+        "SoundReactTask",
+        4096, // Stack size
+        this, // Task parameter
+        5,    // Priority
+        &m_reaction_task_handle);
+    
+    if (result != pdPASS) {
+        ESP_LOGE(TAG, "Failed to create sound reaction task");
     }
 }
 
@@ -73,6 +97,48 @@ int SoundManager::get_last_detected_angle() const {
 
 void SoundManager::sound_processing_task_entry(void* arg) {
     static_cast<SoundManager*>(arg)->sound_processing_task();
+}
+
+void SoundManager::sound_reaction_task_entry(void* arg) {
+    static_cast<SoundManager*>(arg)->sound_reaction_task();
+}
+
+void SoundManager::sound_reaction_task() {
+    ESP_LOGI(TAG, "Sound reaction task started.");
+    int last_processed_angle = -1;
+
+    while (1) {
+        vTaskDelay(pdMS_TO_TICKS(500));
+        if (m_uart_handler_ptr->m_isWakeWordDetected == false) {
+            continue; // Skip processing if wake word not detected
+        }
+        int detected_angle = get_last_detected_angle();
+
+        // Only react if a new sound event has been processed
+        if (detected_angle != -1 && detected_angle != last_processed_angle) {
+            ESP_LOGI(TAG, "New sound detected at angle: %d. Reacting.", detected_angle);
+            // Simple logic: turn left or right towards the sound
+            // Assuming 0 degrees is forward, 90 is right, 270 is left
+            if (detected_angle > 10 && detected_angle < 170) {
+                ESP_LOGI(TAG, "Sound from the right, turning right.");
+                m_motion_controller_ptr->queue_command({MOTION_TRACKING_R, {}});
+                m_uart_handler_ptr->m_isWakeWordDetected = false;
+                vTaskDelay(pdMS_TO_TICKS(20)); // At least delay 20ms for msg transmission
+            } else if (detected_angle > 190 && detected_angle < 350) {
+                ESP_LOGI(TAG, "Sound from the left, turning left.");
+                m_motion_controller_ptr->queue_command({MOTION_TRACKING_L, {}});
+                m_uart_handler_ptr->m_isWakeWordDetected = false;
+                vTaskDelay(pdMS_TO_TICKS(20));
+            }
+            last_processed_angle = detected_angle;
+            
+            while (!m_motion_controller_ptr->is_idle()) {
+                vTaskDelay(pdMS_TO_TICKS(50));
+            }
+            ESP_LOGI(TAG, "Sound Reaction complete, stopping.");
+            m_motion_controller_ptr->queue_command({MOTION_STOP, {}});
+        }
+    }
 }
 
 void SoundManager::sound_processing_task() {

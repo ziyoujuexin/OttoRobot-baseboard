@@ -14,9 +14,13 @@
 #define SRP_FFT_SIZE 512
 #define MIC_RADIUS 0.043f
 
+// Forward declarations
+class MotionController;
+class UartHandler;
+
 class SoundManager {
 public:
-    SoundManager();
+    SoundManager(MotionController* motion_controller, UartHandler* uart_handler);
     ~SoundManager();
 
     /**
@@ -31,13 +35,13 @@ public:
     int get_last_detected_angle() const;
 
 private:
-    // Task entry point
+    // Task entry points
     static void sound_processing_task_entry(void* arg);
-    // Main task implementation
-    void sound_processing_task();
-
-    // --- Member Variables ---
+    static void sound_reaction_task_entry(void* arg);
     
+    // Main task implementations
+    void sound_processing_task();
+    void sound_reaction_task();
 
     // Audio processing modules
     std::unique_ptr<DualI2SReader> m_reader;
@@ -53,5 +57,9 @@ private:
     std::atomic<int> m_last_angle;
 
     // RTOS
-    TaskHandle_t m_task_handle;
+    TaskHandle_t m_processing_task_handle;
+    TaskHandle_t m_reaction_task_handle;
+
+    MotionController* m_motion_controller_ptr;
+    UartHandler* m_uart_handler_ptr;
 };
