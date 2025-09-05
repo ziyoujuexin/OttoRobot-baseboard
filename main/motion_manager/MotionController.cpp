@@ -188,6 +188,10 @@ void MotionController::motion_engine_task() {
                                 is_already_active = true;
                                 break;
                             }
+                            if(strcmp(action.name, "tracking_L") == 0 || strcmp(action.name, "tracking_R") == 0) {
+                                queue_command({MOTION_STOP, {}});
+                                break;
+                            }
                         }
                         if (!is_already_active) {
                             m_active_actions.push_back(m_head_tracking_action.action);

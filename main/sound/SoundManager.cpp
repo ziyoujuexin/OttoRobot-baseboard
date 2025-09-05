@@ -117,19 +117,41 @@ void SoundManager::sound_reaction_task() {
         // Only react if a new sound event has been processed
         if (detected_angle != -1 && detected_angle != last_processed_angle) {
             ESP_LOGI(TAG, "New sound detected at angle: %d. Reacting.", detected_angle);
-            // Simple logic: turn left or right towards the sound
-            // Assuming 0 degrees is forward, 90 is right, 270 is left
-            if (detected_angle > 10 && detected_angle < 170) {
-                ESP_LOGI(TAG, "Sound from the right, turning right.");
+            // Mics martix and angle location:
+            //          90[mic1]
+            //              ^ Robot's Forward
+            //              |
+            // 180[mic2] --   -->  0[mic0]
+            //              |
+            //          270[mic3]
+            if (detected_angle >= 0 && detected_angle < 80) {
+                // right forward
+                ESP_LOGI(TAG, "Detected angle: %d, turning right.", detected_angle);
                 m_motion_controller_ptr->queue_command({MOTION_TRACKING_R, {}});
                 m_uart_handler_ptr->m_isWakeWordDetected = false;
                 vTaskDelay(pdMS_TO_TICKS(20)); // At least delay 20ms for msg transmission
-            } else if (detected_angle > 190 && detected_angle < 350) {
-                ESP_LOGI(TAG, "Sound from the left, turning left.");
+            } else if (detected_angle > 100 && detected_angle <= 180) {
+                // left forward
+                ESP_LOGI(TAG, "Detected angle: %d, turning left.", detected_angle);
                 m_motion_controller_ptr->queue_command({MOTION_TRACKING_L, {}});
                 m_uart_handler_ptr->m_isWakeWordDetected = false;
                 vTaskDelay(pdMS_TO_TICKS(20));
+            } else if (detected_angle > 270 && detected_angle < 360) {
+                // right backward, leave forward deadzone but needn't for backward
+                ESP_LOGI(TAG, "Detected angle: %d, turning right.", detected_angle);
+                m_motion_controller_ptr->queue_command({MOTION_TRACKING_R, {}});
+                m_motion_controller_ptr->queue_command({MOTION_TRACKING_R, {}});
+                m_uart_handler_ptr->m_isWakeWordDetected = false;
+                vTaskDelay(pdMS_TO_TICKS(40)); // Double wait time
+            } else if (detected_angle > 180 && detected_angle <= 270) {
+                // left backward
+                ESP_LOGI(TAG, "Detected angle: %d, turning left.", detected_angle);
+                m_motion_controller_ptr->queue_command({MOTION_TRACKING_L, {}});
+                m_motion_controller_ptr->queue_command({MOTION_TRACKING_L, {}});
+                m_uart_handler_ptr->m_isWakeWordDetected = false;
+                vTaskDelay(pdMS_TO_TICKS(40));
             }
+
             last_processed_angle = detected_angle;
             
             while (!m_motion_controller_ptr->is_idle()) {
@@ -149,8 +171,8 @@ void SoundManager::sound_processing_task() {
             // Convert 32-bit I2S data to 16-bit and re-order channels for SRP
             for (size_t i = 0; i < samples_read; i++) {
                 m_srp_buffer[0][i] = (int16_t)(m_i2s_buffer[0][i] >> 16);
-                m_srp_buffer[1][i] = (int16_t)(m_i2s_buffer[2][i] >> 16);
-                m_srp_buffer[2][i] = (int16_t)(m_i2s_buffer[1][i] >> 16);
+                m_srp_buffer[1][i] = (int16_t)(m_i2s_buffer[1][i] >> 16);
+                m_srp_buffer[2][i] = (int16_t)(m_i2s_buffer[2][i] >> 16);
                 m_srp_buffer[3][i] = (int16_t)(m_i2s_buffer[3][i] >> 16);
             }
 
