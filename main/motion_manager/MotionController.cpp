@@ -3,10 +3,12 @@
 #include <cmath>
 #include <string.h>
 #include <algorithm>
+#include <queue>
 
 #define PI 3.1415926
 
 static const char* TAG = "MotionController";
+static std::queue<motion_command_t> s_turning_queue;
 
 // --- Constructor / Destructor ---
 MotionController::MotionController(Servo& servo_driver, ActionManager& action_manager) 
@@ -203,33 +205,51 @@ void MotionController::motion_engine_task() {
                     default: {
                         if (m_gait_command_map.count(received_cmd.motion_type)) {
                             const std::string& action_name = m_gait_command_map.at(received_cmd.motion_type);
+                            bool command_handled = false;
 
-                            // Check if the action already exists in the active list
-                            bool action_already_exists = false;
-                            for (const auto& existing_action : m_active_actions) {
-                                if (strcmp(existing_action.name, action_name.c_str()) == 0) {
-                                    action_already_exists = true;
-                                    ESP_LOGW(TAG, "Action '%s' is already active. Ignoring command.", action_name.c_str());
-                                    break;
+                            if (action_name == "tracking_L" || action_name == "tracking_R") {
+                                bool is_turning_active = false;
+                                for (const auto& action : m_active_actions) {
+                                    if (strcmp(action.name, "tracking_L") == 0 || strcmp(action.name, "tracking_R") == 0) {
+                                        is_turning_active = true;
+                                        break;
+                                    }
+                                }
+                                if (is_turning_active) {
+                                    ESP_LOGI(TAG, "A turning action is active. Queuing '%s'.", action_name.c_str());
+                                    s_turning_queue.push(received_cmd);
+                                    command_handled = true;
                                 }
                             }
 
-                            if (!action_already_exists) {
-                                const RegisteredAction* action_to_add = m_action_manager.get_action(action_name);
-                                if (action_to_add) {
-                                    // If starting a body-moving action, freeze the head to prevent conflict.
-                                    if (strcmp(action_name.c_str(), "tracking_L") == 0 ||
-                                        strcmp(action_name.c_str(), "tracking_R") == 0 ||
-                                        strcmp(action_name.c_str(), "walk_forward") == 0 ||
-                                        strcmp(action_name.c_str(), "walk_backward") == 0 ||
-                                        strcmp(action_name.c_str(), "turn_left") == 0 ||
-                                        strcmp(action_name.c_str(), "turn_right") == 0)
-                                    {
-                                        m_is_head_frozen.store(true);
+                            if (!command_handled) {
+                                // Check if the action already exists in the active list
+                                bool action_already_exists = false;
+                                for (const auto& existing_action : m_active_actions) {
+                                    if (strcmp(existing_action.name, action_name.c_str()) == 0) {
+                                        action_already_exists = true;
+                                        ESP_LOGW(TAG, "Action '%s' is already active. Ignoring command.", action_name.c_str());
+                                        break;
                                     }
-                                    m_active_actions.push_back(*action_to_add);
-                                    is_active = true; // Set active flag
-                                    ESP_LOGI(TAG, "Action '%s' added to active list.", action_to_add->name);
+                                }
+
+                                if (!action_already_exists) {
+                                    const RegisteredAction* action_to_add = m_action_manager.get_action(action_name);
+                                    if (action_to_add) {
+                                        // If starting a body-moving action, freeze the head to prevent conflict.
+                                        if (strcmp(action_name.c_str(), "tracking_L") == 0 ||
+                                            strcmp(action_name.c_str(), "tracking_R") == 0 ||
+                                            strcmp(action_name.c_str(), "walk_forward") == 0 ||
+                                            strcmp(action_name.c_str(), "walk_backward") == 0 ||
+                                            strcmp(action_name.c_str(), "turn_left") == 0 ||
+                                            strcmp(action_name.c_str(), "turn_right") == 0)
+                                        {
+                                            m_is_head_frozen.store(true);
+                                        }
+                                        m_active_actions.push_back(*action_to_add);
+                                        is_active = true; // Set active flag
+                                        ESP_LOGI(TAG, "Action '%s' added to active list.", action_to_add->name);
+                                    }
                                 }
                             }
                         } else {
@@ -302,6 +322,13 @@ void MotionController::motion_mixer_task() {
                                     ServoChannel::HEAD_TILT
                                 };
                                 home(HomeMode::Blacklist, head_servos);
+
+                                if (!s_turning_queue.empty()) {
+                                    motion_command_t next_turn = s_turning_queue.front();
+                                    s_turning_queue.pop();
+                                    ESP_LOGI(TAG, "Starting next queued turning action.");
+                                    queue_command(next_turn);
+                                }
                             }
 
                             action_frame_counters.erase(action.name);
