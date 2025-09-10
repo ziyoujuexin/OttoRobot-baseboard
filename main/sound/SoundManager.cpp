@@ -1,6 +1,7 @@
 #include "SoundManager.hpp"
 #include "esp_log.h"
 #include <string>
+#include <cstring> // For memcpy
 #include "motion_manager/MotionController.hpp"
 #include "UartHandler.hpp"
 #include "freertos/FreeRTOS.h"
@@ -117,13 +118,30 @@ void SoundManager::sound_reaction_task() {
         // Only react if a new sound event has been processed
         if (detected_angle != -1 && detected_angle != last_processed_angle) {
             ESP_LOGI(TAG, "New sound detected at angle: %d. Reacting.", detected_angle);
-            // Mics martix and angle location:
-            //          90[mic1]
-            //              ^ Robot's Forward
-            //              |
-            // 180[mic2] --   -->  0[mic0]
-            //              |
-            //          270[mic3]
+
+            // --- Head Turn Logic ---
+            bool is_left = (detected_angle > 100 && detected_angle <= 270);
+            bool is_right = (detected_angle >= 0 && detected_angle < 80) || (detected_angle > 270 && detected_angle < 360);
+
+            if (is_left || is_right) {
+                float head_angle = is_left ? 120.0f : 60.0f; // 115 for left, 65 for right
+                
+                ESP_LOGI(TAG, "Turning head to angle %.1f", head_angle);
+                motion_command_t head_turn_cmd;
+                head_turn_cmd.motion_type = 0xF0; // MOTION_SERVO_CONTROL
+                head_turn_cmd.params.push_back(static_cast<uint8_t>(ServoChannel::HEAD_PAN));
+                uint8_t float_bytes[sizeof(float)];
+                memcpy(float_bytes, &head_angle, sizeof(float));
+                head_turn_cmd.params.insert(head_turn_cmd.params.end(), float_bytes, float_bytes + sizeof(float));
+                uint32_t duration_ms = 500; // 500ms to turn head
+                uint8_t duration_bytes[sizeof(uint32_t)];
+                memcpy(duration_bytes, &duration_ms, sizeof(uint32_t));
+                head_turn_cmd.params.insert(head_turn_cmd.params.end(), duration_bytes, duration_bytes + sizeof(uint32_t));
+                m_motion_controller_ptr->queue_command(head_turn_cmd);
+                vTaskDelay(pdMS_TO_TICKS(500)); // Wait 300ms for head to turn
+            }
+            
+            // --- Original Body Turn Logic ---
             if (detected_angle >= 0 && detected_angle < 80) {
                 // right forward
                 ESP_LOGI(TAG, "Detected angle: %d, turning right.", detected_angle);
@@ -177,14 +195,15 @@ void SoundManager::sound_processing_task() {
             }
 
             // Feed one channel to VAD
-            m_vad->feed((const int16_t**)m_srp_buffer.data(), samples_read, 0);
+            m_vad->feed((const int16_t**)m_srp_buffer.data(), samples_read, 1);
 
             if (m_is_speaking) {
                 int angle = -1;
                 if (m_srp_localizer->processChunk((const int16_t* const*)m_srp_buffer.data(), samples_read, angle, nullptr)) {
                     ESP_LOGD(TAG, "Sound event processed. Detected Angle: %d", angle);
                     m_last_angle = angle; // Store the detected angle
-                    m_is_speaking = false; // Reset speaking flag after processing one event
+                    // VAD will set this to false when speech ends. Manually resetting it here can cause issues.
+                    // m_is_speaking = false; 
                 }
             }
         }

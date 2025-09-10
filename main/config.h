@@ -23,6 +23,7 @@
 #define MOTION_SHAKE_HEAD  0x08
 #define MOTION_SINGLE_LEG  0x09
 #define MOTION_FACE_TRACE  0x0A
+#define MOTION_FACE_END    0x0B
 
 // Custom commands for face tracking coordination
 #define MOTION_TRACKING_L 0x11
@@ -37,6 +38,8 @@
 #define MOTION_GET_PARAMS    0x22
 
 #define MOTION_WAKE_DETECT   0xC0
+
+#define MOTION_SERVO_CONTROL 0xF0
 
 enum class ServoChannel : uint8_t {
     // EAR

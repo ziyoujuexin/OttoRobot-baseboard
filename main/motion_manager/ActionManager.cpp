@@ -193,12 +193,12 @@ void ActionManager::register_default_actions() {
     tracking_R.params.amplitude[static_cast<uint8_t>(ServoChannel::RIGHT_ANKLE_LIFT)] = -35;
     tracking_R.params.offset[static_cast<uint8_t>(ServoChannel::LEFT_LEG_ROTATE)] = 20; // 这个参数也比较抽象，对于左右转都设置为20最好，此时比较稳
     tracking_R.params.offset[static_cast<uint8_t>(ServoChannel::RIGHT_LEG_ROTATE)] = 20;
-    tracking_R.params.offset[static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT)] = 12; // 由于安装的误差，这个offset属于修正量
-    tracking_R.params.offset[static_cast<uint8_t>(ServoChannel::RIGHT_ANKLE_LIFT)] = 12;
+    tracking_R.params.offset[static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT)] = 0; // 由于安装的误差，这个offset属于修正量
+    tracking_R.params.offset[static_cast<uint8_t>(ServoChannel::RIGHT_ANKLE_LIFT)] = 0;
     tracking_R.params.phase_diff[static_cast<uint8_t>(ServoChannel::LEFT_LEG_ROTATE)] = 0;
-    tracking_R.params.phase_diff[static_cast<uint8_t>(ServoChannel::LEFT_LEG_ROTATE)] = PI / 2;
-    tracking_R.params.phase_diff[static_cast<uint8_t>(ServoChannel::LEFT_LEG_ROTATE)] = PI;
-    tracking_R.params.phase_diff[static_cast<uint8_t>(ServoChannel::LEFT_LEG_ROTATE)] = 0;
+    tracking_R.params.phase_diff[static_cast<uint8_t>(ServoChannel::RIGHT_LEG_ROTATE)] = PI / 2;
+    tracking_R.params.phase_diff[static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT)] = PI;
+    tracking_R.params.phase_diff[static_cast<uint8_t>(ServoChannel::RIGHT_ANKLE_LIFT)] = 0;
     m_storage->save_action(tracking_R);
     m_action_cache[tracking_R.name] = tracking_R;
 

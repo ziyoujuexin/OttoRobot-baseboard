@@ -183,6 +183,63 @@ void MotionController::motion_engine_task() {
 
                 switch (received_cmd.motion_type) {
                     case MOTION_WAKE_DETECT: {break;} // do nothing, just avoid warnings
+                    case 0xF0: // MOTION_SERVO_CONTROL
+                    {
+                        // Check for valid parameter sizes: (channel, angle) or (channel, angle, duration)
+                        if (received_cmd.params.size() != (sizeof(uint8_t) + sizeof(float)) &&
+                            received_cmd.params.size() != (sizeof(uint8_t) + sizeof(float) + sizeof(uint32_t))) {
+                            ESP_LOGE(TAG, "Invalid params size for SERVO_CONTROL: %zu", received_cmd.params.size());
+                            break;
+                        }
+
+                        // Parse channel and angle
+                        uint8_t channel = received_cmd.params[0];
+                        float angle;
+                        memcpy(&angle, &received_cmd.params[1], sizeof(float));
+
+                        // Parse optional duration, with a default of 1000ms
+                        uint32_t duration_ms = 1000;
+                        if (received_cmd.params.size() == (sizeof(uint8_t) + sizeof(float) + sizeof(uint32_t))) {
+                            memcpy(&duration_ms, &received_cmd.params[sizeof(uint8_t) + sizeof(float)], sizeof(uint32_t));
+                        }
+
+                        ESP_LOGI(TAG, "Received SERVO_CONTROL for channel %d to angle %.1f, duration %u ms", channel, angle, duration_ms);
+
+                        if (channel >= static_cast<uint8_t>(ServoChannel::SERVO_COUNT)) {
+                            ESP_LOGE(TAG, "Invalid channel for SERVO_CONTROL: %d", channel);
+                            break;
+                        }
+
+                        // Create a temporary action to control a single servo
+                        RegisteredAction servo_action;
+                        memset(&servo_action, 0, sizeof(RegisteredAction));
+                        
+                        // Generate a unique name to allow overriding
+                        snprintf(servo_action.name, MOTION_NAME_MAX_LEN, "servo_ctrl_%d", channel);
+                        
+                        servo_action.type = ActionType::GAIT_PERIODIC;
+                        servo_action.is_atomic = false; // Allow other actions to run
+                        servo_action.default_steps = 1; // Action runs for one "step"
+                        servo_action.gait_period_ms = duration_ms; // The "step" duration is the hold time
+
+                        // Set offset for the target servo. Final Angle = 90 + offset.
+                        servo_action.params.offset[channel] = angle - 90.0f;
+
+                        // Remove any existing temporary action for the same servo channel to override it
+                        m_active_actions.erase(
+                            std::remove_if(m_active_actions.begin(), m_active_actions.end(),
+                                [&](const RegisteredAction& action) {
+                                    return strcmp(action.name, servo_action.name) == 0;
+                                }),
+                            m_active_actions.end()
+                        );
+
+                        // Add the new action to the active list
+                        m_active_actions.push_back(servo_action);
+                        ESP_LOGI(TAG, "Added temporary servo control action '%s'.", servo_action.name);
+
+                        break;
+                    }
                     case MOTION_FACE_TRACE: { 
                         bool is_already_active = false;
                         for(auto const& action : m_active_actions) {
@@ -377,7 +434,7 @@ void MotionController::motion_mixer_task() {
                     bool is_head_track_action = strcmp(action.name, "head_track") == 0;
                     bool is_head_joint = (i == static_cast<uint8_t>(ServoChannel::HEAD_PAN) || i == static_cast<uint8_t>(ServoChannel::HEAD_TILT));
 
-                    if (std::abs(amp) > 0.01f || (is_head_track_action && is_head_joint)) {
+                    if (std::abs(amp) > 0.01f || std::abs(offset) > 0.01f || (is_head_track_action && is_head_joint)) {
                         float wave_component = (!is_head_track_action && std::abs(amp) > 0.01f) 
                                              ? amp * sin(2 * PI * t + action.params.phase_diff[i]) 
                                              : 0.0f;
