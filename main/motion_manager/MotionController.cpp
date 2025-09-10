@@ -396,8 +396,8 @@ void MotionController::motion_mixer_task() {
                 m_active_actions.end()
             );
             if (size_before > 0 && m_active_actions.empty()) {
-                ESP_LOGI(TAG, "All actions completed. Homing servos.");
-                needs_homing = true;
+                ESP_LOGI(TAG, "All actions completed.");
+                needs_homing = false; // Explicitly set to false, was true
                 is_active = false; // Set inactive flag
             }
 
@@ -632,10 +632,10 @@ void MotionController::face_tracking_task() {
             if ((current_time - m_last_tracking_turn_end_time) > COOLDOWN_PERIOD_US) {
                 if (m_pan_offset <= -70.0f) { // At right limit
                     queue_command({MOTION_TRACKING_R, {}});
-                    m_pan_offset += 2 * delta_limit;
+                    m_pan_offset += 4 * delta_limit;
                 } else if (m_pan_offset >= 70.0f) { // At left limit
                     queue_command({MOTION_TRACKING_L, {}});
-                    m_pan_offset -= 2 * delta_limit;
+                    m_pan_offset -= 4 * delta_limit;
                 }
             }
         }

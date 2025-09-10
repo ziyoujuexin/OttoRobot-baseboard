@@ -45,7 +45,7 @@ extern "C" void app_main(void)
             motion_controller_ptr->queue_face_location(loc);
         }
     };
-    uart_handler_ptr = new UartHandler(face_location_callback);
+    uart_handler_ptr = new UartHandler(*motion_controller_ptr, face_location_callback);
     uart_handler_ptr->init();
     
     // Create and start the web server on the heap

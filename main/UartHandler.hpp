@@ -2,18 +2,22 @@
 
 #include <functional>
 #include "motion_manager/Motion_types.hpp"
+#include "motion_manager/MotionController.hpp" // a new header
 #include "esp_timer.h"
+
+class MotionController; // Forward declaration
 
 class UartHandler {
 public:
     using FaceLocationCallback = std::function<void(const FaceLocation&)>;
 
-    explicit UartHandler(FaceLocationCallback callback);
+    explicit UartHandler(MotionController& controller, FaceLocationCallback callback);
     void init();
 
     bool m_isWakeWordDetected = false;
 
 private:
+    MotionController& m_motion_controller; // a new member
     FaceLocationCallback m_face_location_callback;
 
     void receive_task_handler();

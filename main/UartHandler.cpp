@@ -17,7 +17,8 @@
 
 static const char* TAG = "UartHandler";
 
-UartHandler::UartHandler(FaceLocationCallback callback) : m_face_location_callback(callback) {}
+UartHandler::UartHandler(MotionController& controller, FaceLocationCallback callback)
+    : m_motion_controller(controller), m_face_location_callback(callback) {}
 
 void UartHandler::init() {
     uart_config_t uart_config = {
@@ -124,6 +125,9 @@ void UartHandler::receive_task_handler() {
                                 ESP_LOGI(TAG, "Wake word detected.");
                                 m_isWakeWordDetected = true;
                                 start_wake_word_timer();
+                            } else if (motion_type == MOTION_FACE_END) {
+                                ESP_LOGI(TAG, "Face end detected, stopping all motions.");
+                                m_motion_controller.queue_command({MOTION_STOP, {}});
                             } else {
                                 // For other commands, we can consider a command callback if needed
                             }
