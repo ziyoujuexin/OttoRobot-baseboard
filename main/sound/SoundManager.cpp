@@ -58,9 +58,11 @@ void SoundManager::start() {
 
     // --- Configure VAD Callback ---
     m_vad->on_vad_state_change([this](bool speaking) {
+        ESP_LOGV(TAG, "VAD State Changed: %s", speaking ? "SPEAKING" : "NOT SPEAKING");
         this->m_is_speaking = speaking;
         if (!speaking) {
             // When speech stops, reset the localizer to be ready for the next utterance.
+            ESP_LOGV(TAG, "VAD detected speech end, resetting sound localizer.");
             this->m_srp_localizer->reset();
         }
     });
@@ -115,8 +117,7 @@ void SoundManager::sound_reaction_task() {
         }
         int detected_angle = get_last_detected_angle();
 
-        // Only react if a new sound event has been processed
-        if (detected_angle != -1 && detected_angle != last_processed_angle) {
+        if (detected_angle != -1) {
             ESP_LOGI(TAG, "New sound detected at angle: %d. Reacting.", detected_angle);
 
             // --- Head Turn Logic ---
@@ -171,6 +172,7 @@ void SoundManager::sound_reaction_task() {
             }
 
             last_processed_angle = detected_angle;
+            m_last_angle = -1; // Reset the angle after processing
             
             while (!m_motion_controller_ptr->is_idle()) {
                 vTaskDelay(pdMS_TO_TICKS(50));
@@ -198,6 +200,7 @@ void SoundManager::sound_processing_task() {
             m_vad->feed((const int16_t**)m_srp_buffer.data(), samples_read, 1);
 
             if (m_is_speaking) {
+                ESP_LOGD(TAG, "VAD is active, processing chunk for angle...");
                 int angle = -1;
                 if (m_srp_localizer->processChunk((const int16_t* const*)m_srp_buffer.data(), samples_read, angle, nullptr)) {
                     ESP_LOGD(TAG, "Sound event processed. Detected Angle: %d", angle);
@@ -205,6 +208,8 @@ void SoundManager::sound_processing_task() {
                     // VAD will set this to false when speech ends. Manually resetting it here can cause issues.
                     // m_is_speaking = false; 
                 }
+            } else {
+                ESP_LOGV(TAG, "VAD not active, skipping angle processing.");
             }
         }
     }
