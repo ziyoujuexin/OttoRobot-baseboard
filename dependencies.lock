@@ -76,7 +76,7 @@ dependencies:
       type: service
     version: 0.3.1
   espressif/eppp_link:
-    component_hash: 07db13a39e28c52b7aa50bc4d7fe82b078297c1be578713138c5e818bcd7d149
+    component_hash: bac8be8aa2aa5b15d5a0dbbf0b44a74a20a63ad09b475d114cbcb42c722913db
     dependencies:
     - name: espressif/esp_serial_slave_link
       registry_url: https://components.espressif.com
@@ -88,7 +88,7 @@ dependencies:
     source:
       registry_url: https://components.espressif.com
       type: service
-    version: 1.0.1
+    version: 1.1.1
   espressif/esp-dsp:
     component_hash: 619639efc18cfa361a9e423739b9b0ffc14991effc6c027f955c2f2c3bf1754b
     dependencies:
@@ -118,7 +118,7 @@ dependencies:
       type: service
     version: 2.1.5
   espressif/esp_hosted:
-    component_hash: 22b4d101d7757ae67826f9f6be19efcdad66a95071271e6559a705964652883c
+    component_hash: 0fc6aa75ec6061e1d48b3abc5f3987c5a84a3fda60811c3b1ad7f536250bf58b
     dependencies:
     - name: idf
       require: private
@@ -126,7 +126,7 @@ dependencies:
     source:
       registry_url: https://components.espressif.com/
       type: service
-    version: 2.3.2
+    version: 2.4.1
   espressif/esp_serial_slave_link:
     component_hash: d8c13c033a7604e9333b5d8ea45e0d6fec908fd552df7db20d33dd8d6916528d
     dependencies:
@@ -194,6 +194,13 @@ dependencies:
     source:
       type: idf
     version: 5.5.0
+  lvgl/lvgl:
+    component_hash: b702d642e03e95928046d5c6726558e6444e112420c77efa5fdb6650b0a13c5d
+    dependencies: []
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 9.3.0
 direct_dependencies:
 - esp-idf-lib/pca9685
 - espressif/dl_fft
@@ -203,6 +210,7 @@ direct_dependencies:
 - espressif/json_parser
 - espressif/servo
 - idf
-manifest_hash: 6ef48251f0f3e56dd6d63c213f88fd5df425cbe23086a48b1864d22a8d24d3d7
+- lvgl/lvgl
+manifest_hash: 3d0c60cd27ccfb963d45e0cd3ed1d4a1b65c65ca68a6ff4c055f5a5362ca2792
 target: esp32p4
 version: 2.0.0
