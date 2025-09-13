@@ -65,6 +65,16 @@ dependencies:
     - esp32s2
     - esp32s3
     version: 1.0.7
+  espressif/cmake_utilities:
+    component_hash: 351350613ceafba240b761b4ea991e0f231ac7a9f59a9ee901f751bddc0bb18f
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=4.1'
+    source:
+      registry_url: https://components.espressif.com
+      type: service
+    version: 0.5.3
   espressif/dl_fft:
     component_hash: 7dadbd644c0d7ba4733cc3726ec4cff6edf27b043725e1115861dec1609a3d28
     dependencies:
@@ -127,6 +137,20 @@ dependencies:
       registry_url: https://components.espressif.com/
       type: service
     version: 2.4.1
+  espressif/esp_lcd_gc9a01:
+    component_hash: cc4ce2056be1f7424eb210933f7992e3f6b3bead2b58d0a83df20a689d4c71b7
+    dependencies:
+    - name: espressif/cmake_utilities
+      registry_url: https://components.espressif.com
+      require: private
+      version: 0.*
+    - name: idf
+      require: private
+      version: '>=4.4'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 2.0.3
   espressif/esp_serial_slave_link:
     component_hash: d8c13c033a7604e9333b5d8ea45e0d6fec908fd552df7db20d33dd8d6916528d
     dependencies:
@@ -206,11 +230,12 @@ direct_dependencies:
 - espressif/dl_fft
 - espressif/esp-sr
 - espressif/esp_hosted
+- espressif/esp_lcd_gc9a01
 - espressif/esp_wifi_remote
 - espressif/json_parser
 - espressif/servo
 - idf
 - lvgl/lvgl
-manifest_hash: 3d0c60cd27ccfb963d45e0cd3ed1d4a1b65c65ca68a6ff4c055f5a5362ca2792
+manifest_hash: 595a615740352325af549917ec284afb38b9218431e44fddb668a9ddd2bfaac0
 target: esp32p4
 version: 2.0.0

@@ -2,6 +2,7 @@
 #include "esp_log.h"
 #include <fstream> // For std::ifstream
 #include <iterator> // For std::istreambuf_iterator
+#include <dirent.h>
 
 static const char* TAG = "SDCardProvider";
 
@@ -18,6 +19,7 @@ AnimationData SDCardAnimationProvider::getAnimationData(const std::string& anima
     std::ifstream file(path, std::ios::binary);
     if (!file) {
         ESP_LOGW(TAG, "Failed to open animation file: %s", path.c_str());
+        listAnimations(); // List available animations for debugging
         return anim_data; // Return empty AnimationData
     }
 
@@ -33,4 +35,38 @@ AnimationData SDCardAnimationProvider::getAnimationData(const std::string& anima
     }
 
     return anim_data;
+}
+
+void SDCardAnimationProvider::listAnimations() {
+    ESP_LOGI(TAG, "Listing contents of directory: %s", m_base_path.c_str());
+
+    // 打开目录
+    DIR* dir = opendir(m_base_path.c_str());
+    if (!dir) {
+        ESP_LOGE(TAG, "Failed to open directory: %s", m_base_path.c_str());
+        return;
+    }
+
+    // 读取目录中的条目
+    struct dirent* entry;
+    while ((entry = readdir(dir)) != nullptr) {
+        // dirent 结构体包含 d_name (名称) 和 d_type (类型)
+        // d_type 可以是 DT_REG (常规文件) 或 DT_DIR (目录)
+        
+        // 忽略 . (当前目录) 和 .. (上级目录)
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+            continue;
+        }
+
+        if (entry->d_type == DT_DIR) {
+            ESP_LOGI(TAG, "  [Dir]  %s", entry->d_name);
+        } else if (entry->d_type == DT_REG) {
+            ESP_LOGI(TAG, "  [File] %s", entry->d_name);
+        } else {
+            ESP_LOGI(TAG, "  [Other] %s", entry->d_name);
+        }
+    }
+
+    // 关闭目录，释放资源
+    closedir(dir);
 }

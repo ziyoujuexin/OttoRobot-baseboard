@@ -9,9 +9,11 @@
  */
 class SDCardAnimationProvider : public AnimationProvider {
 public:
-    explicit SDCardAnimationProvider(const std::string& base_path = "/sdcard/animations");
+    explicit SDCardAnimationProvider(const std::string& base_path = "/sdcard");
 
     AnimationData getAnimationData(const std::string& animation_name) override;
+
+    void listAnimations();
 
 private:
     std::string m_base_path;

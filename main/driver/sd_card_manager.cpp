@@ -49,7 +49,7 @@ esp_err_t sd_card_manager::init(const char* mount_path) {
     slot_config.d1 = (gpio_num_t)40;
     slot_config.d2 = (gpio_num_t)41;
     slot_config.d3 = (gpio_num_t)42;
-    // slot_config.flags |= SDMMC_SLOT_FLAG_INTERNAL_PULLUP;
+    slot_config.flags |= SDMMC_SLOT_FLAG_INTERNAL_PULLUP;
 // 
     ret = esp_vfs_fat_sdmmc_mount(mount_path, &host, &slot_config, &mount_config, &s_card);
 
