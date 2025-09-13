@@ -12,7 +12,7 @@
         .btn:hover { background-color: #45a049; }
         .btn-stop { background-color: #f44336; }
         .btn-stop:hover { background-color: #da190b; }
-        .tuner { border-top: 2px solid #eee; padding-top: 20px; margin-top: 30px; }
+        .section { border-top: 2px solid #eee; padding-top: 20px; margin-top: 30px; }
         .tuner-controls { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: end; margin-bottom: 20px; }
         .form-group { display: flex; flex-direction: column; gap: 5px; }
         label { color: #555; font-weight: bold; }
@@ -30,6 +30,9 @@
         .toast.show { opacity: 1; }
         .toast.success { background-color: #4CAF50; }
         .toast.error { background-color: #f44336; }
+        #drop-zone { border: 2px dashed #ccc; border-radius: 8px; padding: 40px; text-align: center; color: #aaa; margin-top: 20px; cursor: pointer; transition: background-color 0.3s, border-color 0.3s; }
+        #drop-zone.dragover { background-color: #e8f0fe; border-color: #4285f4; }
+        #upload-status { margin-top: 15px; font-weight: bold; text-align: center; }
     </style>
 </head>
 <body>
@@ -50,7 +53,16 @@
             <button class="btn btn-stop" onclick="sendCommand(0)">STOP</button>
         </div>
 
-        <div class="tuner">
+        <div class="section">
+            <h2>Animation Uploader</h2>
+            <input type="file" id="file-input" accept="image/gif" style="display: none;">
+            <div id="drop-zone" onclick="document.getElementById('file-input').click();">
+                Drag & Drop a GIF here or click to select a file.
+            </div>
+            <div id="upload-status"></div>
+        </div>
+
+        <div class="section">
             <h2>Gait Parameter Tuner</h2>
             <div class="tuner-controls">
                 <div class="form-group">
@@ -77,7 +89,7 @@
             <div id="param-display">Select a gait and click 'Get Parameters' to view and tune.</div>
         </div>
 
-        <div class="tuner">
+        <div class="section">
             <h2>Servo Debugger</h2>
             <div class="form-group">
                 <label for="servo-channel">Servo Channel (0-15)</label>
@@ -251,6 +263,73 @@
                 container.removeChild(toast);
             }, 500);
         }, 3000);
+    }
+
+    // --- Animation Uploader ---
+    const dropZone = document.getElementById('drop-zone');
+    const fileInput = document.getElementById('file-input');
+    const uploadStatus = document.getElementById('upload-status');
+
+    dropZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropZone.classList.add('dragover');
+    });
+
+    dropZone.addEventListener('dragleave', (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('dragover');
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('dragover');
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            handleFileUpload(files[0]);
+        }
+    });
+
+    fileInput.addEventListener('change', (e) => {
+        const files = e.target.files;
+        if (files.length > 0) {
+            handleFileUpload(files[0]);
+        }
+    });
+
+    function handleFileUpload(file) {
+        if (!file.type.startsWith('image/gif')) {
+            uploadStatus.textContent = 'Error: Selected file is not a GIF.';
+            uploadStatus.style.color = '#f44336';
+            return;
+        }
+
+        uploadStatus.textContent = `Uploading ${file.name}...`;
+        uploadStatus.style.color = '#333';
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        fetch('/upload', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => {
+            if (response.ok) {
+                return response.text();
+            } else {
+                return response.text().then(text => { throw new Error(text || 'Upload failed') });
+            }
+        })
+        .then(text => {
+            uploadStatus.textContent = `Success: ${file.name} uploaded!`;
+            uploadStatus.style.color = '#4CAF50';
+            showToast('Animation uploaded successfully!', 'success');
+        })
+        .catch(error => {
+            uploadStatus.textContent = `Error: ${error.message}`;
+            uploadStatus.style.color = '#f44336';
+            showToast(`Upload failed: ${error.message}`, 'error');
+        });
     }
     </script>
 </body>

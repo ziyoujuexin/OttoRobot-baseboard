@@ -1,97 +1,135 @@
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "driver/PCA9685.hpp"
-#include "motion_manager/ActionManager.hpp"
-#include "MotionController.hpp"
-#include "UartHandler.hpp"
-#include "web_server/WebServer.hpp"
-#include "sound/SoundManager.hpp"
+#include <memory> // Required for std::unique_ptr
+
+// Core Drivers & Services
 #include <i2cdev.h>
 #include "nvs_flash.h"
-#include "esp_netif.h"
-#include "esp_event.h"
-#include "esp_wifi.h"
-
-// Cleaned-up Includes
 #include "driver/sd_card_manager.h"
+#include "driver/PCA9685.hpp"
+
+// LVGL
+#include "lvgl.h"
+
+// Application-level Managers
 #include "display/DualScreenManager.h"
 #include "display/SDCardAnimationProvider.h"
 #include "display/AnimationManager.h"
-#include <memory>
+#include "motion_manager/ActionManager.hpp"
+#include "motion_manager/MotionController.hpp"
+#include "sound/SoundManager.hpp"
+#include "UartHandler.hpp"
+#include "web_server/WebServer.hpp"
 
 static const char *TAG = "MAIN";
 
-// Declare pointers for our long-lived objects
-static ActionManager* action_manager_ptr = nullptr;
-static MotionController* motion_controller_ptr = nullptr;
-static UartHandler* uart_handler_ptr = nullptr;
-static WebServer* web_server_ptr = nullptr;
-static PCA9685* servo_driver_ptr = nullptr;
-static SoundManager* sound_manager_ptr = nullptr;
+// --- LVGL Minimal Setup ---
 
-// Pointers for the new display system
-static DualScreenManager* display_manager_ptr = nullptr;
-static AnimationManager* animation_manager_ptr = nullptr;
+// A dummy flush callback required by LVGL for headless operation.
+static void flush_cb(lv_display_t * disp, const lv_area_t * area, uint8_t * px_map) {
+    // Tell LVGL that the flush is ready. Since we are not drawing to a real screen,
+    // we can do this immediately.
+    lv_display_flush_ready(disp);
+}
 
+// A FreeRTOS task to run the LVGL timer handler periodically.
+static void lvgl_task(void *pvParameter) {
+    ESP_LOGI(TAG, "Starting LVGL task");
+    while(1) {
+        // This is the heartbeat of LVGL. It handles animations, events, etc.
+        lv_timer_handler();
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
+}
+
+// --- Main Application --- 
 
 extern "C" void app_main(void)
 {
-    i2cdev_init();
+    // --- 1. Core System and Hardware Initialization ---
+    ESP_LOGI(TAG, "Phase 1: Initializing Core System & Hardware");
+    ESP_ERROR_CHECK(nvs_flash_init()); // For WiFi credentials
+    ESP_ERROR_CHECK(i2cdev_init());      // For servo driver
 
-    // Initialize SD card using the dedicated manager
     if (sd_card_manager::init("/sdcard") != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to initialize SD card. Animations will not be available.");
-        // You might want to halt or use a fallback here
+        ESP_LOGE(TAG, "Failed to initialize SD card. Halting.");
+        // In a real product, you might want to enter a safe mode instead of halting.
+        while(1) { vTaskDelay(1000); }
     }
-    // Initialize Display System
-    ESP_LOGI(TAG, "Initializing Display System...");
-    display_manager_ptr = new DualScreenManager();
+
+    // --- 2. LVGL Headless Initialization ---
+    ESP_LOGI(TAG, "Phase 2: Initializing LVGL in Headless Mode");
+    lv_init();
+    
+    // Create a display buffer and a display driver.
+    // This is virtual; it doesn't require a physical screen.
+    static lv_color_t buf1[320 * 240 / 10];
+    lv_display_t * disp = lv_display_create(320, 240);
+    lv_display_set_flush_cb(disp, flush_cb);
+    lv_display_set_buffers(disp, buf1, NULL, sizeof(buf1), LV_DISPLAY_RENDER_MODE_PARTIAL);
+    lv_display_set_default(disp);
+
+    // Create the FreeRTOS task for the LVGL handler
+    xTaskCreate(lvgl_task, "lvgl_task", 4096, NULL, 5, NULL);
+
+
+    // --- 3. Application Services and Managers Initialization ---
+    ESP_LOGI(TAG, "Phase 3: Initializing Application Services & Managers");
+
+    // Using std::unique_ptr for automatic memory management.
+    auto servo_driver = std::make_unique<PCA9685>();
+    servo_driver->init();
+
+    auto action_manager = std::make_unique<ActionManager>();
+    action_manager->init();
+
+    auto motion_controller = std::make_unique<MotionController>(*servo_driver, *action_manager);
+    motion_controller->init();
+
+    auto display_manager = std::make_unique<DualScreenManager>();
     auto sd_provider = std::make_unique<SDCardAnimationProvider>("/sdcard/animations");
-    animation_manager_ptr = new AnimationManager(std::move(sd_provider), display_manager_ptr);
-    ESP_LOGI(TAG, "Display System Initialized.");
-
-    // Example: Play a boot-up animation
-    if (animation_manager_ptr) {
-        ESP_LOGI(TAG, "Playing boot animation...");
-        animation_manager_ptr->PlayAnimation("boot", SCREEN_BOTH);
-    }
-
-    servo_driver_ptr = new PCA9685();
-    servo_driver_ptr->init();
-
-    action_manager_ptr = new ActionManager();
-    action_manager_ptr->init();
-
-    motion_controller_ptr = new MotionController(*servo_driver_ptr, *action_manager_ptr);
-    motion_controller_ptr->init();
+    auto animation_manager = std::make_unique<AnimationManager>(std::move(sd_provider), display_manager.get());
 
     auto face_location_callback = [&](const FaceLocation& loc) {
-        if (motion_controller_ptr) {
-            motion_controller_ptr->queue_face_location(loc);
+        if (motion_controller) {
+            motion_controller->queue_face_location(loc);
         }
     };
-    uart_handler_ptr = new UartHandler(*motion_controller_ptr, face_location_callback);
-    uart_handler_ptr->init();
+    auto uart_handler = std::make_unique<UartHandler>(*motion_controller, face_location_callback);
+    uart_handler->init();
     
-    web_server_ptr = new WebServer(*action_manager_ptr, *motion_controller_ptr);
-    web_server_ptr->start();
+    auto sound_manager = std::make_unique<SoundManager>(motion_controller.get(), uart_handler.get());
+    sound_manager->start();
 
-    sound_manager_ptr = new SoundManager(motion_controller_ptr, uart_handler_ptr);
-    sound_manager_ptr->start();
+    // The WebServer starts WiFi and the HTTP server internally.
+    auto web_server = std::make_unique<WebServer>(*action_manager, *motion_controller);
+    web_server->start();
+
+
+    // --- 4. Post-Init Actions & Main Loop ---
+    ESP_LOGI(TAG, "Phase 4: Post-Initialization and Main Loop");
+
+    // Example: Play a boot-up animation
+    if (animation_manager) {
+        ESP_LOGI(TAG, "Playing boot animation...");
+        animation_manager->PlayAnimation("boot", SCREEN_BOTH);
+    }
 
     while(1) {
-        vTaskDelay(pdMS_TO_TICKS(500));
-        servo_driver_ptr->set_angle(15, 90); // Keep servo 15 at 90 degrees as a heartbeat
-        // Example of playing another animation in the main loop
-        if (animation_manager_ptr) {
-            ESP_LOGI(TAG, "Playing 'num' animation in main loop...");
-            animation_manager_ptr->PlayAnimation("num", SCREEN_BOTH);
-        }
         vTaskDelay(pdMS_TO_TICKS(5000));
-        if (animation_manager_ptr) {
+
+        // Example of playing animations periodically in the main loop
+        if (animation_manager) {
+            ESP_LOGI(TAG, "Playing 'num' animation in main loop...");
+            animation_manager->PlayAnimation("num", SCREEN_BOTH);
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(5000));
+
+        if (animation_manager) {
             ESP_LOGI(TAG, "Playing 'happy' animation in main loop...");
-            animation_manager_ptr->PlayAnimation("happy", SCREEN_BOTH);
+            animation_manager->PlayAnimation("happy", SCREEN_BOTH);
         }
     }
 }

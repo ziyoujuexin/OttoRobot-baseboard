@@ -5,15 +5,13 @@
 
 /**
  * @class SDCardAnimationProvider
- * @brief Provides animation data by reading files from an SD card.
+ * @brief Provides animation paths by checking for files on an SD card.
  */
 class SDCardAnimationProvider : public AnimationProvider {
 public:
-    explicit SDCardAnimationProvider(const std::string& base_path = "/sdcard");
+    explicit SDCardAnimationProvider(const std::string& base_path = "/sdcard/animations");
 
-    AnimationData getAnimationData(const std::string& animation_name) override;
-
-    void listAnimations();
+    std::string getAnimationPath(const std::string& animation_name) override;
 
 private:
     std::string m_base_path;

@@ -7,6 +7,7 @@
 #include "esp_http_server.h"
 #include "json_parser.h"
 #include <string>
+#include "freertos/task.h" // For vTaskDelay
 
 static const char *TAG = "WebServer";
 
@@ -15,6 +16,7 @@ static esp_err_t tuning_api_handler(httpd_req_t *req);
 static esp_err_t command_api_handler(httpd_req_t *req);
 static esp_err_t servo_api_handler(httpd_req_t *req);
 static esp_err_t root_handler(httpd_req_t *req);
+static esp_err_t upload_handler(httpd_req_t *req);
 static void wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data);
 
 extern const char index_html_start[] asm("_binary_index_html_start");
@@ -75,6 +77,9 @@ private:
 
             httpd_uri_t servo_uri = { .uri = "/servo", .method = HTTP_POST, .handler = servo_api_handler, .user_ctx = this };
             httpd_register_uri_handler(m_server, &servo_uri);
+
+            httpd_uri_t upload_uri = { .uri = "/upload", .method = HTTP_POST, .handler = upload_handler, .user_ctx = this };
+            httpd_register_uri_handler(m_server, &upload_uri);
             return;
         }
         ESP_LOGI(TAG, "Error starting server!");
@@ -212,8 +217,143 @@ esp_err_t servo_api_handler(httpd_req_t *req)
     return ESP_FAIL;
 }
 
-void wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data)
-{
+// Helper to find a substring in a buffer
+static const char* memmem(const char* haystack, size_t haystack_len, const char* needle, size_t needle_len) {
+    if (needle_len == 0) return haystack;
+    if (haystack_len < needle_len) return NULL;
+    const char* h_end = haystack + haystack_len - needle_len + 1;
+    for (const char* h = haystack; h < h_end; ++h) {
+        if (memcmp(h, needle, needle_len) == 0) {
+            return h;
+        }
+    }
+    return NULL;
+}
+
+esp_err_t upload_handler(httpd_req_t *req) {
+    char buf[1024];
+    char filepath[256];
+    FILE* f = NULL;
+    int received;
+
+    // Get the boundary
+    char boundary[70];
+    if (httpd_req_get_hdr_value_str(req, "Content-Type", buf, sizeof(buf)) != ESP_OK) {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Content-Type header missing");
+        return ESP_FAIL;
+    }
+    char* boundary_start = strstr(buf, "boundary=");
+    if (!boundary_start) {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Boundary not found in Content-Type");
+        return ESP_FAIL;
+    }
+    boundary_start += strlen("boundary=");
+    snprintf(boundary, sizeof(boundary), "--%s", boundary_start);
+
+    size_t boundary_len = strlen(boundary);
+    bool is_first_chunk = true;
+    bool headers_parsed = false;
+    bool is_gif = false;
+
+    ESP_LOGI(TAG, "Starting file upload process. Content length: %d", req->content_len);
+
+    while ((received = httpd_req_recv(req, buf, sizeof(buf))) > 0) {
+        // Add a small delay to yield to other tasks and ease pressure on the SDIO driver
+        vTaskDelay(pdMS_TO_TICKS(5));
+        char* ptr = buf;
+        int remaining = received;
+
+        if (is_first_chunk) {
+            // Skip the first boundary
+            const char* boundary_end = memmem(ptr, remaining, boundary, boundary_len);
+            if (boundary_end) {
+                ptr = (char*)boundary_end + boundary_len;
+                remaining -= (ptr - buf);
+            }
+            is_first_chunk = false;
+        }
+
+        if (!headers_parsed) {
+            const char* header_end = memmem(ptr, remaining, "\r\n\r\n", 4);
+            if (header_end) {
+                // Extract filename
+                const char* filename_start = memmem(ptr, header_end - ptr, "filename=\"", 10);
+                if (filename_start) {
+                    filename_start += 10;
+                    const char* filename_end = memmem(filename_start, header_end - filename_start, "\"", 1);
+                    if (filename_end) {
+                        size_t len = filename_end - filename_start;
+                        snprintf(filepath, sizeof(filepath), "/sdcard/animations/%.*s", len, filename_start);
+                        ESP_LOGI(TAG, "File will be saved to: %s", filepath);
+                    } else {
+                        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Malformed filename in Content-Disposition");
+                        return ESP_FAIL;
+                    }
+                } else {
+                    httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Filename not found in Content-Disposition");
+                    return ESP_FAIL;
+                }
+
+                // Check GIF magic bytes
+                const char* data_start = header_end + 4;
+                if ((data_start - ptr + 6) <= remaining) {
+                    if (memcmp(data_start, "GIF87a", 6) == 0 || memcmp(data_start, "GIF89a", 6) == 0) {
+                        is_gif = true;
+                        ESP_LOGI(TAG, "GIF magic bytes validated.");
+                    } else {
+                        ESP_LOGE(TAG, "Not a valid GIF file.");
+                        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "File is not a valid GIF");
+                        return ESP_FAIL;
+                    }
+                }
+
+                f = fopen(filepath, "wb");
+                if (!f) {
+                    ESP_LOGE(TAG, "Failed to open file for writing: %s", filepath);
+                    httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to open file on server");
+                    return ESP_FAIL;
+                }
+                
+                size_t data_to_write = remaining - (data_start - ptr);
+                fwrite(data_start, 1, data_to_write, f);
+                
+                ptr = (char*)data_start + data_to_write;
+                remaining = 0;
+                headers_parsed = true;
+            }
+        }
+        
+        if (headers_parsed && f) {
+            // Check for the final boundary in the current buffer
+            const char* end_boundary = memmem(ptr, remaining, boundary, boundary_len);
+            if (end_boundary) {
+                size_t data_to_write = end_boundary - ptr;
+                fwrite(ptr, 1, data_to_write, f);
+                ESP_LOGI(TAG, "Final boundary found. Upload finished.");
+                break; // End of file
+            } else {
+                fwrite(ptr, 1, remaining, f);
+            }
+        }
+    }
+
+    if (f) {
+        fclose(f);
+    }
+
+    if (received < 0) {
+        ESP_LOGE(TAG, "File reception failed!");
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "File reception failed");
+        return ESP_FAIL;
+    }
+
+    ESP_LOGI(TAG, "File upload successful");
+    httpd_resp_send(req, "Upload successful", HTTPD_RESP_USE_STRLEN);
+    return ESP_OK;
+}
+
+
+void wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data) {
     WebServerImpl* server = (WebServerImpl*)arg;
     if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
         esp_wifi_connect();

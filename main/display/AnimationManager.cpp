@@ -21,16 +21,16 @@ bool AnimationManager::PlayAnimation(const std::string& animation_name, ScreenId
 
     ESP_LOGI(TAG, "Requesting to play animation '%s'...", animation_name.c_str());
 
-    // 1. Use the provider to get the animation data
-    AnimationData anim_data = m_provider->getAnimationData(animation_name);
+    // 1. Use the provider to get the animation path
+    std::string anim_path = m_provider->getAnimationPath(animation_name);
 
-    if (!anim_data.IsValid()) {
-        ESP_LOGE(TAG, "Failed to get data for animation '%s'.", animation_name.c_str());
+    if (anim_path.empty()) {
+        ESP_LOGE(TAG, "Failed to get path for animation '%s'.", animation_name.c_str());
         return false;
     }
 
-    // 2. Pass the data to the display manager to be shown
-    m_display_manager->DisplayAnimation(screen, anim_data);
+    // 2. Pass the path to the display manager to be shown
+    m_display_manager->DisplayAnimation(screen, anim_path);
 
     return true;
 }
