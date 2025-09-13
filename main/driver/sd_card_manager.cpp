@@ -3,6 +3,7 @@
 #include "esp_vfs_fat.h"
 #include "driver/sdmmc_host.h"
 #include "sdmmc_cmd.h"
+#include "sd_pwr_ctrl_by_on_chip_ldo.h"
 
 static const char* TAG = "SD_CARD_MANAGER";
 static sdmmc_card_t* s_card = nullptr;
@@ -20,15 +21,23 @@ esp_err_t sd_card_manager::init(const char* mount_path) {
         .format_if_mount_failed = false,
         .max_files = 5,
         .allocation_unit_size = 16 * 1024,
-        .disk_status_check_enable = false,
-        .use_one_fat = false,
     };
 
     // Use SDMMC peripheral to communicate with SD card.
     ESP_LOGI(TAG, "Using SDMMC peripheral");
     sdmmc_host_t host = SDMMC_HOST_DEFAULT();
     host.slot = SDMMC_HOST_SLOT_0;
-    host.max_freq_khz = SDMMC_FREQ_DEFAULT;
+    sd_pwr_ctrl_ldo_config_t ldo_config = {
+        .ldo_chan_id = 4,
+    };
+    sd_pwr_ctrl_handle_t pwr_ctrl_handle = NULL;
+
+    ret = sd_pwr_ctrl_new_on_chip_ldo(&ldo_config, &pwr_ctrl_handle);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to create a new on-chip LDO power control driver");
+        return ret;
+    }
+    host.pwr_ctrl_handle = pwr_ctrl_handle;
 
     // This initializes the slot without card detect (CD) and write protect (WP) signals.
     // Modify slot_config.gpio_cd and slot_config.gpio_wp if your board has these signals.
@@ -40,8 +49,8 @@ esp_err_t sd_card_manager::init(const char* mount_path) {
     slot_config.d1 = (gpio_num_t)40;
     slot_config.d2 = (gpio_num_t)41;
     slot_config.d3 = (gpio_num_t)42;
-    slot_config.flags |= SDMMC_SLOT_FLAG_INTERNAL_PULLUP;
-
+    // slot_config.flags |= SDMMC_SLOT_FLAG_INTERNAL_PULLUP;
+// 
     ret = esp_vfs_fat_sdmmc_mount(mount_path, &host, &slot_config, &mount_config, &s_card);
 
     if (ret != ESP_OK) {

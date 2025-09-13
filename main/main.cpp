@@ -45,19 +45,6 @@ extern "C" void app_main(void)
         // You might want to halt or use a fallback here
     }
 
-    // Initialize Display System
-    ESP_LOGI(TAG, "Initializing Display System...");
-    display_manager_ptr = new DualScreenManager();
-    auto sd_provider = std::make_unique<SDCardAnimationProvider>("/");
-    animation_manager_ptr = new AnimationManager(std::move(sd_provider), display_manager_ptr);
-    ESP_LOGI(TAG, "Display System Initialized.");
-
-    // Example: Play a boot-up animation
-    if (animation_manager_ptr) {
-        ESP_LOGI(TAG, "Playing boot animation...");
-        animation_manager_ptr->PlayAnimation("boot", SCREEN_BOTH);
-    }
-
     servo_driver_ptr = new PCA9685();
     servo_driver_ptr->init();
 
@@ -81,14 +68,27 @@ extern "C" void app_main(void)
     sound_manager_ptr = new SoundManager(motion_controller_ptr, uart_handler_ptr);
     sound_manager_ptr->start();
 
+    // // Initialize Display System
+    // ESP_LOGI(TAG, "Initializing Display System...");
+    // display_manager_ptr = new DualScreenManager();
+    // auto sd_provider = std::make_unique<SDCardAnimationProvider>("/");
+    // animation_manager_ptr = new AnimationManager(std::move(sd_provider), display_manager_ptr);
+    // ESP_LOGI(TAG, "Display System Initialized.");
+
+    // // Example: Play a boot-up animation
+    // if (animation_manager_ptr) {
+    //     ESP_LOGI(TAG, "Playing boot animation...");
+    //     animation_manager_ptr->PlayAnimation("boot", SCREEN_BOTH);
+    // }
 
     while(1) {
-        vTaskDelay(pdMS_TO_TICKS(5000));
+        vTaskDelay(pdMS_TO_TICKS(500));
+        servo_driver_ptr->set_angle(15, 90); // Keep servo 0 at 90 degrees as a heartbeat
         // Example of playing another animation in the main loop
-        if (animation_manager_ptr) {
-            ESP_LOGI(TAG, "Playing 'num' animation in main loop...");
-            animation_manager_ptr->PlayAnimation("num", SCREEN_BOTH);
-        }
+        // if (animation_manager_ptr) {
+        //     ESP_LOGI(TAG, "Playing 'num' animation in main loop...");
+        //     animation_manager_ptr->PlayAnimation("num", SCREEN_BOTH);
+        // }
         // vTaskDelay(pdMS_TO_TICKS(5000));
         // if (animation_manager_ptr) {
         //     ESP_LOGI(TAG, "Playing 'happy' animation in main loop...");
