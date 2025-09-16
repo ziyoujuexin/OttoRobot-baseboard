@@ -12,6 +12,7 @@
 // LVGL & Display
 #include "lvgl.h"
 #include "GC9A01_driver.hpp"
+#include "lvgl_fs_port.h"
 
 // Application-level Managers
 #include "DualScreenManager.h"
@@ -52,6 +53,8 @@ extern "C" void app_main(void)
 
     // Initialize LVGL and the display driver
     lv_init();
+    // lv_fs_stdio_init();
+    lvgl_fs_driver_init();
     if (!gc9a01_lvgl_driver_init()) {
         ESP_LOGE(TAG, "Failed to initialize display driver. Halting.");
         while(1) { vTaskDelay(1000); }
@@ -110,9 +113,10 @@ extern "C" void app_main(void)
         // vTaskDelay(pdMS_TO_TICKS(5000));
 
         // Example of playing animations periodically in the main loop
+        ESP_LOGI(TAG, "Heap before playing anim: %d bytes", esp_get_free_heap_size());
         if (animation_manager) {
-            ESP_LOGI(TAG, "Playing 'walk' animation in main loop...");
-            animation_manager->PlayAnimation("walk", SCREEN_BOTH);
+            ESP_LOGI(TAG, "Playing 'jump' animation in main loop...");
+            animation_manager->PlayAnimation("jump", SCREEN_BOTH);
         }
 
         vTaskDelay(pdMS_TO_TICKS(10000));

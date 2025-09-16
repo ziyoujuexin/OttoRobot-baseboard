@@ -22,15 +22,15 @@ bool AnimationManager::PlayAnimation(const std::string& animation_name, ScreenId
     ESP_LOGI(TAG, "Requesting to play animation '%s'...", animation_name.c_str());
 
     // 1. Use the provider to get the animation path
-    std::string anim_path = m_provider->getAnimationPath(animation_name);
+    m_current_lvgl_path = m_provider->getAnimationPath(animation_name);
 
-    if (anim_path.empty()) {
+    if (m_current_lvgl_path.empty()) {
         ESP_LOGE(TAG, "Failed to get path for animation '%s'.", animation_name.c_str());
         return false;
     }
 
     // 2. Pass the path to the display manager to be shown
-    m_display_manager->DisplayAnimation(screen, anim_path);
+    m_display_manager->DisplayAnimation(screen, m_current_lvgl_path);
 
     return true;
 }

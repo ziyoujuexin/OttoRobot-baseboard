@@ -1,5 +1,6 @@
 set(SRCS
     "main.cpp"
+    "display/lvgl_fs_port.cpp"
     "UartHandler.cpp"
     "driver/PCA9685.cpp"
     "driver/sd_card_manager.cpp"
@@ -35,6 +36,9 @@ set(EMBED_TXTFILES
     "www/index.html"
 )
 
-idf_component_register(SRCS ${SRCS} INCLUDE_DIRS ${INCLUDE_DIRS} EMBED_TXTFILES ${EMBED_TXTFILES})
+idf_component_register(SRCS ${SRCS}
+                        INCLUDE_DIRS ${INCLUDE_DIRS} 
+                        EMBED_TXTFILES ${EMBED_TXTFILES}
+                        )
 
 target_compile_options(${COMPONENT_LIB} PRIVATE -Wno-error)
