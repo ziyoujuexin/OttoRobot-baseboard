@@ -9,29 +9,23 @@
 #include "driver/sd_card_manager.h"
 #include "driver/PCA9685.hpp"
 
-// LVGL
+// LVGL & Display
 #include "lvgl.h"
+#include "GC9A01_driver.hpp"
 
 // Application-level Managers
-#include "display/DualScreenManager.h"
-#include "display/SDCardAnimationProvider.h"
-#include "display/AnimationManager.h"
-#include "motion_manager/ActionManager.hpp"
-#include "motion_manager/MotionController.hpp"
-#include "sound/SoundManager.hpp"
+#include "DualScreenManager.h"
+#include "SDCardAnimationProvider.h"
+#include "AnimationManager.h"
+#include "ActionManager.hpp"
+#include "MotionController.hpp"
+#include "SoundManager.hpp"
 #include "UartHandler.hpp"
-#include "web_server/WebServer.hpp"
+#include "WebServer.hpp"
 
 static const char *TAG = "MAIN";
 
 // --- LVGL Minimal Setup ---
-
-// A dummy flush callback required by LVGL for headless operation.
-static void flush_cb(lv_display_t * disp, const lv_area_t * area, uint8_t * px_map) {
-    // Tell LVGL that the flush is ready. Since we are not drawing to a real screen,
-    // we can do this immediately.
-    lv_display_flush_ready(disp);
-}
 
 // A FreeRTOS task to run the LVGL timer handler periodically.
 static void lvgl_task(void *pvParameter) {
@@ -47,8 +41,6 @@ static void lvgl_task(void *pvParameter) {
 
 extern "C" void app_main(void)
 {
-    // --- 1. Core System and Hardware Initialization ---
-    ESP_LOGI(TAG, "Phase 1: Initializing Core System & Hardware");
     ESP_ERROR_CHECK(nvs_flash_init()); // For WiFi credentials
     ESP_ERROR_CHECK(i2cdev_init());      // For servo driver
 
@@ -58,20 +50,18 @@ extern "C" void app_main(void)
         while(1) { vTaskDelay(1000); }
     }
 
-    // --- 2. LVGL Headless Initialization ---
-    ESP_LOGI(TAG, "Phase 2: Initializing LVGL in Headless Mode");
+    // Initialize LVGL and the display driver
     lv_init();
+    if (!gc9a01_lvgl_driver_init()) {
+        ESP_LOGE(TAG, "Failed to initialize display driver. Halting.");
+        while(1) { vTaskDelay(1000); }
+    }
+
     
-    // Create a display buffer and a display driver.
-    // This is virtual; it doesn't require a physical screen.
-    static lv_color_t buf1[320 * 240 / 10];
-    lv_display_t * disp = lv_display_create(320, 240);
-    lv_display_set_flush_cb(disp, flush_cb);
-    lv_display_set_buffers(disp, buf1, NULL, sizeof(buf1), LV_DISPLAY_RENDER_MODE_PARTIAL);
-    lv_display_set_default(disp);
 
     // Create the FreeRTOS task for the LVGL handler
-    xTaskCreate(lvgl_task, "lvgl_task", 4096, NULL, 5, NULL);
+    xTaskCreate(lvgl_task, "lvgl_task", 4096*2, NULL, 5, NULL);
+
 
 
     // --- 3. Application Services and Managers Initialization ---
@@ -112,24 +102,24 @@ extern "C" void app_main(void)
 
     // Example: Play a boot-up animation
     if (animation_manager) {
-        ESP_LOGI(TAG, "Playing boot animation...");
-        animation_manager->PlayAnimation("boot", SCREEN_BOTH);
+        ESP_LOGI(TAG, "Playing rainbow animation...");
+        animation_manager->PlayAnimation("rainbow", SCREEN_BOTH);
     }
 
     while(1) {
-        vTaskDelay(pdMS_TO_TICKS(5000));
+        // vTaskDelay(pdMS_TO_TICKS(5000));
 
         // Example of playing animations periodically in the main loop
         if (animation_manager) {
-            ESP_LOGI(TAG, "Playing 'num' animation in main loop...");
-            animation_manager->PlayAnimation("num", SCREEN_BOTH);
+            ESP_LOGI(TAG, "Playing 'walk' animation in main loop...");
+            animation_manager->PlayAnimation("walk", SCREEN_BOTH);
         }
 
-        vTaskDelay(pdMS_TO_TICKS(5000));
+        vTaskDelay(pdMS_TO_TICKS(10000));
 
-        if (animation_manager) {
-            ESP_LOGI(TAG, "Playing 'happy' animation in main loop...");
-            animation_manager->PlayAnimation("happy", SCREEN_BOTH);
-        }
+        // if (animation_manager) {
+        //     ESP_LOGI(TAG, "Playing 'happy' animation in main loop...");
+        //     animation_manager->PlayAnimation("happy", SCREEN_BOTH);
+        // }
     }
 }

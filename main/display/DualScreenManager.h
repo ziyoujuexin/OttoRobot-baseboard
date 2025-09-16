@@ -2,6 +2,7 @@
 #define DUAL_SCREEN_MANAGER_H
 
 #include "lvgl.h"
+#include "GC9A01_driver.hpp"
 #include <string>
 
 enum ScreenId {
@@ -23,10 +24,11 @@ public:
     void ClearScreen(ScreenId screen);
 
 private:
-    lv_obj_t* m_left_anim_obj;
-    lv_obj_t* m_right_anim_obj;
+    lv_display_t* m_left_disp;
+    lv_display_t* m_right_disp;
 
-    void create_anim_obj(lv_obj_t** obj_ptr, const std::string& anim_path);
+    void create_anim_obj(lv_display_t* disp, const std::string& anim_path);
+    void clear_disp(lv_display_t* disp);
 };
 
 #endif // DUAL_SCREEN_MANAGER_H

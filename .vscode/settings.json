@@ -69,9 +69,11 @@
     "semaphore": "cpp",
     "sstream": "cpp",
     "stop_token": "cpp",
-    "thread": "cpp"
+    "thread": "cpp",
+    "lv_fs.h": "c",
+    "lv_os_private.h": "c"
   },
-  "idf.portWin": "COM16",
+  "idf.portWin": "COM17",
   "idf.flashType": "UART",
   "idf.espIdfPathWin": "C:\\Users\\12721\\esp\\v5.5\\esp-idf",
   "idf.toolsPathWin": "C:\\Users\\12721\\.espressif",

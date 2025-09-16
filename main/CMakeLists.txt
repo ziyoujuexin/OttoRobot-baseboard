@@ -19,6 +19,7 @@ set(SRCS
     "display/AnimationManager.cpp"
     "display/SDCardAnimationProvider.cpp"
     "display/DualScreenManager.cpp"
+    "display/GC9A01_driver.cpp"
 )
 
 set(INCLUDE_DIRS
