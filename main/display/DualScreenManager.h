@@ -26,6 +26,8 @@ public:
 private:
     lv_display_t* m_left_disp;
     lv_display_t* m_right_disp;
+    lv_obj_t* m_left_gif_obj;
+    lv_obj_t* m_right_gif_obj;
 
     void create_anim_obj(lv_display_t* disp, const std::string& anim_path);
     void clear_disp(lv_display_t* disp);

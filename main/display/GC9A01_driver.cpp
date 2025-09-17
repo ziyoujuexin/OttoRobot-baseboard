@@ -30,15 +30,24 @@ static void lvgl_flush_cb(lv_display_t* disp, const lv_area_t* area, uint8_t* px
     int offsety1 = area->y1;
     int offsetx2 = area->x2;
     int offsety2 = area->y2;
-    // Synchronize the cache memory before DMA transfer.
-    // The size of the dirty area ('len') from LVGL is not guaranteed to be cache-aligned.
-    // A direct call to esp_cache_msync with 'len' will fail if the size is not a multiple of the cache line size.
-    // We also observed that 'len' can be larger than the buffer, causing out-of-bounds access.
-    // As a safe workaround, we sync the entire buffer, which is guaranteed to be aligned and has a known size.
-    const size_t buffer_size = LCD_H_RES * 40 * sizeof(lv_color_t);
-    esp_cache_msync(px_map, buffer_size, ESP_CACHE_MSYNC_FLAG_DIR_C2M);
-    // copy a buffer's content to a specific area of the display
+
+    // Apply the software workaround for the G-B color swap issue.
+    lv_color_t* color_map = (lv_color_t*)px_map;
+    // size_t pixel_count = (offsetx2 - offsetx1 + 1) * (offsety2 - offsety1 + 1);
+    // for (size_t i = 0; i < pixel_count; i++) {
+    //     // Unpack the pixel into R,G,B components
+    //     uint32_t color_int = lv_color_to_u32(color_map[i]);
+    //     uint8_t r = (color_int >> 16) & 0xFF;
+    //     uint8_t g = (color_int >> 8) & 0xFF;
+    //     uint8_t b = color_int & 0xFF;
+    //     // Re-pack with G and B swapped
+    //     color_map[i] = lv_color_make(r, b, g);
+    // }
+
+    // Copy the buffer's content to the specific area of the display.
     esp_lcd_panel_draw_bitmap(panel_handle, offsetx1, offsety1, offsetx2 + 1, offsety2 + 1, px_map);
+    
+    // Notify LVGL that flushing is done.
     lv_display_flush_ready(disp);
 }
 
@@ -82,7 +91,7 @@ bool gc9a01_lvgl_driver_init(void) {
 
     const esp_lcd_panel_dev_config_t panel_config_left = {
         .reset_gpio_num = PIN_NUM_RST_LEFT,
-        .rgb_endian = LCD_RGB_ENDIAN_RGB, // Match the working example
+        .rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB, // Set to standard RGB
         .bits_per_pixel = LCD_BIT_PER_PIXEL,
     };
     ESP_ERROR_CHECK(esp_lcd_new_panel_gc9a01(io_handle_left, &panel_config_left, &panel_handle_left));
@@ -90,6 +99,7 @@ bool gc9a01_lvgl_driver_init(void) {
     ESP_ERROR_CHECK(esp_lcd_panel_init(panel_handle_left));
     // Match the working example's settings
     ESP_ERROR_CHECK(esp_lcd_panel_invert_color(panel_handle_left, true));
+    ESP_ERROR_CHECK(esp_lcd_panel_swap_xy(panel_handle_left, true));
     ESP_ERROR_CHECK(esp_lcd_panel_mirror(panel_handle_left, true, false));
     ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel_handle_left, true));
     ESP_LOGI(TAG, "Left screen initialized.");
@@ -110,7 +120,7 @@ bool gc9a01_lvgl_driver_init(void) {
 
     const esp_lcd_panel_dev_config_t panel_config_right = {
         .reset_gpio_num = PIN_NUM_RST_RIGHT,
-        .rgb_endian = LCD_RGB_ENDIAN_RGB, // Match the working example
+        .rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB, // Set to standard RGB
         .bits_per_pixel = LCD_BIT_PER_PIXEL,
     };
     ESP_ERROR_CHECK(esp_lcd_new_panel_gc9a01(io_handle_right, &panel_config_right, &panel_handle_right));
@@ -118,6 +128,7 @@ bool gc9a01_lvgl_driver_init(void) {
     ESP_ERROR_CHECK(esp_lcd_panel_init(panel_handle_right));
     // Match the working example's settings
     ESP_ERROR_CHECK(esp_lcd_panel_invert_color(panel_handle_right, true));
+    ESP_ERROR_CHECK(esp_lcd_panel_swap_xy(panel_handle_right, true));
     ESP_ERROR_CHECK(esp_lcd_panel_mirror(panel_handle_right, true, false));
     ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel_handle_right, true));
     ESP_LOGI(TAG, "Right screen initialized.");
@@ -127,9 +138,10 @@ bool gc9a01_lvgl_driver_init(void) {
     disp_left = lv_display_create(LCD_H_RES, LCD_V_RES);
     lv_display_set_flush_cb(disp_left, lvgl_flush_cb);
     lv_display_set_user_data(disp_left, panel_handle_left);
-    lv_color_t* buf_left = (lv_color_t*)heap_caps_malloc(LCD_H_RES * 40 * sizeof(lv_color_t), MALLOC_CAP_DMA);
+    lv_color_t* buf_left = (lv_color_t*)heap_caps_malloc(LCD_H_RES * 10 * sizeof(lv_color_t), MALLOC_CAP_DMA);
+    lv_color_t* buf_left_sec = (lv_color_t*)heap_caps_malloc(LCD_H_RES * 10 * sizeof(lv_color_t), MALLOC_CAP_DMA);
     assert(buf_left);
-    lv_display_set_buffers(disp_left, buf_left, NULL, LCD_H_RES * 40 * sizeof(lv_color_t), LV_DISPLAY_RENDER_MODE_PARTIAL);
+    lv_display_set_buffers(disp_left, buf_left, buf_left_sec, LCD_H_RES * 10 * sizeof(lv_color_t), LV_DISPLAY_RENDER_MODE_PARTIAL);
     ESP_LOGI(TAG, "Left screen registered.");
 
     // --- Register Right Screen with LVGL ---
@@ -137,9 +149,10 @@ bool gc9a01_lvgl_driver_init(void) {
     disp_right = lv_display_create(LCD_H_RES, LCD_V_RES);
     lv_display_set_flush_cb(disp_right, lvgl_flush_cb);
     lv_display_set_user_data(disp_right, panel_handle_right);
-    lv_color_t* buf_right = (lv_color_t*)heap_caps_malloc(LCD_H_RES * 40 * sizeof(lv_color_t), MALLOC_CAP_DMA);
+    lv_color_t* buf_right = (lv_color_t*)heap_caps_malloc(LCD_H_RES * 10 * sizeof(lv_color_t), MALLOC_CAP_DMA);
+    lv_color_t* buf_right_sec = (lv_color_t*)heap_caps_malloc(LCD_H_RES * 10 * sizeof(lv_color_t), MALLOC_CAP_DMA);
     assert(buf_right);
-    lv_display_set_buffers(disp_right, buf_right, NULL, LCD_H_RES * 40 * sizeof(lv_color_t), LV_DISPLAY_RENDER_MODE_PARTIAL);
+    lv_display_set_buffers(disp_right, buf_right, buf_right_sec, LCD_H_RES * 10 * sizeof(lv_color_t), LV_DISPLAY_RENDER_MODE_PARTIAL);
     ESP_LOGI(TAG, "Right screen registered.");
 
     return true;

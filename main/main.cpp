@@ -1,6 +1,7 @@
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/semphr.h"
 #include <memory> // Required for std::unique_ptr
 
 // Core Drivers & Services
@@ -27,6 +28,7 @@
 static const char *TAG = "MAIN";
 
 // --- LVGL Minimal Setup ---
+static SemaphoreHandle_t lvgl_mutex;
 
 // A FreeRTOS task to run the LVGL timer handler periodically.
 static void lvgl_task(void *pvParameter) {
@@ -34,8 +36,11 @@ static void lvgl_task(void *pvParameter) {
     while(1) {
         // This is the heartbeat of LVGL. It handles animations, events, etc.
         vTaskDelay(pdMS_TO_TICKS(10));
-        lv_tick_inc(10);
-        lv_timer_handler();
+        if (xSemaphoreTake(lvgl_mutex, portMAX_DELAY)) {
+            lv_tick_inc(10);
+            lv_timer_handler();
+            xSemaphoreGive(lvgl_mutex);
+        }
     }
 }
 
@@ -54,6 +59,7 @@ extern "C" void app_main(void)
 
     // Initialize LVGL and the display driver
     lv_init();
+    lvgl_mutex = xSemaphoreCreateMutex();
     // lv_fs_stdio_init();
     lvgl_fs_driver_init();
     if (!gc9a01_lvgl_driver_init()) {
@@ -127,7 +133,10 @@ extern "C" void app_main(void)
         vTaskDelay(pdMS_TO_TICKS(5000));
         if (animation_manager) {
             ESP_LOGI(TAG, "Playing 'bird' animation in main loop...");
-            animation_manager->PlayAnimation("bird", SCREEN_LEFT);
+            if (xSemaphoreTake(lvgl_mutex, portMAX_DELAY)) {
+                animation_manager->PlayAnimation("bird", SCREEN_BOTH);
+                xSemaphoreGive(lvgl_mutex);
+            }
         }
         else {
             ESP_LOGW(TAG, "AnimationManager not available in main loop.");
