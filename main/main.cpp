@@ -109,7 +109,6 @@ extern "C" void app_main(void)
     //     ESP_LOGI(TAG, "Playing rainbow animation...");
     //     animation_manager->PlayAnimation("rainbow", SCREEN_BOTH);
     // }
-
     while(1) {
         // vTaskDelay(pdMS_TO_TICKS(5000));
 
@@ -127,8 +126,11 @@ extern "C" void app_main(void)
         // }
         vTaskDelay(pdMS_TO_TICKS(5000));
         if (animation_manager) {
-            ESP_LOGI(TAG, "Playing 'happy' animation in main loop...");
-            animation_manager->PlayAnimation("happy", SCREEN_BOTH);
+            ESP_LOGI(TAG, "Playing 'bird' animation in main loop...");
+            animation_manager->PlayAnimation("bird", SCREEN_LEFT);
+        }
+        else {
+            ESP_LOGW(TAG, "AnimationManager not available in main loop.");
         }
     }
 }

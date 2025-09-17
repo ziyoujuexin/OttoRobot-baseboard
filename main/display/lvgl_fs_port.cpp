@@ -66,9 +66,20 @@ static lv_fs_res_t fs_close_cb(lv_fs_drv_t* drv, void* file_p) {
  * @return LV_FS_RES_OK 表示成功, 其他表示失败.
  */
 static lv_fs_res_t fs_read_cb(lv_fs_drv_t* drv, void* file_p, void* buf, uint32_t btr, uint32_t* br) {
-    *br = fread(buf, 1, btr, (FILE*)file_p);
-    ESP_LOGI(TAG, "fs_read_cb: requested=%d, read=%d", btr, *br);
-    // fread 在文件末尾或出错时返回的值可能小于 btr，这是正常行为
+    FILE* f = (FILE*)file_p;
+    clearerr(f); // 清除之前可能存在的错误标志
+
+    *br = fread(buf, 1, btr, f);
+
+    // 检查是否发生了真正的读取错误
+    if (ferror(f)) {
+        ESP_LOGE(TAG, "fs_read_cb: fread failed with error!");
+        return LV_FS_RES_UNKNOWN; // 返回一个错误码
+    }
+    
+    // (可选) 取消下面这行注释来查看详细读取日志
+    // ESP_LOGI(TAG, "fs_read_cb: requested=%d, read=%d", btr, *br);
+
     return LV_FS_RES_OK;
 }
 
@@ -102,7 +113,7 @@ static lv_fs_res_t fs_seek_cb(lv_fs_drv_t* drv, void* file_p, uint32_t pos, lv_f
             return LV_FS_RES_INV_PARAM;
     }
 
-    ESP_LOGI(TAG, "fs_seek_cb: seeking to pos=%d, whence=%s", pos, whence_str);
+    // ESP_LOGI(TAG, "fs_seek_cb: seeking to pos=%d, whence=%s", pos, whence_str);
     
     // fseek 成功返回0, 失败返回非0
     if (fseek((FILE*)file_p, pos, seek_mode) != 0) {
@@ -130,7 +141,7 @@ static lv_fs_res_t fs_tell_cb(lv_fs_drv_t* drv, void* file_p, uint32_t* pos_p) {
     }
 
     *pos_p = (uint32_t)pos;
-    ESP_LOGI(TAG, "fs_tell_cb: current position is %d", *pos_p);
+    // ESP_LOGI(TAG, "fs_tell_cb: current position is %d", *pos_p);
     return LV_FS_RES_OK;
 }
 
