@@ -82,7 +82,7 @@ bool gc9a01_lvgl_driver_init(void) {
 
     const esp_lcd_panel_dev_config_t panel_config_left = {
         .reset_gpio_num = PIN_NUM_RST_LEFT,
-        .rgb_endian = LCD_RGB_ENDIAN_BGR, // Match the working example
+        .rgb_endian = LCD_RGB_ENDIAN_RGB, // Match the working example
         .bits_per_pixel = LCD_BIT_PER_PIXEL,
     };
     ESP_ERROR_CHECK(esp_lcd_new_panel_gc9a01(io_handle_left, &panel_config_left, &panel_handle_left));
@@ -110,7 +110,7 @@ bool gc9a01_lvgl_driver_init(void) {
 
     const esp_lcd_panel_dev_config_t panel_config_right = {
         .reset_gpio_num = PIN_NUM_RST_RIGHT,
-        .rgb_endian = LCD_RGB_ENDIAN_BGR, // Match the working example
+        .rgb_endian = LCD_RGB_ENDIAN_RGB, // Match the working example
         .bits_per_pixel = LCD_BIT_PER_PIXEL,
     };
     ESP_ERROR_CHECK(esp_lcd_new_panel_gc9a01(io_handle_right, &panel_config_right, &panel_handle_right));
