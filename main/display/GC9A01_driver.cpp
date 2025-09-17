@@ -30,10 +30,13 @@ static void lvgl_flush_cb(lv_display_t* disp, const lv_area_t* area, uint8_t* px
     int offsety1 = area->y1;
     int offsetx2 = area->x2;
     int offsety2 = area->y2;
-    // Synchronize the cache memory before DMA transfer
-    size_t len = (offsetx2 - offsetx1 + 1) * (offsety2 - offsety1 + 1) * sizeof(lv_color_t);
-    esp_cache_msync(px_map, len, ESP_CACHE_MSYNC_FLAG_DIR_C2M);
-    ESP_LOGI(TAG, "Flushing area x1:%d y1:%d x2:%d y2:%d, len=%d", offsetx1, offsety1, offsetx2, offsety2, len);
+    // Synchronize the cache memory before DMA transfer.
+    // The size of the dirty area ('len') from LVGL is not guaranteed to be cache-aligned.
+    // A direct call to esp_cache_msync with 'len' will fail if the size is not a multiple of the cache line size.
+    // We also observed that 'len' can be larger than the buffer, causing out-of-bounds access.
+    // As a safe workaround, we sync the entire buffer, which is guaranteed to be aligned and has a known size.
+    const size_t buffer_size = LCD_H_RES * 40 * sizeof(lv_color_t);
+    esp_cache_msync(px_map, buffer_size, ESP_CACHE_MSYNC_FLAG_DIR_C2M);
     // copy a buffer's content to a specific area of the display
     esp_lcd_panel_draw_bitmap(panel_handle, offsetx1, offsety1, offsetx2 + 1, offsety2 + 1, px_map);
     lv_display_flush_ready(disp);

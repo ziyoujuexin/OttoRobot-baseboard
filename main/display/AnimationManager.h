@@ -11,6 +11,10 @@ public:
     AnimationManager(std::unique_ptr<AnimationProvider> provider, DualScreenManager* display_manager);
 
     bool PlayAnimation(const std::string& animation_name, ScreenId screen);
+    bool StopAnimation(); // Placeholder for future use
+    bool PauseAnimation(); // Placeholder for future use
+    bool ResumeAnimation(); // Placeholder for future use
+    bool ClearAnimation(); // Placeholder for future use
 
 private:
     std::unique_ptr<AnimationProvider> m_provider;

@@ -33,8 +33,9 @@ static void lvgl_task(void *pvParameter) {
     ESP_LOGI(TAG, "Starting LVGL task");
     while(1) {
         // This is the heartbeat of LVGL. It handles animations, events, etc.
-        lv_timer_handler();
         vTaskDelay(pdMS_TO_TICKS(10));
+        lv_tick_inc(10);
+        lv_timer_handler();
     }
 }
 
@@ -104,26 +105,30 @@ extern "C" void app_main(void)
     ESP_LOGI(TAG, "Phase 4: Post-Initialization and Main Loop");
 
     // Example: Play a boot-up animation
-    if (animation_manager) {
-        ESP_LOGI(TAG, "Playing rainbow animation...");
-        animation_manager->PlayAnimation("rainbow", SCREEN_BOTH);
-    }
+    // if (animation_manager) {
+    //     ESP_LOGI(TAG, "Playing rainbow animation...");
+    //     animation_manager->PlayAnimation("rainbow", SCREEN_BOTH);
+    // }
 
     while(1) {
         // vTaskDelay(pdMS_TO_TICKS(5000));
 
         // Example of playing animations periodically in the main loop
-        ESP_LOGI(TAG, "Heap before playing anim: %d bytes", esp_get_free_heap_size());
-        if (animation_manager) {
-            ESP_LOGI(TAG, "Playing 'jump' animation in main loop...");
-            animation_manager->PlayAnimation("jump", SCREEN_BOTH);
-        }
-
-        vTaskDelay(pdMS_TO_TICKS(10000));
-
+        // ESP_LOGI(TAG, "Heap before playing anim: %d bytes", esp_get_free_heap_size());
         // if (animation_manager) {
-        //     ESP_LOGI(TAG, "Playing 'happy' animation in main loop...");
-        //     animation_manager->PlayAnimation("happy", SCREEN_BOTH);
+        //     ESP_LOGI(TAG, "Playing 'jump' animation in main loop...");
+        //     animation_manager->PlayAnimation("jump", SCREEN_LEFT);
         // }
+
+        vTaskDelay(pdMS_TO_TICKS(5000));
+        // if (animation_manager) {
+        //     ESP_LOGI(TAG, "Playing 'jump' animation in main loop...");
+        //     animation_manager->PlayAnimation("jump", SCREEN_RIGHT);
+        // }
+        vTaskDelay(pdMS_TO_TICKS(5000));
+        if (animation_manager) {
+            ESP_LOGI(TAG, "Playing 'happy' animation in main loop...");
+            animation_manager->PlayAnimation("happy", SCREEN_BOTH);
+        }
     }
 }
