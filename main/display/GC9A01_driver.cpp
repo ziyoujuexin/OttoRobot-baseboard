@@ -129,7 +129,7 @@ bool gc9a01_lvgl_driver_init(void) {
     // Match the working example's settings
     ESP_ERROR_CHECK(esp_lcd_panel_invert_color(panel_handle_right, true));
     ESP_ERROR_CHECK(esp_lcd_panel_swap_xy(panel_handle_right, true));
-    ESP_ERROR_CHECK(esp_lcd_panel_mirror(panel_handle_right, true, false));
+    ESP_ERROR_CHECK(esp_lcd_panel_mirror(panel_handle_right, false, false));
     ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel_handle_right, true));
     ESP_LOGI(TAG, "Right screen initialized.");
 

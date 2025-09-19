@@ -111,10 +111,10 @@ extern "C" void app_main(void)
     ESP_LOGI(TAG, "Phase 4: Post-Initialization and Main Loop");
 
     // Example: Play a boot-up animation
-    // if (animation_manager) {
-    //     ESP_LOGI(TAG, "Playing rainbow animation...");
-    //     animation_manager->PlayAnimation("rainbow", SCREEN_BOTH);
-    // }
+    if (animation_manager) {
+        ESP_LOGI(TAG, "Playing eyec animation...");
+        animation_manager->PlayAnimation("bird", SCREEN_BOTH);
+    }
     while(1) {
         // vTaskDelay(pdMS_TO_TICKS(5000));
 
@@ -125,16 +125,16 @@ extern "C" void app_main(void)
         //     animation_manager->PlayAnimation("jump", SCREEN_LEFT);
         // }
 
-        vTaskDelay(pdMS_TO_TICKS(5000));
+        // vTaskDelay(pdMS_TO_TICKS(5000));
         // if (animation_manager) {
         //     ESP_LOGI(TAG, "Playing 'jump' animation in main loop...");
         //     animation_manager->PlayAnimation("jump", SCREEN_RIGHT);
         // }
         vTaskDelay(pdMS_TO_TICKS(5000));
         if (animation_manager) {
-            ESP_LOGI(TAG, "Playing 'bird' animation in main loop...");
+            ESP_LOGI(TAG, "Playing 'eyec' animation in main loop...");
             if (xSemaphoreTake(lvgl_mutex, portMAX_DELAY)) {
-                animation_manager->PlayAnimation("bird", SCREEN_BOTH);
+                animation_manager->PlayAnimation("eyec", SCREEN_BOTH);
                 xSemaphoreGive(lvgl_mutex);
             }
         }

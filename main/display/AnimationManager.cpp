@@ -13,6 +13,7 @@ AnimationManager::AnimationManager(std::unique_ptr<AnimationProvider> provider, 
     }
 }
 
+// playing animations in both screens always uses left screen as reference, right screen is just a mirror
 bool AnimationManager::PlayAnimation(const std::string& animation_name, ScreenId screen) {
     if (!m_provider || !m_display_manager) {
         ESP_LOGE(TAG, "Manager is not properly initialized.");
