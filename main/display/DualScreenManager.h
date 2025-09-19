@@ -19,9 +19,12 @@ public:
     DualScreenManager(const DualScreenManager&) = delete;
     DualScreenManager& operator=(const DualScreenManager&) = delete;
 
-    void DisplayAnimation(ScreenId screen, const std::string& anim_path);
+    void UpdateAnimationSource(const std::string& anim_path);
 
     void ClearScreen(ScreenId screen);
+
+    // Getter for the GIF object
+    lv_obj_t* get_gif_obj(ScreenId screen) const;
 
 private:
     lv_display_t* m_left_disp;
@@ -29,7 +32,6 @@ private:
     lv_obj_t* m_left_gif_obj;
     lv_obj_t* m_right_gif_obj;
 
-    void create_anim_obj(lv_display_t* disp, const std::string& anim_path);
     void clear_disp(lv_display_t* disp);
 };
 

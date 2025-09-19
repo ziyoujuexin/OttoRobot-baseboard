@@ -17,8 +17,8 @@
 
 static const char* TAG = "UartHandler";
 
-UartHandler::UartHandler(MotionController& controller, FaceLocationCallback callback)
-    : m_motion_controller(controller), m_face_location_callback(callback) {}
+UartHandler::UartHandler(MotionController& controller, AnimationPlayer* anim_player, FaceLocationCallback callback)
+    : m_motion_controller(controller), m_anim_player(anim_player), m_face_location_callback(callback) {}
 
 void UartHandler::init() {
     uart_config_t uart_config = {
@@ -125,6 +125,14 @@ void UartHandler::receive_task_handler() {
                                 ESP_LOGI(TAG, "Wake word detected.");
                                 m_isWakeWordDetected = true;
                                 start_wake_word_timer();
+                            } else if (motion_type == MOTION_PLAY_ANIMATION) {
+                                if (m_anim_player) {
+                                    const char* anim_name = (const char*)(frame_buffer.data() + 6);
+                                    uint8_t anim_name_len = payload_len > 0 ? payload_len - 1 : 0;
+                                    std::string anim_name_str(anim_name, anim_name_len);
+                                    ESP_LOGI(TAG, "Queueing one-shot animation: %s", anim_name_str.c_str());
+                                    m_anim_player->playOneShotAnimation(anim_name_str);
+                                }
                             } else if (motion_type == MOTION_FACE_END) {
                                 ESP_LOGI(TAG, "Face end detected, stopping all motions.");
                                 m_motion_controller.queue_command({MOTION_STOP, {}});

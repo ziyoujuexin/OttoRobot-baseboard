@@ -12,65 +12,42 @@ DualScreenManager::DualScreenManager()
     ESP_LOGI(TAG, "DualScreenManager initialized.");
     if (!m_left_disp || !m_right_disp) {
         ESP_LOGE(TAG, "Failed to get display handles!");
+        return;
+    }
+
+    // Create the GIF objects once at the beginning
+    lv_obj_t* left_screen_obj = lv_display_get_screen_active(m_left_disp);
+    if (left_screen_obj) {
+        m_left_gif_obj = lv_gif_create(left_screen_obj);
+        lv_obj_align(m_left_gif_obj, LV_ALIGN_CENTER, 0, 0);
+        ESP_LOGI(TAG, "Left GIF object created.");
+    }
+
+    lv_obj_t* right_screen_obj = lv_display_get_screen_active(m_right_disp);
+    if (right_screen_obj) {
+        m_right_gif_obj = lv_gif_create(right_screen_obj);
+        lv_obj_align(m_right_gif_obj, LV_ALIGN_CENTER, 0, 0);
+        ESP_LOGI(TAG, "Right GIF object created.");
     }
 }
 
 DualScreenManager::~DualScreenManager() {
     ESP_LOGI(TAG, "DualScreenManager destroyed.");
+    // lv_obj_del will be handled by parent screen cleanup
 }
 
-void DualScreenManager::DisplayAnimation(ScreenId screen, const std::string& anim_path) {
+void DualScreenManager::UpdateAnimationSource(const std::string& anim_path) {
     if (anim_path.empty()) {
         ESP_LOGE(TAG, "Received empty animation path.");
         return;
     }
-    std::string screen_str = (screen == SCREEN_LEFT) ? "LEFT" : (screen == SCREEN_RIGHT) ? "RIGHT" : "BOTH";
-    ESP_LOGI(TAG, "Displaying animation on screen %s from path: %s", screen_str.c_str(), anim_path.c_str());
+    ESP_LOGI(TAG, "Updating animation source to: %s", anim_path.c_str());
 
-    if (screen == SCREEN_LEFT || screen == SCREEN_BOTH) {
-        if (m_left_disp) {
-            create_anim_obj(m_left_disp, anim_path);
-        }
+    if (m_left_gif_obj) {
+        lv_gif_set_src(m_left_gif_obj, anim_path.c_str());
     }
-    if (screen == SCREEN_RIGHT || screen == SCREEN_BOTH) {
-        if (m_right_disp) {
-            create_anim_obj(m_right_disp, anim_path);
-        }
-    }
-}
-
-void DualScreenManager::create_anim_obj(lv_display_t* disp, const std::string& anim_path) {
-    if (!disp) return;
-    lv_obj_t* screen_obj = lv_display_get_screen_active(disp);
-    if (!screen_obj) return;
-
-    lv_obj_t** gif_obj_ptr = (disp == m_left_disp) ? &m_left_gif_obj : &m_right_gif_obj;
-
-    // To ensure a clean state and prevent memory leaks, always delete the old object if it exists.
-    if (*gif_obj_ptr != nullptr) {
-        ESP_LOGI(TAG, "Deleting old GIF object before creating a new one.");
-        lv_obj_del(*gif_obj_ptr);
-        
-        // Force LVGL to process the deletion and free memory synchronously.
-        ESP_LOGI(TAG, "Forcing LVGL timer handler to run for immediate cleanup.");
-        lv_timer_handler();
-    }
-
-    // Create a new GIF object for every animation.
-    ESP_LOGI(TAG, "Creating new GIF object for the screen.");
-    *gif_obj_ptr = lv_gif_create(screen_obj);
-    lv_obj_align(*gif_obj_ptr, LV_ALIGN_CENTER, 0, 0);
-
-    lv_gif_set_src(*gif_obj_ptr, anim_path.c_str());
-    lv_gif_set_loop_count(*gif_obj_ptr, 5);
-    lv_gif_resume(*gif_obj_ptr);
-
-    if(lv_gif_is_loaded(*gif_obj_ptr)) {
-        ESP_LOGI(TAG, "GIF loaded successfully from path: %s", anim_path.c_str());
-    } else {
-        // This log might appear even if the GIF loads moments later due to async loading.
-        // The ultimate proof is seeing it on screen.
-        ESP_LOGW(TAG, "GIF not immediately loaded after set_src for path: %s. This might be okay.", anim_path.c_str());
+    if (m_right_gif_obj) {
+        lv_gif_set_src(m_right_gif_obj, anim_path.c_str());
     }
 }
 
@@ -79,6 +56,14 @@ void DualScreenManager::clear_disp(lv_display_t* disp) {
     lv_obj_t* screen_obj = lv_display_get_screen_active(disp);
     if (screen_obj) {
         lv_obj_clean(screen_obj);
+        // After cleaning, we need to recreate the persistent GIF objects
+        if (disp == m_left_disp) {
+            m_left_gif_obj = lv_gif_create(screen_obj);
+            lv_obj_align(m_left_gif_obj, LV_ALIGN_CENTER, 0, 0);
+        } else if (disp == m_right_disp) {
+            m_right_gif_obj = lv_gif_create(screen_obj);
+            lv_obj_align(m_right_gif_obj, LV_ALIGN_CENTER, 0, 0);
+        }
     }
 }
 
@@ -90,4 +75,15 @@ void DualScreenManager::ClearScreen(ScreenId screen) {
     if (screen == SCREEN_RIGHT || screen == SCREEN_BOTH) {
         clear_disp(m_right_disp);
     }
+}
+
+lv_obj_t* DualScreenManager::get_gif_obj(ScreenId screen) const {
+    if (screen == SCREEN_LEFT) {
+        return m_left_gif_obj;
+    }
+    if (screen == SCREEN_RIGHT) {
+        return m_right_gif_obj;
+    }
+    // For SCREEN_BOTH, we consistently use the left as the primary
+    return m_left_gif_obj;
 }

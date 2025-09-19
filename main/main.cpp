@@ -19,6 +19,7 @@
 #include "DualScreenManager.h"
 #include "SDCardAnimationProvider.h"
 #include "AnimationManager.h"
+#include "AnimationPlayer.h"
 #include "ActionManager.hpp"
 #include "MotionController.hpp"
 #include "SoundManager.hpp"
@@ -70,7 +71,7 @@ extern "C" void app_main(void)
     
 
     // Create the FreeRTOS task for the LVGL handler
-    xTaskCreate(lvgl_task, "lvgl_task", 4096*2, NULL, 5, NULL);
+    xTaskCreate(lvgl_task, "lvgl_task", 4096*2, NULL, 3, NULL);
 
 
 
@@ -89,14 +90,16 @@ extern "C" void app_main(void)
 
     auto display_manager = std::make_unique<DualScreenManager>();
     auto sd_provider = std::make_unique<SDCardAnimationProvider>("/sdcard/animations");
-    auto animation_manager = std::make_unique<AnimationManager>(std::move(sd_provider), display_manager.get());
+    auto animation_manager = std::make_unique<AnimationManager>(std::move(sd_provider));
+    auto animation_player = std::make_unique<AnimationPlayer>(animation_manager.get(), display_manager.get(), lvgl_mutex);
+    animation_player->start();
 
     auto face_location_callback = [&](const FaceLocation& loc) {
         if (motion_controller) {
             motion_controller->queue_face_location(loc);
         }
     };
-    auto uart_handler = std::make_unique<UartHandler>(*motion_controller, face_location_callback);
+    auto uart_handler = std::make_unique<UartHandler>(*motion_controller, animation_player.get(), face_location_callback);
     uart_handler->init();
     
     auto sound_manager = std::make_unique<SoundManager>(motion_controller.get(), uart_handler.get());
@@ -110,36 +113,8 @@ extern "C" void app_main(void)
     // --- 4. Post-Init Actions & Main Loop ---
     ESP_LOGI(TAG, "Phase 4: Post-Initialization and Main Loop");
 
-    // Example: Play a boot-up animation
-    if (animation_manager) {
-        ESP_LOGI(TAG, "Playing eyec animation...");
-        animation_manager->PlayAnimation("bird", SCREEN_BOTH);
-    }
+    // The main loop is now empty as the AnimationManager handles the default animation loop.
     while(1) {
-        // vTaskDelay(pdMS_TO_TICKS(5000));
-
-        // Example of playing animations periodically in the main loop
-        // ESP_LOGI(TAG, "Heap before playing anim: %d bytes", esp_get_free_heap_size());
-        // if (animation_manager) {
-        //     ESP_LOGI(TAG, "Playing 'jump' animation in main loop...");
-        //     animation_manager->PlayAnimation("jump", SCREEN_LEFT);
-        // }
-
-        // vTaskDelay(pdMS_TO_TICKS(5000));
-        // if (animation_manager) {
-        //     ESP_LOGI(TAG, "Playing 'jump' animation in main loop...");
-        //     animation_manager->PlayAnimation("jump", SCREEN_RIGHT);
-        // }
-        vTaskDelay(pdMS_TO_TICKS(5000));
-        if (animation_manager) {
-            ESP_LOGI(TAG, "Playing 'eyec' animation in main loop...");
-            if (xSemaphoreTake(lvgl_mutex, portMAX_DELAY)) {
-                animation_manager->PlayAnimation("eyec", SCREEN_BOTH);
-                xSemaphoreGive(lvgl_mutex);
-            }
-        }
-        else {
-            ESP_LOGW(TAG, "AnimationManager not available in main loop.");
-        }
+        vTaskDelay(portMAX_DELAY);
     }
 }
