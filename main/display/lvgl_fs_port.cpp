@@ -39,9 +39,10 @@ static void* fs_open_cb(lv_fs_drv_t* drv, const char* path, lv_fs_mode_t mode) {
         ESP_LOGE(TAG, "Failed to open file: %s", vfs_path.c_str());
     }
     // (可以去掉成功日志，避免刷屏)
-    // else {
-    //     ESP_LOGI(TAG, "Successfully opened file: %s", vfs_path.c_str());
-    // }
+    else {
+        ESP_LOGI(TAG, "Successfully opened file: %s", vfs_path.c_str());
+    }
+    
     return f;
 }
 
@@ -52,6 +53,7 @@ static void* fs_open_cb(lv_fs_drv_t* drv, const char* path, lv_fs_mode_t mode) {
  * @return 总是返回 LV_FS_RES_OK.
  */
 static lv_fs_res_t fs_close_cb(lv_fs_drv_t* drv, void* file_p) {
+    ESP_LOGW(TAG, "FS_CLOSE: handle=%p", file_p);
     fclose((FILE*)file_p);
     return LV_FS_RES_OK;
 }
@@ -68,9 +70,9 @@ static lv_fs_res_t fs_close_cb(lv_fs_drv_t* drv, void* file_p) {
 static lv_fs_res_t fs_read_cb(lv_fs_drv_t* drv, void* file_p, void* buf, uint32_t btr, uint32_t* br) {
     FILE* f = (FILE*)file_p;
     clearerr(f); // 清除之前可能存在的错误标志
-
+    // ESP_LOGI(TAG, "FREAD_START: handle=%p, bytes_to_read=%d", file_p, btr);
     *br = fread(buf, 1, btr, f);
-
+    // ESP_LOGI(TAG, "FREAD_END: handle=%p, bytes_read=%d", file_p, *br);
     // 检查是否发生了真正的读取错误
     if (ferror(f)) {
         ESP_LOGE(TAG, "fs_read_cb: fread failed with error!");

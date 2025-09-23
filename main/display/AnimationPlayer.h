@@ -16,7 +16,7 @@ class AnimationManager;
 
 class AnimationPlayer {
 public:
-    AnimationPlayer(AnimationManager* anim_manager, DualScreenManager* display_manager, SemaphoreHandle_t lvgl_mutex);
+    AnimationPlayer(AnimationManager* anim_manager, DualScreenManager* display_manager);
     ~AnimationPlayer();
 
     void start();
@@ -30,11 +30,16 @@ private:
     }
 
     AnimationManager* m_anim_manager;
-    DualScreenManager* m_display_manager;
-    SemaphoreHandle_t m_lvgl_mutex;
+    DualScreenManager* m_display_manager; // Kept for now as per main.cpp, but logic will be removed
     
     TaskHandle_t m_task_handle = nullptr;
     QueueHandle_t m_player_queue = nullptr;
+
+    // State machine for animation playback
+    enum class PlayerState { PLAYING_DEFAULT, PLAYING_ONESHOT };
+    PlayerState m_current_state = PlayerState::PLAYING_DEFAULT;
+    std::string m_current_anim_name = "eyec";
+    TickType_t m_one_shot_start_time = 0;
 };
 
 #endif // ANIMATION_PLAYER_H

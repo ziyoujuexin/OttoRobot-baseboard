@@ -1,18 +1,24 @@
 #include "AnimationPlayer.h"
 #include "esp_log.h"
 
+// Forward declaration of the command queue and structure from main.cpp
+struct UiCommand {
+    char animation_name[32];
+};
+extern QueueHandle_t ui_command_queue;
+
 static const char* TAG = "AnimationPlayer";
 
-// --- Queue Message Structure (Simplified) ---
+// --- Queue Message Structure for internal player commands ---
 struct PlayerCommand {
     char name[32];
 };
 
 // --- Constructor / Destructor ---
-AnimationPlayer::AnimationPlayer(AnimationManager* anim_manager, DualScreenManager* display_manager, SemaphoreHandle_t lvgl_mutex)
-    : m_anim_manager(anim_manager), m_display_manager(display_manager), m_lvgl_mutex(lvgl_mutex) {
-    if (!m_anim_manager || !m_display_manager || !m_lvgl_mutex) {
-        ESP_LOGE(TAG, "AnimationPlayer received null dependency!");
+AnimationPlayer::AnimationPlayer(AnimationManager* anim_manager, DualScreenManager* display_manager)
+    : m_anim_manager(anim_manager), m_display_manager(display_manager) { // display_manager is no longer used for UI updates
+    if (!m_anim_manager) {
+        ESP_LOGE(TAG, "AnimationPlayer received null AnimationManager!");
     }
 }
 
@@ -29,41 +35,66 @@ void AnimationPlayer::start() {
         return;
     }
     xTaskCreate(player_task_wrapper, "anim_player_task", 4096, this, 5, &m_task_handle);
-    ESP_LOGI(TAG, "AnimationPlayer task started (Simplified Mode).");
+    ESP_LOGI(TAG, "AnimationPlayer task started.");
+
+    // Post a command to the UI task to play the initial default animation
+    UiCommand initial_cmd;
+    strncpy(initial_cmd.animation_name, "eyec", sizeof(initial_cmd.animation_name) - 1);
+    initial_cmd.animation_name[sizeof(initial_cmd.animation_name) - 1] = '\0';
+    xQueueSend(ui_command_queue, &initial_cmd, 0);
 }
 
+// This function is called by external tasks (like UartHandler) to request a one-shot animation
 void AnimationPlayer::playOneShotAnimation(const std::string& animation_name) {
     PlayerCommand cmd;
     strncpy(cmd.name, animation_name.c_str(), sizeof(cmd.name) - 1);
     cmd.name[sizeof(cmd.name) - 1] = '\0';
 
+    // Send the request to the player's own state machine task
     if (xQueueSend(m_player_queue, &cmd, pdMS_TO_TICKS(100)) != pdPASS) {
-        ESP_LOGE(TAG, "Failed to send one-shot command to queue.");
+        ESP_LOGE(TAG, "Failed to send one-shot command to player queue.");
     }
 }
 
-// --- Main Task Loop (Simplified) ---
+// --- Main Task Loop (State Machine) ---
 void AnimationPlayer::player_task() {
-    PlayerCommand cmd;
+    PlayerCommand received_cmd; // For commands from UartHandler etc.
+    const TickType_t one_shot_duration = pdMS_TO_TICKS(5000); // 5 seconds for one-shot animations
+    bool animation_needs_update = false;
 
     while (true) {
-        // Wait indefinitely for an animation command
-        if (xQueueReceive(m_player_queue, &cmd, portMAX_DELAY)) {
-            ESP_LOGI(TAG, "Received command to play: %s", cmd.name);
-            
-            std::string path = m_anim_manager->getAnimationPath(cmd.name);
-            if (path.empty()) {
-                ESP_LOGE(TAG, "Failed to get path for animation '%s'", cmd.name);
-                continue; // Wait for next command
+        // 1. Check for new one-shot animation requests
+        if (xQueueReceive(m_player_queue, &received_cmd, 0) == pdPASS) {
+            ESP_LOGI(TAG, "Player task received request: %s", received_cmd.name);
+            m_current_state = PlayerState::PLAYING_ONESHOT;
+            m_current_anim_name = received_cmd.name;
+            m_one_shot_start_time = xTaskGetTickCount();
+            animation_needs_update = true;
+        } else {
+            // 2. Process state machine if no new command
+            if (m_current_state == PlayerState::PLAYING_ONESHOT) {
+                if (xTaskGetTickCount() - m_one_shot_start_time >= one_shot_duration) {
+                    ESP_LOGI(TAG, "One-shot '%s' finished, returning to default.", m_current_anim_name.c_str());
+                    m_current_state = PlayerState::PLAYING_DEFAULT;
+                    m_current_anim_name = "eyec";
+                    animation_needs_update = true;
+                }
             }
-
-            if (xSemaphoreTake(m_lvgl_mutex, portMAX_DELAY)) {
-                ESP_LOGI(TAG, "Took LVGL mutex, updating animation source.");
-                m_display_manager->UpdateAnimationSource(path);
-                xSemaphoreGive(m_lvgl_mutex);
-                ESP_LOGI(TAG, "Gave LVGL mutex.");
-            }
-            ESP_LOGI(TAG, "Finished playing %s, waiting for next command.", cmd.name);
         }
+
+        // 3. If the state changed, send an update command to the LVGL task
+        if (animation_needs_update) {
+            UiCommand ui_cmd;
+            strncpy(ui_cmd.animation_name, m_current_anim_name.c_str(), sizeof(ui_cmd.animation_name) - 1);
+            ui_cmd.animation_name[sizeof(ui_cmd.animation_name) - 1] = '\0';
+            
+            if (xQueueSend(ui_command_queue, &ui_cmd, 0) != pdPASS) {
+                ESP_LOGE(TAG, "Failed to send command to UI queue from player task.");
+            }
+            animation_needs_update = false; // Reset flag
+        }
+
+        // 4. Wait for next cycle
+        vTaskDelay(pdMS_TO_TICKS(100));
     }
 }

@@ -3,6 +3,7 @@
 #include "freertos/task.h"
 #include "freertos/semphr.h"
 #include <memory> // Required for std::unique_ptr
+#include "freertos/queue.h"
 
 // Core Drivers & Services
 #include <i2cdev.h>
@@ -28,22 +29,67 @@
 
 static const char *TAG = "MAIN";
 
-// --- LVGL Minimal Setup ---
+// --- LVGL & UI Command Queue Setup ---
 static SemaphoreHandle_t lvgl_mutex;
 
-// A FreeRTOS task to run the LVGL timer handler periodically.
+// Define the command structure for UI updates
+struct UiCommand {
+    char animation_name[32];
+};
+
+// Declare the queue handle
+QueueHandle_t ui_command_queue;
+
+// Structure to pass multiple managers to the LVGL task
+struct LvglTaskParams {
+    DualScreenManager* display_manager;
+    AnimationManager* animation_manager;
+};
+
+
+// A FreeRTOS task to run the LVGL timer handler and process UI commands.
 static void lvgl_task(void *pvParameter) {
     ESP_LOGI(TAG, "Starting LVGL task");
+    LvglTaskParams* params = (LvglTaskParams*)pvParameter;
+    DualScreenManager* display_manager = params->display_manager;
+    AnimationManager* animation_manager = params->animation_manager;
+    
+    uint32_t task_delay_ms = 5;
     while(1) {
-        // This is the heartbeat of LVGL. It handles animations, events, etc.
-        vTaskDelay(pdMS_TO_TICKS(10));
+        // 1. Check and process UI commands (non-blocking)
+        UiCommand received_cmd;
+        if (xQueueReceive(ui_command_queue, &received_cmd, 0) == pdPASS) {
+            ESP_LOGI(TAG, "LVGL task received command to play: %s", received_cmd.animation_name);
+            
+            if (xSemaphoreTake(lvgl_mutex, portMAX_DELAY)) {
+                std::string path = animation_manager->getAnimationPath(received_cmd.animation_name);
+                if (!path.empty()) {
+                    display_manager->UpdateAnimationSource(path);
+                }
+                xSemaphoreGive(lvgl_mutex);
+            }
+        }
+
+        // 2. Standard LVGL handler loop
+        vTaskDelay(pdMS_TO_TICKS(task_delay_ms));
+        static int counter = 0;
         if (xSemaphoreTake(lvgl_mutex, portMAX_DELAY)) {
-            lv_tick_inc(10);
+            lv_tick_inc(task_delay_ms);
             lv_timer_handler();
             xSemaphoreGive(lvgl_mutex);
         }
+        if (++counter % 20 == 0) { // Every second
+            counter = 0;
+            // LOG Stack usage for debugging
+            TaskStatus_t lvgl_task_status;
+            TaskHandle_t lvgl_task_handle = xTaskGetCurrentTaskHandle();
+            vTaskGetInfo(lvgl_task_handle, &lvgl_task_status, pdTRUE, eInvalid);
+            ESP_LOGI(TAG, "LVGL Task Stack High Water Mark: %u bytes", lvgl_task_status.usStackHighWaterMark * sizeof(StackType_t));
+            // ESP_LOGI(TAG, "LVGL task running...");
+        }   
     }
 }
+
 
 // --- Main Application --- 
 
@@ -54,31 +100,22 @@ extern "C" void app_main(void)
 
     if (sd_card_manager::init("/sdcard") != ESP_OK) {
         ESP_LOGE(TAG, "Failed to initialize SD card. Halting.");
-        // In a real product, you might want to enter a safe mode instead of halting.
         while(1) { vTaskDelay(1000); }
     }
 
     // Initialize LVGL and the display driver
     lv_init();
     lvgl_mutex = xSemaphoreCreateMutex();
-    // lv_fs_stdio_init();
+    ui_command_queue = xQueueCreate(10, sizeof(UiCommand)); // Create the UI command queue
     lvgl_fs_driver_init();
     if (!gc9a01_lvgl_driver_init()) {
         ESP_LOGE(TAG, "Failed to initialize display driver. Halting.");
         while(1) { vTaskDelay(1000); }
     }
 
-    
-
-    // Create the FreeRTOS task for the LVGL handler
-    xTaskCreate(lvgl_task, "lvgl_task", 4096*2, NULL, 3, NULL);
-
-
-
     // --- 3. Application Services and Managers Initialization ---
     ESP_LOGI(TAG, "Phase 3: Initializing Application Services & Managers");
 
-    // Using std::unique_ptr for automatic memory management.
     auto servo_driver = std::make_unique<PCA9685>();
     servo_driver->init();
 
@@ -91,8 +128,16 @@ extern "C" void app_main(void)
     auto display_manager = std::make_unique<DualScreenManager>();
     auto sd_provider = std::make_unique<SDCardAnimationProvider>("/sdcard/animations");
     auto animation_manager = std::make_unique<AnimationManager>(std::move(sd_provider));
-    auto animation_player = std::make_unique<AnimationPlayer>(animation_manager.get(), display_manager.get(), lvgl_mutex);
+    
+    // The AnimationPlayer no longer needs the mutex
+    auto animation_player = std::make_unique<AnimationPlayer>(animation_manager.get(), display_manager.get());
     animation_player->start();
+
+    // Create the LVGL task and pass necessary managers to it
+    static LvglTaskParams lvgl_params;
+    lvgl_params.display_manager = display_manager.get();
+    lvgl_params.animation_manager = animation_manager.get();
+    xTaskCreate(lvgl_task, "lvgl_task", 4096*1, &lvgl_params, 10, NULL);
 
     auto face_location_callback = [&](const FaceLocation& loc) {
         if (motion_controller) {
@@ -105,7 +150,6 @@ extern "C" void app_main(void)
     auto sound_manager = std::make_unique<SoundManager>(motion_controller.get(), uart_handler.get());
     sound_manager->start();
 
-    // The WebServer starts WiFi and the HTTP server internally.
     auto web_server = std::make_unique<WebServer>(*action_manager, *motion_controller);
     web_server->start();
 
@@ -113,7 +157,6 @@ extern "C" void app_main(void)
     // --- 4. Post-Init Actions & Main Loop ---
     ESP_LOGI(TAG, "Phase 4: Post-Initialization and Main Loop");
 
-    // The main loop is now empty as the AnimationManager handles the default animation loop.
     while(1) {
         vTaskDelay(portMAX_DELAY);
     }
