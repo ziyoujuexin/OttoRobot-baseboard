@@ -30,7 +30,6 @@
 static const char *TAG = "MAIN";
 
 // --- LVGL & UI Command Queue Setup ---
-static SemaphoreHandle_t lvgl_mutex;
 
 // Define the command structure for UI updates
 struct UiCommand {
@@ -46,6 +45,9 @@ struct LvglTaskParams {
     AnimationManager* animation_manager;
 };
 
+void vApplicationTickHook( void ){
+    lv_tick_inc(1);
+}
 
 // A FreeRTOS task to run the LVGL timer handler and process UI commands.
 static void lvgl_task(void *pvParameter) {
@@ -54,15 +56,8 @@ static void lvgl_task(void *pvParameter) {
     DualScreenManager* display_manager = params->display_manager;
     AnimationManager* animation_manager = params->animation_manager;
     
-    uint32_t task_delay_ms = 10;
+    uint32_t task_delay_ms = 5;
     AnimationData current_anim_data; // Holds the currently loaded animation data
-
-    // Variables for performance monitoring
-    uint32_t last_handler_time = 0;
-    uint32_t max_diff = 0;
-    uint32_t min_diff = UINT32_MAX;
-    uint64_t total_diff = 0;
-    uint32_t sample_count = 0;
 
     while(1) {
         // 1. Check and process UI commands (non-blocking)
@@ -70,56 +65,21 @@ static void lvgl_task(void *pvParameter) {
         if (xQueueReceive(ui_command_queue, &received_cmd, 0) == pdPASS) {
             ESP_LOGI(TAG, "LVGL task received command to play: %s", received_cmd.animation_name);
             
-            if (xSemaphoreTake(lvgl_mutex, portMAX_DELAY)) {
-                // 1. Release previous animation data if it's valid
-                if (current_anim_data.is_valid) {
-                    animation_manager->releaseAnimationData(current_anim_data);
-                }
-
-                // 2. Get new animation data from the provider
-                current_anim_data = animation_manager->getAnimationData(received_cmd.animation_name);
-
-                // 3. Update the display with the new data (from memory)
-                display_manager->UpdateAnimationSource(current_anim_data);
-
-                xSemaphoreGive(lvgl_mutex);
+            // 1. Release previous animation data if it's valid
+            if (current_anim_data.is_valid) {
+                animation_manager->releaseAnimationData(current_anim_data);
             }
+
+            // 2. Get new animation data from the provider
+            current_anim_data = animation_manager->getAnimationData(received_cmd.animation_name);
+
+            // 3. Update the display with the new data (from memory)
+            display_manager->UpdateAnimationSource(current_anim_data);
         }
 
         // 2. Standard LVGL handler loop
         vTaskDelay(pdMS_TO_TICKS(task_delay_ms));
-        if (xSemaphoreTake(lvgl_mutex, portMAX_DELAY)) {
-            // --- Performance Measurement ---
-            uint32_t current_time = lv_tick_get();
-            if (last_handler_time != 0) {
-                uint32_t time_diff = current_time - last_handler_time;
-                if (time_diff > max_diff) max_diff = time_diff;
-                if (time_diff < min_diff) min_diff = time_diff;
-                total_diff += time_diff;
-                sample_count++;
-            }
-            last_handler_time = current_time;
-            // --- End Measurement ---
-
-            lv_tick_inc(task_delay_ms);
-            lv_timer_handler();
-            xSemaphoreGive(lvgl_mutex);
-        }
-        
-        static int counter = 0;
-        if (++counter % 200 == 0) { // Every second
-            if (sample_count > 0) {
-                uint32_t avg_diff = total_diff / sample_count;
-                ESP_LOGI(TAG, "LVGL Handler Timing (ms) - Avg: %d, Min: %d, Max: %d", avg_diff, min_diff, max_diff);
-                // Reset stats
-                max_diff = 0;
-                min_diff = UINT32_MAX;
-                total_diff = 0;
-                sample_count = 0;
-            }
-            ESP_LOGI(TAG, "LVGL Task Stack High Water Mark: %u bytes", uxTaskGetStackHighWaterMark(NULL) * sizeof(StackType_t));
-            counter = 0;
-        }
+        lv_timer_handler();
     }
 }
 
@@ -138,7 +98,6 @@ extern "C" void app_main(void)
 
     // Initialize LVGL and the display driver
     lv_init();
-    lvgl_mutex = xSemaphoreCreateMutex();
     ui_command_queue = xQueueCreate(10, sizeof(UiCommand)); // Create the UI command queue
     lvgl_fs_driver_init();
     if (!gc9a01_lvgl_driver_init()) {

@@ -144,15 +144,15 @@ bool gc9a01_lvgl_driver_init(void) {
     ESP_LOGI(TAG, "Left screen registered.");
 
     // --- Register Right Screen with LVGL ---
-    // ESP_LOGI(TAG, "Registering right screen with LVGL...");
-    // disp_right = lv_display_create(LCD_H_RES, LCD_V_RES);
-    // lv_display_set_flush_cb(disp_right, lvgl_flush_cb);
-    // lv_display_set_user_data(disp_right, panel_handle_right);
-    // lv_color_t* buf_right = (lv_color_t*)heap_caps_malloc(LCD_H_RES * 40  * sizeof(lv_color_t), MALLOC_CAP_SPIRAM);
-    // assert(buf_right);
-    // lv_display_set_buffers(disp_right, buf_right, NULL, LCD_H_RES * 40  * sizeof(lv_color_t), LV_DISPLAY_RENDER_MODE_PARTIAL);
-    // ESP_LOGI(TAG, "Right screen registered.");
-    // ESP_LOGW(TAG, "Heap after display init: %d", esp_get_free_heap_size());
+    ESP_LOGI(TAG, "Registering right screen with LVGL...");
+    disp_right = lv_display_create(LCD_H_RES, LCD_V_RES);
+    lv_display_set_flush_cb(disp_right, lvgl_flush_cb);
+    lv_display_set_user_data(disp_right, panel_handle_right);
+    lv_color_t* buf_right = (lv_color_t*)heap_caps_malloc(LCD_H_RES * 40  * sizeof(lv_color_t), MALLOC_CAP_SPIRAM);
+    assert(buf_right);
+    lv_display_set_buffers(disp_right, buf_right, NULL, LCD_H_RES * 40  * sizeof(lv_color_t), LV_DISPLAY_RENDER_MODE_PARTIAL);
+    ESP_LOGI(TAG, "Right screen registered.");
+    ESP_LOGW(TAG, "Heap after display init: %d", esp_get_free_heap_size());
     return true;
 }
 
