@@ -54,7 +54,16 @@ static void lvgl_task(void *pvParameter) {
     DualScreenManager* display_manager = params->display_manager;
     AnimationManager* animation_manager = params->animation_manager;
     
-    uint32_t task_delay_ms = 5;
+    uint32_t task_delay_ms = 10;
+    AnimationData current_anim_data; // Holds the currently loaded animation data
+
+    // Variables for performance monitoring
+    uint32_t last_handler_time = 0;
+    uint32_t max_diff = 0;
+    uint32_t min_diff = UINT32_MAX;
+    uint64_t total_diff = 0;
+    uint32_t sample_count = 0;
+
     while(1) {
         // 1. Check and process UI commands (non-blocking)
         UiCommand received_cmd;
@@ -62,31 +71,55 @@ static void lvgl_task(void *pvParameter) {
             ESP_LOGI(TAG, "LVGL task received command to play: %s", received_cmd.animation_name);
             
             if (xSemaphoreTake(lvgl_mutex, portMAX_DELAY)) {
-                std::string path = animation_manager->getAnimationPath(received_cmd.animation_name);
-                if (!path.empty()) {
-                    display_manager->UpdateAnimationSource(path);
+                // 1. Release previous animation data if it's valid
+                if (current_anim_data.is_valid) {
+                    animation_manager->releaseAnimationData(current_anim_data);
                 }
+
+                // 2. Get new animation data from the provider
+                current_anim_data = animation_manager->getAnimationData(received_cmd.animation_name);
+
+                // 3. Update the display with the new data (from memory)
+                display_manager->UpdateAnimationSource(current_anim_data);
+
                 xSemaphoreGive(lvgl_mutex);
             }
         }
 
         // 2. Standard LVGL handler loop
         vTaskDelay(pdMS_TO_TICKS(task_delay_ms));
-        static int counter = 0;
         if (xSemaphoreTake(lvgl_mutex, portMAX_DELAY)) {
+            // --- Performance Measurement ---
+            uint32_t current_time = lv_tick_get();
+            if (last_handler_time != 0) {
+                uint32_t time_diff = current_time - last_handler_time;
+                if (time_diff > max_diff) max_diff = time_diff;
+                if (time_diff < min_diff) min_diff = time_diff;
+                total_diff += time_diff;
+                sample_count++;
+            }
+            last_handler_time = current_time;
+            // --- End Measurement ---
+
             lv_tick_inc(task_delay_ms);
             lv_timer_handler();
             xSemaphoreGive(lvgl_mutex);
         }
-        if (++counter % 20 == 0) { // Every second
+        
+        static int counter = 0;
+        if (++counter % 200 == 0) { // Every second
+            if (sample_count > 0) {
+                uint32_t avg_diff = total_diff / sample_count;
+                ESP_LOGI(TAG, "LVGL Handler Timing (ms) - Avg: %d, Min: %d, Max: %d", avg_diff, min_diff, max_diff);
+                // Reset stats
+                max_diff = 0;
+                min_diff = UINT32_MAX;
+                total_diff = 0;
+                sample_count = 0;
+            }
+            ESP_LOGI(TAG, "LVGL Task Stack High Water Mark: %u bytes", uxTaskGetStackHighWaterMark(NULL) * sizeof(StackType_t));
             counter = 0;
-            // LOG Stack usage for debugging
-            TaskStatus_t lvgl_task_status;
-            TaskHandle_t lvgl_task_handle = xTaskGetCurrentTaskHandle();
-            vTaskGetInfo(lvgl_task_handle, &lvgl_task_status, pdTRUE, eInvalid);
-            ESP_LOGI(TAG, "LVGL Task Stack High Water Mark: %u bytes", lvgl_task_status.usStackHighWaterMark * sizeof(StackType_t));
-            // ESP_LOGI(TAG, "LVGL task running...");
-        }   
+        }
     }
 }
 
@@ -137,7 +170,7 @@ extern "C" void app_main(void)
     static LvglTaskParams lvgl_params;
     lvgl_params.display_manager = display_manager.get();
     lvgl_params.animation_manager = animation_manager.get();
-    xTaskCreate(lvgl_task, "lvgl_task", 4096*1, &lvgl_params, 10, NULL);
+    xTaskCreate(lvgl_task, "lvgl_task", 4096*16, &lvgl_params, 10, NULL);
 
     auto face_location_callback = [&](const FaceLocation& loc) {
         if (motion_controller) {

@@ -3,6 +3,7 @@
 
 #include "lvgl.h"
 #include "GC9A01_driver.hpp"
+#include "AnimationProvider.h" // Include for AnimationData
 #include <string>
 
 enum ScreenId {
@@ -19,7 +20,7 @@ public:
     DualScreenManager(const DualScreenManager&) = delete;
     DualScreenManager& operator=(const DualScreenManager&) = delete;
 
-    void UpdateAnimationSource(const std::string& anim_path);
+    void UpdateAnimationSource(const AnimationData& anim_data);
 
     void ClearScreen(ScreenId screen);
 
@@ -31,6 +32,10 @@ private:
     lv_display_t* m_right_disp;
     lv_obj_t* m_left_gif_obj;
     lv_obj_t* m_right_gif_obj;
+
+    // Keep track of the current animation data source
+    lv_img_dsc_t m_left_img_dsc;
+    lv_img_dsc_t m_right_img_dsc;
 
     void clear_disp(lv_display_t* disp);
 };

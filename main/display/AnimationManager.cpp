@@ -10,10 +10,18 @@ AnimationManager::AnimationManager(std::unique_ptr<AnimationProvider> provider)
     }
 }
 
-std::string AnimationManager::getAnimationPath(const std::string& animation_name) {
+AnimationData AnimationManager::getAnimationData(const std::string& animation_name) {
     if (!m_provider) {
         ESP_LOGE(TAG, "Manager is not properly initialized.");
-        return "";
+        return {}; // Return invalid AnimationData
     }
-    return m_provider->getAnimationPath(animation_name);
+    return m_provider->getAnimationData(animation_name);
+}
+
+void AnimationManager::releaseAnimationData(AnimationData& anim_data) {
+    if (!m_provider) {
+        ESP_LOGE(TAG, "Manager is not properly initialized.");
+        return;
+    }
+    m_provider->releaseAnimationData(anim_data);
 }

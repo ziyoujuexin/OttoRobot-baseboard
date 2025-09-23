@@ -10,7 +10,8 @@ class AnimationManager {
 public:
     AnimationManager(std::unique_ptr<AnimationProvider> provider);
 
-    std::string getAnimationPath(const std::string& animation_name);
+    AnimationData getAnimationData(const std::string& animation_name);
+    void releaseAnimationData(AnimationData& anim_data);
 
 private:
     std::unique_ptr<AnimationProvider> m_provider;

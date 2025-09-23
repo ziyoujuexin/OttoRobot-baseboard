@@ -1,32 +1,73 @@
 #include "SDCardAnimationProvider.h"
 #include "esp_log.h"
-#include <sys/stat.h> // For stat
+#include "esp_heap_caps.h"
+#include <cstdio>      // For FILE, fopen, etc.
+#include <sys/stat.h>  // For stat
 
 static const char* TAG = "SDCardProvider";
 
 SDCardAnimationProvider::SDCardAnimationProvider(const std::string& base_path)
     : m_base_path(base_path) {}
 
-std::string SDCardAnimationProvider::getAnimationPath(const std::string& animation_name) {
+AnimationData SDCardAnimationProvider::getAnimationData(const std::string& animation_name) {
+    AnimationData anim_data;
     std::string vfs_path = m_base_path + "/" + animation_name + ".gif";
 
-    // Check if the file exists using stat, which works with the VFS
-    struct stat st;
-    if (stat(vfs_path.c_str(), &st) == 0) {
-        ESP_LOGI(TAG, "Found animation '%s' at VFS path: %s", animation_name.c_str(), vfs_path.c_str());
-        
-        // Convert VFS path to LVGL path with drive letter. e.g., "/sdcard/anim.gif" -> "S:/anim.gif"
-        std::string lvgl_path = vfs_path;
-        std::string prefix_to_replace = "/sdcard";
-        size_t pos = lvgl_path.find(prefix_to_replace);
-        if (pos == 0) {
-            lvgl_path.replace(pos, prefix_to_replace.length(), "S:");
-        }
-
-        ESP_LOGI(TAG, "Returning LVGL path: %s", lvgl_path.c_str());
-        return lvgl_path;
-    } else {
-        ESP_LOGW(TAG, "Animation '%s' not found at VFS path: %s", animation_name.c_str(), vfs_path.c_str());
-        return ""; // Return empty string if not found
+    // 1. Open the file
+    FILE* f = fopen(vfs_path.c_str(), "rb");
+    if (!f) {
+        ESP_LOGW(TAG, "Animation file not found at VFS path: %s", vfs_path.c_str());
+        return anim_data; // Return invalid data
     }
+
+    // 2. Get file size
+    fseek(f, 0, SEEK_END);
+    long file_size = ftell(f);
+    fseek(f, 0, SEEK_SET);
+
+    if (file_size <= 0) {
+        ESP_LOGE(TAG, "File is empty or invalid size for %s", vfs_path.c_str());
+        fclose(f);
+        return anim_data;
+    }
+
+    // 3. Allocate memory in PSRAM
+    // MALLOC_CAP_SPIRAM ensures the memory is allocated from PSRAM
+    uint8_t* buffer = (uint8_t*)heap_caps_malloc(file_size, MALLOC_CAP_SPIRAM);
+    if (!buffer) {
+        ESP_LOGE(TAG, "Failed to allocate %ld bytes in PSRAM for animation %s", file_size, animation_name.c_str());
+        fclose(f);
+        return anim_data;
+    }
+
+    // 4. Read the entire file into the buffer
+    size_t bytes_read = fread(buffer, 1, file_size, f);
+    fclose(f); // Close the file immediately after reading
+
+    if (bytes_read != (size_t)file_size) {
+        ESP_LOGE(TAG, "Failed to read the full animation file. Expected %ld, got %d", file_size, bytes_read);
+        heap_caps_free(buffer); // Clean up allocated memory on failure
+        return anim_data;
+    }
+
+    // 5. Populate the struct and return
+    ESP_LOGI(TAG, "Successfully loaded animation '%s' (%d bytes) into PSRAM at %p",
+             animation_name.c_str(), bytes_read, buffer);
+             
+    anim_data.data = buffer;
+    anim_data.size = bytes_read;
+    anim_data.is_valid = true;
+
+    return anim_data;
+}
+
+void SDCardAnimationProvider::releaseAnimationData(AnimationData& anim_data) {
+    if (anim_data.data && anim_data.is_valid) {
+        ESP_LOGI(TAG, "Releasing %d bytes of PSRAM at %p", anim_data.size, anim_data.data);
+        heap_caps_free((void*)anim_data.data);
+    }
+    // Invalidate the struct to prevent double-free
+    anim_data.data = nullptr;
+    anim_data.size = 0;
+    anim_data.is_valid = false;
 }
