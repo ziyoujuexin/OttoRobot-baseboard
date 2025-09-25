@@ -9,12 +9,12 @@ DualScreenManager::DualScreenManager()
       m_right_disp(get_right_screen_display()),
       m_left_gif_obj(nullptr),
       m_right_gif_obj(nullptr) {
-    ESP_LOGI(TAG, "DualScreenManager initialized.");
-    // if (!m_left_disp || !m_right_disp) {
-    //     ESP_LOGE(TAG, "Failed to get display handles!");
-    //     return;
-    // }
+    ESP_LOGI(TAG, "DualScreenManager constructed, displays acquired.");
+    // LVGL objects will be created in init()
+}
 
+void DualScreenManager::init() {
+    ESP_LOGI(TAG, "Initializing LVGL objects for DualScreenManager.");
     // Create the GIF objects once at the beginning
     lv_obj_t* left_screen_obj = lv_display_get_screen_active(m_left_disp);
     if (left_screen_obj) {

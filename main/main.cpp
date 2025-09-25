@@ -55,8 +55,11 @@ static void lvgl_task(void *pvParameter) {
     LvglTaskParams* params = (LvglTaskParams*)pvParameter;
     DualScreenManager* display_manager = params->display_manager;
     AnimationManager* animation_manager = params->animation_manager;
+
+    // Initialize LVGL objects in the context of the LVGL task
+    display_manager->init();
     
-    uint32_t task_delay_ms = 10;
+    uint32_t task_delay_ms = 5;
     AnimationData current_anim_data; // Holds the currently loaded animation data
 
     while(1) {

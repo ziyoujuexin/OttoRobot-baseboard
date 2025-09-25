@@ -17,6 +17,8 @@ public:
     DualScreenManager();
     ~DualScreenManager();
 
+    void init(); // Public method for thread-safe initialization
+
     DualScreenManager(const DualScreenManager&) = delete;
     DualScreenManager& operator=(const DualScreenManager&) = delete;
 
