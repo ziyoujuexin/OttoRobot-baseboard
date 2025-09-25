@@ -30,19 +30,10 @@ static void lvgl_flush_cb(lv_display_t* disp, const lv_area_t* area, uint8_t* px
     int offsety1 = area->y1;
     int offsetx2 = area->x2;
     int offsety2 = area->y2;
-
-    // Apply the software workaround for the G-B color swap issue.
-    lv_color_t* color_map = (lv_color_t*)px_map;
-    // size_t pixel_count = (offsetx2 - offsetx1 + 1) * (offsety2 - offsety1 + 1);
-    // for (size_t i = 0; i < pixel_count; i++) {
-    //     // Unpack the pixel into R,G,B components
-    //     uint32_t color_int = lv_color_to_u32(color_map[i]);
-    //     uint8_t r = (color_int >> 16) & 0xFF;
-    //     uint8_t g = (color_int >> 8) & 0xFF;
-    //     uint8_t b = color_int & 0xFF;
-    //     // Re-pack with G and B swapped
-    //     color_map[i] = lv_color_make(r, b, g);
-    // }
+    lv_draw_sw_rgb565_swap(px_map, (area->x2 - area->x1 + 1) * (area->y2 - area->y1 + 1));
+    // we swap bytes here, due to unknown problems, it doesn't work by lv_display_set_color_format(....)
+    // actually, swap it by cpu is the right way because LV_COLOR_16_SWAP do the same thing: 
+    // https://github.com/lvgl/lvgl/blob/73df4fc1e984b189b5a8708ad15248b5a475c1d4/src/core/lv_refr.c#L1418
 
     // Copy the buffer's content to the specific area of the display.
     esp_lcd_panel_draw_bitmap(panel_handle, offsetx1, offsety1, offsetx2 + 1, offsety2 + 1, px_map);
@@ -50,6 +41,60 @@ static void lvgl_flush_cb(lv_display_t* disp, const lv_area_t* area, uint8_t* px
     // Notify LVGL that flushing is done.
     lv_display_flush_ready(disp);
 }
+
+// this custom init parm make color closer to reality
+static const gc9a01_lcd_init_cmd_t lcd_init_cmds[] = {
+//  {cmd, { data }, data_size, delay_ms}
+    // Enable Inter Register
+    {0xfe, (uint8_t []){0x00}, 0, 0},
+    {0xef, (uint8_t []){0x00}, 0, 0},
+    {0xeb, (uint8_t []){0x14}, 1, 0},
+    {0x84, (uint8_t []){0x40}, 1, 0},
+    {0x85, (uint8_t []){0xf1}, 1, 0},
+    {0x86, (uint8_t []){0x98}, 1, 0},
+    {0x87, (uint8_t []){0x28}, 1, 0},
+    {0x88, (uint8_t []){0x0a}, 1, 0},
+    {0x89, (uint8_t []){0x21}, 1, 0},
+    {0x8a, (uint8_t []){0x00}, 1, 0},
+    {0x8b, (uint8_t []){0x80}, 1, 0},
+    {0x8c, (uint8_t []){0x01}, 1, 0},
+    {0x8d, (uint8_t []){0x01}, 1, 0},
+    {0x8e, (uint8_t []){0xdf}, 1, 0},
+    {0x8f, (uint8_t []){0x52}, 1, 0},
+    {0xb6, (uint8_t []){0x20}, 1, 0},
+    {0x36, (uint8_t []){0x48}, 1, 0},
+    {0x3a, (uint8_t []){0x05}, 1, 0},
+    {0x90, (uint8_t []){0x08, 0x08, 0x08, 0x08}, 4, 0},
+    {0xE8, (uint8_t []){0x34}, 1, 0}, // 4 dot inversion
+    {0xff, (uint8_t []){0x60, 0x01, 0x04}, 3, 0},
+    {0x74, (uint8_t []){0x10, 0x75, 0x80, 0x00, 0x00, 0x4E, 0x00}, 7, 0},
+    {0xC3, (uint8_t []){0x14}, 1, 0},
+    {0xC4, (uint8_t []){0x14}, 1, 0},
+    {0xC9, (uint8_t []){0x25}, 1, 0},
+    {0xbe, (uint8_t []){0x11}, 1, 0},
+    {0xe1, (uint8_t []){0x10, 0x0e}, 2, 0},
+    {0xdf, (uint8_t []){0x21, 0x0c, 0x02}, 3, 0},
+    {0xed, (uint8_t []){0x1b, 0x0b}, 2, 0},
+    {0xae, (uint8_t []){0x77}, 1, 0},
+    {0xcd, (uint8_t []){0x63}, 1, 0},
+    {0x70, (uint8_t []){0x07, 0x07, 0x04, 0x0e, 0x0f, 0x09, 0x07, 0x08, 0x03}, 9, 0},
+    {0xF0, (uint8_t []){0x46, 0x09, 0x0a, 0x08, 0x05, 0x2c}, 6, 0},
+    {0xF1, (uint8_t []){0x46, 0x76, 0x76, 0x32, 0x36, 0x9f}, 6, 0},
+    {0xF2, (uint8_t []){0x46, 0x09, 0x0a, 0x08, 0x05, 0x2c}, 6, 0},
+    {0xF3, (uint8_t []){0x46, 0x76, 0x76, 0x32, 0x36, 0x9f}, 6, 0},
+    {0x62, (uint8_t []){0x18, 0x0D, 0x71, 0xED, 0x70, 0x70, 0x18, 0x0F, 0x71, 0xEF, 0x70, 0x70}, 12, 0},
+    {0x63, (uint8_t []){0x18, 0x11, 0x71, 0xF1, 0x70, 0x70, 0x18, 0x13, 0x71, 0xF3, 0x70, 0x70}, 12, 0},
+    {0x64, (uint8_t []){0x28, 0x29, 0xF1, 0x01, 0xF1, 0x00, 0x07}, 7, 0},
+    {0x66, (uint8_t []){0x3C, 0x00, 0xCD, 0x67, 0x45, 0x45, 0x10, 0x00, 0x00, 0x00}, 10, 0},
+    {0x67, (uint8_t []){0x00, 0x3C, 0x00, 0x00, 0x00, 0x01, 0x54, 0x10, 0x32, 0x98}, 10, 0},
+    {0x98, (uint8_t []){0x3e, 0x07}, 2, 0},
+    {0xba, (uint8_t []){0x80}, 1, 0},
+    {0x35, (uint8_t []){}, 0, 0},
+    {0x21, (uint8_t []){}, 0, 120},
+    {0x11, (uint8_t []){}, 0, 120},
+    {0x29, (uint8_t []){}, 0, 20},
+};
+
 
 bool gc9a01_lvgl_driver_init(void) {
     ESP_LOGI(TAG, "Initializing GC9A01 screens with %dHz clock...", SPI_SPEED_HZ);
@@ -89,10 +134,16 @@ bool gc9a01_lvgl_driver_init(void) {
     };
     ESP_ERROR_CHECK(esp_lcd_new_panel_io_spi((esp_lcd_spi_bus_handle_t)LCD_HOST, &io_config_left, &io_handle_left));
 
+    gc9a01_vendor_config_t vendor_config = {  // Uncomment these lines if use custom initialization commands
+        .init_cmds = lcd_init_cmds,
+        .init_cmds_size = sizeof(lcd_init_cmds) / sizeof(gc9a01_lcd_init_cmd_t),
+    };
+
     const esp_lcd_panel_dev_config_t panel_config_left = {
         .reset_gpio_num = PIN_NUM_RST_LEFT,
         .rgb_endian = LCD_RGB_ELEMENT_ORDER_RGB, // Set to standard RGB
         .bits_per_pixel = LCD_BIT_PER_PIXEL,
+        .vendor_config = &vendor_config,
     };
     ESP_ERROR_CHECK(esp_lcd_new_panel_gc9a01(io_handle_left, &panel_config_left, &panel_handle_left));
     ESP_ERROR_CHECK(esp_lcd_panel_reset(panel_handle_left));
@@ -122,6 +173,7 @@ bool gc9a01_lvgl_driver_init(void) {
         .reset_gpio_num = PIN_NUM_RST_RIGHT,
         .rgb_endian = LCD_RGB_ELEMENT_ORDER_RGB, // Set to standard RGB
         .bits_per_pixel = LCD_BIT_PER_PIXEL,
+        .vendor_config = &vendor_config,
     };
     ESP_ERROR_CHECK(esp_lcd_new_panel_gc9a01(io_handle_right, &panel_config_right, &panel_handle_right));
     ESP_ERROR_CHECK(esp_lcd_panel_reset(panel_handle_right));

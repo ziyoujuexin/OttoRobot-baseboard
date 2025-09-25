@@ -56,7 +56,7 @@ static void lvgl_task(void *pvParameter) {
     DualScreenManager* display_manager = params->display_manager;
     AnimationManager* animation_manager = params->animation_manager;
     
-    uint32_t task_delay_ms = 5;
+    uint32_t task_delay_ms = 10;
     AnimationData current_anim_data; // Holds the currently loaded animation data
 
     while(1) {
@@ -129,7 +129,7 @@ extern "C" void app_main(void)
     static LvglTaskParams lvgl_params;
     lvgl_params.display_manager = display_manager.get();
     lvgl_params.animation_manager = animation_manager.get();
-    xTaskCreate(lvgl_task, "lvgl_task", 4096*16, &lvgl_params, 10, NULL);
+    xTaskCreate(lvgl_task, "lvgl_task", 4096, &lvgl_params, 10, NULL);
 
     auto face_location_callback = [&](const FaceLocation& loc) {
         if (motion_controller) {
