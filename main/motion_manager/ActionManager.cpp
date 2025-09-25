@@ -1,6 +1,7 @@
 #include "motion_manager/ActionManager.hpp"
 #include "esp_log.h"
 #include <cmath>
+#include <cstring>
 
 #define PI 3.1415926
 static const char* TAG = "ActionManager";
@@ -32,7 +33,7 @@ void ActionManager::register_default_actions() {
     ESP_LOGI(TAG, "Checking and registering default actions...");
 
     RegisteredAction temp_action;
-    if (m_storage->load_action("walk_forward", temp_action)) { // if new action added, comment this to force re-create
+    if (m_storage->load_action("walk_forward", temp_action)) {
         ESP_LOGI(TAG, "Default actions found in NVS. Loading from storage.");
         m_action_cache["walk_forward"] = temp_action;
         m_storage->load_action("walk_backward", m_action_cache["walk_backward"]);
@@ -45,6 +46,10 @@ void ActionManager::register_default_actions() {
         m_storage->load_action("single_leg", m_action_cache["single_leg"]);
         m_storage->load_action("tracking_L", m_action_cache["tracking_L"]);
         m_storage->load_action("tracking_R", m_action_cache["tracking_R"]);
+        m_storage->load_action("dance", m_action_cache["dance"]);
+        m_storage->load_action("leg_swing", m_action_cache["leg_swing"]);
+        m_storage->load_action("happy_wiggle", m_action_cache["happy_wiggle"]);
+        m_storage->load_action("sad_stomp", m_action_cache["sad_stomp"]);
         return;
     }
 
@@ -56,18 +61,18 @@ void ActionManager::register_default_actions() {
     forward.is_atomic = false;
     forward.default_steps = 4;
     forward.gait_period_ms = 1500;
-    
     forward.params.amplitude[static_cast<uint8_t>(ServoChannel::LEFT_LEG_ROTATE)]  = 33;
     forward.params.amplitude[static_cast<uint8_t>(ServoChannel::RIGHT_LEG_ROTATE)] = 33;
     forward.params.amplitude[static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT)]   = 25;
     forward.params.amplitude[static_cast<uint8_t>(ServoChannel::RIGHT_ANKLE_LIFT)]  = 25;
     forward.params.amplitude[static_cast<uint8_t>(ServoChannel::LEFT_ARM_SWING)]  = 60;
     forward.params.amplitude[static_cast<uint8_t>(ServoChannel::RIGHT_ARM_SWING)]  = 60;
-    forward.params.offset[static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT)] = 12; // 由于安装的误差，这个offset属于修正量
-    forward.params.offset[static_cast<uint8_t>(ServoChannel::RIGHT_ANKLE_LIFT)] = 12;
+    forward.params.offset[static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT)] = -10;
+    forward.params.offset[static_cast<uint8_t>(ServoChannel::RIGHT_ANKLE_LIFT)] = 10;
     forward.params.phase_diff[static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT)]   = PI / 2;
     forward.params.phase_diff[static_cast<uint8_t>(ServoChannel::RIGHT_ANKLE_LIFT)]  = PI / 2;
-    
+    forward.params.phase_diff[static_cast<uint8_t>(ServoChannel::LEFT_LEG_ROTATE)]   = 0;
+    forward.params.phase_diff[static_cast<uint8_t>(ServoChannel::RIGHT_LEG_ROTATE)]  = 0;
     m_storage->save_action(forward);
     m_action_cache[forward.name] = forward;
 
@@ -75,24 +80,26 @@ void ActionManager::register_default_actions() {
     strcpy(backward.name, "walk_backward");
     backward.params.amplitude[static_cast<uint8_t>(ServoChannel::LEFT_LEG_ROTATE)]  = -33;
     backward.params.amplitude[static_cast<uint8_t>(ServoChannel::RIGHT_LEG_ROTATE)] = -33;
-
-    backward.params.phase_diff[static_cast<uint8_t>(ServoChannel::LEFT_LEG_ROTATE)]   = PI / 4;
-    backward.params.phase_diff[static_cast<uint8_t>(ServoChannel::RIGHT_LEG_ROTATE)]  = PI / 4;
+    backward.params.amplitude[static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT)]   = 25;
+    backward.params.amplitude[static_cast<uint8_t>(ServoChannel::RIGHT_ANKLE_LIFT)]  = 25;
+    backward.params.offset[static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT)] = -10;
+    backward.params.offset[static_cast<uint8_t>(ServoChannel::RIGHT_ANKLE_LIFT)] = 10;
+    backward.params.phase_diff[static_cast<uint8_t>(ServoChannel::LEFT_LEG_ROTATE)]   = PI / 2;
+    backward.params.phase_diff[static_cast<uint8_t>(ServoChannel::RIGHT_LEG_ROTATE)]  = PI / 2;
     m_storage->save_action(backward);
     m_action_cache[backward.name] = backward;
 
     RegisteredAction left = forward;
     strcpy(left.name, "turn_left");
     left.params.amplitude[static_cast<uint8_t>(ServoChannel::LEFT_LEG_ROTATE)]  = -25;
-    left.params.amplitude[static_cast<uint8_t>(ServoChannel::RIGHT_LEG_ROTATE)] = 25;
+    left.params.amplitude[static_cast<uint8_t>(ServoChannel::RIGHT_LEG_ROTATE)] = 45;
     left.params.amplitude[static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT)]   = 25;
-    left.params.amplitude[static_cast<uint8_t>(ServoChannel::RIGHT_ANKLE_LIFT)] = 20;
-    left.params.offset[static_cast<uint8_t>(ServoChannel::LEFT_LEG_ROTATE)]  = -25;
-    left.params.offset[static_cast<uint8_t>(ServoChannel::RIGHT_LEG_ROTATE)] = -20;
+    left.params.offset[static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT)]  = -10;
+    left.params.offset[static_cast<uint8_t>(ServoChannel::RIGHT_ANKLE_LIFT)] = 10;
+    left.params.offset[static_cast<uint8_t>(ServoChannel::HEAD_TILT)] = -10;
     left.params.phase_diff[static_cast<uint8_t>(ServoChannel::LEFT_LEG_ROTATE)]   = PI / 2;
-    left.params.phase_diff[static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT)]   = 0;
-    left.params.phase_diff[static_cast<uint8_t>(ServoChannel::RIGHT_ANKLE_LIFT)]  = 0;
-
+    left.params.phase_diff[static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT)]   = PI / 2;
+    left.params.phase_diff[static_cast<uint8_t>(ServoChannel::RIGHT_ANKLE_LIFT)]   = PI / 2;
     m_storage->save_action(left);
     m_action_cache[left.name] = left;
 
@@ -104,8 +111,11 @@ void ActionManager::register_default_actions() {
     right.params.amplitude[static_cast<uint8_t>(ServoChannel::RIGHT_ANKLE_LIFT)]  = 25;
     right.params.offset[static_cast<uint8_t>(ServoChannel::LEFT_LEG_ROTATE)]  = -20;
     right.params.offset[static_cast<uint8_t>(ServoChannel::RIGHT_LEG_ROTATE)] = -15;
+    right.params.offset[static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT)]  = -10;
+    right.params.offset[static_cast<uint8_t>(ServoChannel::RIGHT_ANKLE_LIFT)] = 10;
     right.params.phase_diff[static_cast<uint8_t>(ServoChannel::LEFT_LEG_ROTATE)] = 0;
     right.params.phase_diff[static_cast<uint8_t>(ServoChannel::RIGHT_LEG_ROTATE)] = PI / 2;
+    right.params.phase_diff[static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT)]   = PI / 2;
     m_storage->save_action(right);
     m_action_cache[right.name] = right;
 
@@ -158,7 +168,7 @@ void ActionManager::register_default_actions() {
     single_leg.is_atomic = false;
     single_leg.default_steps = 2;
     single_leg.gait_period_ms = 1500;
-    single_leg.params.amplitude[static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT)] = 1; // can't move without amplitude
+    single_leg.params.amplitude[static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT)] = 1;
     single_leg.params.amplitude[static_cast<uint8_t>(ServoChannel::RIGHT_ANKLE_LIFT)] = 1; 
     single_leg.params.offset[static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT)] = 30;
     single_leg.params.offset[static_cast<uint8_t>(ServoChannel::RIGHT_ANKLE_LIFT)] = 30;
@@ -174,9 +184,9 @@ void ActionManager::register_default_actions() {
     tracking_L.params.amplitude[static_cast<uint8_t>(ServoChannel::RIGHT_LEG_ROTATE)] = -40;
     tracking_L.params.amplitude[static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT)] = -30;
     tracking_L.params.amplitude[static_cast<uint8_t>(ServoChannel::RIGHT_ANKLE_LIFT)] = 35;
-    tracking_L.params.offset[static_cast<uint8_t>(ServoChannel::LEFT_LEG_ROTATE)] = 20; // 这个参数也比较抽象，对于左右转都设置为20最好，此时比较稳
+    tracking_L.params.offset[static_cast<uint8_t>(ServoChannel::LEFT_LEG_ROTATE)] = 20;
     tracking_L.params.offset[static_cast<uint8_t>(ServoChannel::RIGHT_LEG_ROTATE)] = 20;
-    tracking_L.params.offset[static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT)] = 12; // 由于安装的误差，这个offset属于修正量
+    tracking_L.params.offset[static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT)] = 12;
     tracking_L.params.offset[static_cast<uint8_t>(ServoChannel::RIGHT_ANKLE_LIFT)] = 12;
     tracking_L.params.phase_diff[static_cast<uint8_t>(ServoChannel::LEFT_LEG_ROTATE)] = PI / 2 + PI;
     tracking_L.params.phase_diff[static_cast<uint8_t>(ServoChannel::RIGHT_LEG_ROTATE)] = PI;
@@ -191,9 +201,9 @@ void ActionManager::register_default_actions() {
     tracking_R.params.amplitude[static_cast<uint8_t>(ServoChannel::RIGHT_LEG_ROTATE)] = 40;
     tracking_R.params.amplitude[static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT)] = 35;
     tracking_R.params.amplitude[static_cast<uint8_t>(ServoChannel::RIGHT_ANKLE_LIFT)] = -35;
-    tracking_R.params.offset[static_cast<uint8_t>(ServoChannel::LEFT_LEG_ROTATE)] = 20; // 这个参数也比较抽象，对于左右转都设置为20最好，此时比较稳
+    tracking_R.params.offset[static_cast<uint8_t>(ServoChannel::LEFT_LEG_ROTATE)] = 20;
     tracking_R.params.offset[static_cast<uint8_t>(ServoChannel::RIGHT_LEG_ROTATE)] = 20;
-    tracking_R.params.offset[static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT)] = 0; // 由于安装的误差，这个offset属于修正量
+    tracking_R.params.offset[static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT)] = 0;
     tracking_R.params.offset[static_cast<uint8_t>(ServoChannel::RIGHT_ANKLE_LIFT)] = 0;
     tracking_R.params.phase_diff[static_cast<uint8_t>(ServoChannel::LEFT_LEG_ROTATE)] = 0;
     tracking_R.params.phase_diff[static_cast<uint8_t>(ServoChannel::RIGHT_LEG_ROTATE)] = PI / 2;
@@ -202,8 +212,90 @@ void ActionManager::register_default_actions() {
     m_storage->save_action(tracking_R);
     m_action_cache[tracking_R.name] = tracking_R;
 
+ RegisteredAction dance = {};
+    strcpy(dance.name, "dance");
+    dance.type = ActionType::GAIT_PERIODIC;
+    dance.is_atomic = false;            
+    dance.default_steps = 4;            
+    dance.gait_period_ms = 2000;        
+    dance.params.amplitude[static_cast<uint8_t>(ServoChannel::LEFT_EAR_SWING)] = 30;
+    dance.params.amplitude[static_cast<uint8_t>(ServoChannel::RIGHT_EAR_SWING)] = 30;
+    dance.params.amplitude[static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT)] = 40;
+    dance.params.amplitude[static_cast<uint8_t>(ServoChannel::RIGHT_ANKLE_LIFT)] = -40;
+    dance.params.offset[static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT)] = -15;
+    dance.params.offset[static_cast<uint8_t>(ServoChannel::RIGHT_ANKLE_LIFT)] = 15;
+    dance.params.phase_diff[static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT)] = PI;
+    m_storage->save_action(dance);
+    m_action_cache[dance.name] = dance;
+    ESP_LOGI(TAG, "Default actions created and cached.");
+    
+ RegisteredAction leg_swing = {};
+    strcpy(leg_swing.name, "leg_swing");
+    leg_swing.type = ActionType::GAIT_PERIODIC;
+    leg_swing.is_atomic = false;
+    leg_swing.default_steps = 3;
+    leg_swing.gait_period_ms = 1200;
+    leg_swing.params.offset[static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT)] = -50;
+    leg_swing.params.offset[static_cast<uint8_t>(ServoChannel::HEAD_TILT)] = -30;
+    leg_swing.params.amplitude[static_cast<uint8_t>(ServoChannel::RIGHT_LEG_ROTATE)] = 15;
+    leg_swing.params.amplitude[static_cast<uint8_t>(ServoChannel::LEFT_EAR_SWING)] = 20;
+    leg_swing.params.amplitude[static_cast<uint8_t>(ServoChannel::RIGHT_EAR_SWING)] = 20;
+    m_storage->save_action(leg_swing);
+    m_action_cache[leg_swing.name] = leg_swing;
+    ESP_LOGI(TAG, "Default actions created and cached.");
+
+ RegisteredAction happy_wiggle = {};
+    strcpy(happy_wiggle.name, "happy_wiggle");
+    happy_wiggle.type = ActionType::GAIT_PERIODIC;
+    happy_wiggle.is_atomic = false;
+    happy_wiggle.default_steps = 4; 
+    happy_wiggle.gait_period_ms = 800;  
+    happy_wiggle.params.offset[static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT)] = -10; 
+    happy_wiggle.params.offset[static_cast<uint8_t>(ServoChannel::RIGHT_ANKLE_LIFT)] = 10; 
+    happy_wiggle.params.amplitude[static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT)] = 15;
+    happy_wiggle.params.amplitude[static_cast<uint8_t>(ServoChannel::RIGHT_ANKLE_LIFT)] = 15;
+    happy_wiggle.params.phase_diff[static_cast<uint8_t>(ServoChannel::RIGHT_ANKLE_LIFT)] = PI;
+    happy_wiggle.params.amplitude[static_cast<uint8_t>(ServoChannel::HEAD_PAN)] = 25;
+    happy_wiggle.params.amplitude[static_cast<uint8_t>(ServoChannel::HEAD_TILT)] = 10;
+    happy_wiggle.params.phase_diff[static_cast<uint8_t>(ServoChannel::HEAD_TILT)] = PI / 2;
+    happy_wiggle.params.amplitude[static_cast<uint8_t>(ServoChannel::LEFT_EAR_SWING)] = 30;
+    happy_wiggle.params.amplitude[static_cast<uint8_t>(ServoChannel::RIGHT_EAR_SWING)] = 30;
+    happy_wiggle.params.offset[static_cast<uint8_t>(ServoChannel::LEFT_ARM_LIFT)] = -45; 
+    happy_wiggle.params.offset[static_cast<uint8_t>(ServoChannel::RIGHT_ARM_LIFT)] = -45;
+    happy_wiggle.params.amplitude[static_cast<uint8_t>(ServoChannel::LEFT_ARM_SWING)] = 40;
+    happy_wiggle.params.amplitude[static_cast<uint8_t>(ServoChannel::RIGHT_ARM_SWING)] = 40;
+    happy_wiggle.params.phase_diff[static_cast<uint8_t>(ServoChannel::RIGHT_ARM_SWING)] = PI;
+    m_storage->save_action(happy_wiggle);
+    m_action_cache[happy_wiggle.name] = happy_wiggle;
+    ESP_LOGI(TAG, "Default actions created and cached.");
+
+    RegisteredAction sad_stomp = {};
+    strcpy(sad_stomp.name, "sad_stomp");
+    sad_stomp.type = ActionType::GAIT_PERIODIC;
+    sad_stomp.is_atomic = false;
+    sad_stomp.default_steps = 4;      
+    sad_stomp.gait_period_ms = 2200; 
+    sad_stomp.params.offset[static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT)] = -10;
+    sad_stomp.params.offset[static_cast<uint8_t>(ServoChannel::RIGHT_ANKLE_LIFT)] = 10;  
+    sad_stomp.params.amplitude[static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT)] = 15;
+    sad_stomp.params.amplitude[static_cast<uint8_t>(ServoChannel::RIGHT_ANKLE_LIFT)] = 15;
+    sad_stomp.params.phase_diff[static_cast<uint8_t>(ServoChannel::RIGHT_ANKLE_LIFT)] = PI;
+    sad_stomp.params.offset[static_cast<uint8_t>(ServoChannel::HEAD_TILT)] = 30; 
+    sad_stomp.params.amplitude[static_cast<uint8_t>(ServoChannel::HEAD_PAN)] = 10;
+    sad_stomp.params.offset[static_cast<uint8_t>(ServoChannel::LEFT_EAR_LIFT)] = 20;
+    sad_stomp.params.offset[static_cast<uint8_t>(ServoChannel::RIGHT_EAR_LIFT)] = 20;
+    sad_stomp.params.offset[static_cast<uint8_t>(ServoChannel::LEFT_ARM_LIFT)] = -50; 
+    sad_stomp.params.offset[static_cast<uint8_t>(ServoChannel::RIGHT_ARM_LIFT)] = -50;
+    sad_stomp.params.offset[static_cast<uint8_t>(ServoChannel::LEFT_ARM_SWING)] = 30;  
+    sad_stomp.params.offset[static_cast<uint8_t>(ServoChannel::RIGHT_ARM_SWING)] = -30; 
+    sad_stomp.params.amplitude[static_cast<uint8_t>(ServoChannel::LEFT_ARM_LIFT)] = 5;
+    sad_stomp.params.amplitude[static_cast<uint8_t>(ServoChannel::RIGHT_ARM_LIFT)] = 5;
+    sad_stomp.params.phase_diff[static_cast<uint8_t>(ServoChannel::RIGHT_ARM_LIFT)] = 0;
+    m_storage->save_action(sad_stomp);
+    m_action_cache[sad_stomp.name] = sad_stomp;
     ESP_LOGI(TAG, "Default actions created and cached.");
 }
+
 
 bool ActionManager::delete_action_from_nvs(const std::string& action_name) {
     ESP_LOGI(TAG, "Attempting to delete action '%s' from NVS...", action_name.c_str());
@@ -353,4 +445,4 @@ void ActionManager::print_action_details(const RegisteredAction &action) {
     print_float_array("Amplitude", action.params.amplitude);
     print_float_array("Offset   ", action.params.offset);
     print_float_array("Phase    ", action.params.phase_diff);
-}
+}  

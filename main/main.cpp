@@ -36,6 +36,10 @@ extern "C" void app_main(void)
     action_manager_ptr = new ActionManager();
     action_manager_ptr->init();
 
+    ESP_LOGW(TAG, "!!! FORCING NVS ACTION RE-REGISTER !!!");
+    action_manager_ptr->delete_action_from_nvs("walk_forward");
+    action_manager_ptr->register_default_actions();
+
     motion_controller_ptr = new MotionController(*servo_driver_ptr, *action_manager_ptr);
     motion_controller_ptr->init();
 
