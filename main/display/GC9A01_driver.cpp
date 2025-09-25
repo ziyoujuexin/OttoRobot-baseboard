@@ -10,7 +10,7 @@
 
 static const char* TAG = "GC9A01_driver";
 
-#define SPI_SPEED_HZ 80 * 1000 * 1000
+#define SPI_SPEED_HZ 40 * 1000 * 1000
 
 
 
@@ -21,6 +21,18 @@ static lv_display_t* disp_right = nullptr;
 // ESP-IDF LCD panel handles
 static esp_lcd_panel_handle_t panel_handle_left = nullptr;
 static esp_lcd_panel_handle_t panel_handle_right = nullptr;
+
+static bool panel_flush_ready(esp_lcd_panel_io_t* io, esp_lcd_panel_io_event_data_t* edata, void* user_ctx) {
+    lv_display_t* disp = (lv_display_t*)user_ctx;
+    lv_display_flush_ready(disp);
+    return false; // No need for a context switch
+}
+
+static bool panel_flush_ready_sec(esp_lcd_panel_io_t* io, esp_lcd_panel_io_event_data_t* edata, void* user_ctx) {
+    lv_display_t* disp = (lv_display_t*)user_ctx;
+    lv_display_flush_ready(disp);
+    return false; // No need for a context switch
+}
 
 // LVGL flush callback for v9
 static void lvgl_flush_cb(lv_display_t* disp, const lv_area_t* area, uint8_t* px_map) {
@@ -39,7 +51,17 @@ static void lvgl_flush_cb(lv_display_t* disp, const lv_area_t* area, uint8_t* px
     esp_lcd_panel_draw_bitmap(panel_handle, offsetx1, offsety1, offsetx2 + 1, offsety2 + 1, px_map);
     
     // Notify LVGL that flushing is done.
-    lv_display_flush_ready(disp);
+    // lv_display_flush_ready(disp);
+}
+
+static void lvgl_flush_cb_sec(lv_display_t* disp, const lv_area_t* area, uint8_t* px_map) {
+    esp_lcd_panel_handle_t panel_handle = (esp_lcd_panel_handle_t)lv_display_get_user_data(disp);
+    int offsetx1 = area->x1;
+    int offsety1 = area->y1;
+    int offsetx2 = area->x2;
+    int offsety2 = area->y2;
+    lv_draw_sw_rgb565_swap(px_map, (area->x2 - area->x1 + 1) * (area->y2 - area->y1 + 1));
+    esp_lcd_panel_draw_bitmap(panel_handle, offsetx1, offsety1, offsetx2 + 1, offsety2 + 1, px_map);
 }
 
 // this custom init parm make color closer to reality
@@ -120,6 +142,13 @@ bool gc9a01_lvgl_driver_init(void) {
     ESP_ERROR_CHECK(spi_bus_initialize(LCD_HOST, &buscfg, SPI_DMA_CH_AUTO));
     ESP_LOGI(TAG, "SPI bus initialized.");
 
+    esp_lcd_panel_io_callbacks_t cbs = {
+        .on_color_trans_done = panel_flush_ready,
+    };
+    esp_lcd_panel_io_callbacks_t cbs_sec = {
+        .on_color_trans_done = panel_flush_ready_sec,
+    };
+
     // --- Initialize Left Screen ---
     ESP_LOGI(TAG, "Initializing left screen...");
     esp_lcd_panel_io_handle_t io_handle_left = NULL;
@@ -188,6 +217,7 @@ bool gc9a01_lvgl_driver_init(void) {
     // --- Register Left Screen with LVGL ---
     ESP_LOGI(TAG, "Registering left screen with LVGL...");
     disp_left = lv_display_create(LCD_H_RES, LCD_V_RES);
+    ESP_ERROR_CHECK(esp_lcd_panel_io_register_event_callbacks(io_handle_left, &cbs, disp_left));
     lv_display_set_flush_cb(disp_left, lvgl_flush_cb);
     lv_display_set_user_data(disp_left, panel_handle_left);
     lv_color_t* buf_left = (lv_color_t*)heap_caps_malloc(LCD_H_RES * 40 * sizeof(lv_color_t), MALLOC_CAP_SPIRAM);
@@ -198,7 +228,8 @@ bool gc9a01_lvgl_driver_init(void) {
     // --- Register Right Screen with LVGL ---
     ESP_LOGI(TAG, "Registering right screen with LVGL...");
     disp_right = lv_display_create(LCD_H_RES, LCD_V_RES);
-    lv_display_set_flush_cb(disp_right, lvgl_flush_cb);
+    ESP_ERROR_CHECK(esp_lcd_panel_io_register_event_callbacks(io_handle_right, &cbs_sec, disp_right));
+    lv_display_set_flush_cb(disp_right, lvgl_flush_cb_sec);
     lv_display_set_user_data(disp_right, panel_handle_right);
     lv_color_t* buf_right = (lv_color_t*)heap_caps_malloc(LCD_H_RES * 40  * sizeof(lv_color_t), MALLOC_CAP_SPIRAM);
     assert(buf_right);

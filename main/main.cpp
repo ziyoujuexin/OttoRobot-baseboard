@@ -38,6 +38,7 @@ struct UiCommand {
 
 // Declare the queue handle
 QueueHandle_t ui_command_queue;
+SemaphoreHandle_t lvgl_mutex;
 
 // Structure to pass multiple managers to the LVGL task
 struct LvglTaskParams {
@@ -46,7 +47,7 @@ struct LvglTaskParams {
 };
 
 void vApplicationTickHook( void ){
-    lv_tick_inc(1);
+    lv_tick_inc(1); // RTOS run 500Hz
 }
 
 // A FreeRTOS task to run the LVGL timer handler and process UI commands.
@@ -81,8 +82,13 @@ static void lvgl_task(void *pvParameter) {
         }
 
         // 2. Standard LVGL handler loop
+        if(xSemaphoreTake(lvgl_mutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+            lv_timer_handler_run_in_period(task_delay_ms);
+            xSemaphoreGive(lvgl_mutex);
+        } else {
+            ESP_LOGW(TAG, "LVGL mutex take timed out");
+        }
         vTaskDelay(pdMS_TO_TICKS(task_delay_ms));
-        lv_timer_handler();
     }
 }
 
@@ -100,12 +106,12 @@ extern "C" void app_main(void)
     }
 
     // Initialize LVGL and the display driver
+    lvgl_mutex = xSemaphoreCreateMutex();
     lv_init();
     ui_command_queue = xQueueCreate(10, sizeof(UiCommand)); // Create the UI command queue
     lvgl_fs_driver_init();
     if (!gc9a01_lvgl_driver_init()) {
         ESP_LOGE(TAG, "Failed to initialize display driver. Halting.");
-        while(1) { vTaskDelay(1000); }
     }
 
     // --- 3. Application Services and Managers Initialization ---
@@ -132,7 +138,7 @@ extern "C" void app_main(void)
     static LvglTaskParams lvgl_params;
     lvgl_params.display_manager = display_manager.get();
     lvgl_params.animation_manager = animation_manager.get();
-    xTaskCreate(lvgl_task, "lvgl_task", 4096, &lvgl_params, 10, NULL);
+    xTaskCreatePinnedToCore(lvgl_task, "lvgl_task", 4096, &lvgl_params, configMAX_PRIORITIES - 1, NULL, 0);
 
     auto face_location_callback = [&](const FaceLocation& loc) {
         if (motion_controller) {
