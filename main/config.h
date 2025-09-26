@@ -10,7 +10,6 @@
 #define WIFI_SSID     "LIANQIU-2"
 #define WIFI_PASSWORD "lianqiu123"
 
-
 // 运动状态定义
 #define MOTION_STOP        0x00
 #define MOTION_FORWARD     0x01
@@ -28,11 +27,13 @@
 // Custom commands for face tracking coordination
 #define MOTION_TRACKING_L 0x11
 #define MOTION_TRACKING_R 0x12
-#define MOTION_SAD_STOMP  0x13
-
-#define MOTION_DANCE      0x0C
-#define MOTION_LEG_SWING  0x0E
-#define MOTION_HAPPY_WIGGLE 0x0F
+#define MOTION_SAD        0x13
+#define MOTION_LAUGHING   0x14
+#define MOTION_ANGRY      0x15
+#define MOTION_CRYING     0x16
+#define MOTION_SILLY      0x0C
+#define MOTION_FUNNY   0x0E
+#define MOTION_HAPPY      0x0F
 
 // Custom groups, hardcoded for UART compatibility
 #define MOTION_RUN_DEMO_GROUP 0x10

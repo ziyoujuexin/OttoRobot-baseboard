@@ -57,10 +57,15 @@ void MotionController::init() {
     m_gait_command_map[MOTION_FACE_TRACE] = "face_trace";
     m_gait_command_map[MOTION_TRACKING_L] = "tracking_L";
     m_gait_command_map[MOTION_TRACKING_R] = "tracking_R";
-    m_gait_command_map[MOTION_DANCE] = "dance";
-    m_gait_command_map[MOTION_LEG_SWING] = "leg_swing";
-    m_gait_command_map[MOTION_HAPPY_WIGGLE] = "happy_wiggle";
-    m_gait_command_map[MOTION_SAD_STOMP] = "sad_stomp";
+    m_gait_command_map[MOTION_WAVE_HAND] = "happy";
+    m_gait_command_map[MOTION_MOVE_EAR] = "sad";
+    m_gait_command_map[MOTION_NOD_HEAD] = "silly";
+    m_gait_command_map[MOTION_SHAKE_HEAD] = "funny";
+    m_gait_command_map[MOTION_LAUGHING] = "laughing";
+    m_gait_command_map[MOTION_ANGRY] = "angry";
+    m_gait_command_map[MOTION_CRYING] = "crying";
+
+    
 
     m_motion_queue = xQueueCreate(10, sizeof(motion_command_t));
     if (m_motion_queue == NULL) {
