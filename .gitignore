@@ -4,3 +4,4 @@ build/
 .codebuddy
 build.log
 managed_components/
+.vscode/
