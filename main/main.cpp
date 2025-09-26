@@ -102,7 +102,6 @@ extern "C" void app_main(void)
 
     if (sd_card_manager::init("/sdcard") != ESP_OK) {
         ESP_LOGE(TAG, "Failed to initialize SD card. Halting.");
-        while(1) { vTaskDelay(1000); }
     }
 
     // Initialize LVGL and the display driver
@@ -111,7 +110,7 @@ extern "C" void app_main(void)
     ui_command_queue = xQueueCreate(10, sizeof(UiCommand)); // Create the UI command queue
     lvgl_fs_driver_init();
     if (!gc9a01_lvgl_driver_init()) {
-        ESP_LOGE(TAG, "Failed to initialize display driver. Halting.");
+        ESP_LOGE(TAG, "Failed to initialize display driver. Continuing without display.");
     }
 
     // --- 3. Application Services and Managers Initialization ---
