@@ -84,8 +84,8 @@ static const gc9a01_lcd_init_cmd_t lcd_init_cmds[] = {
     {0x8e, (uint8_t []){0xdf}, 1, 0},
     {0x8f, (uint8_t []){0x52}, 1, 0},
     {0xb6, (uint8_t []){0x20}, 1, 0},
-    {0x36, (uint8_t []){0x48}, 1, 0},
-    {0x3a, (uint8_t []){0x05}, 1, 0},
+    // {0x36, (uint8_t []){0x48}, 1, 0},
+    // {0x3a, (uint8_t []){0x05}, 1, 0},
     {0x90, (uint8_t []){0x08, 0x08, 0x08, 0x08}, 4, 0},
     {0xE8, (uint8_t []){0x34}, 1, 0}, // 4 dot inversion
     {0xff, (uint8_t []){0x60, 0x01, 0x04}, 3, 0},

@@ -97,11 +97,11 @@ static void lvgl_task(void *pvParameter) {
 
 extern "C" void app_main(void)
 {
-    ESP_ERROR_CHECK(nvs_flash_init()); // For WiFi credentials
     ESP_ERROR_CHECK(i2cdev_init());      // For servo driver
 
     if (sd_card_manager::init("/sdcard") != ESP_OK) {
         ESP_LOGE(TAG, "Failed to initialize SD card. Halting.");
+        vTaskDelay(pdMS_TO_TICKS(1000));
     }
 
     // Initialize LVGL and the display driver
