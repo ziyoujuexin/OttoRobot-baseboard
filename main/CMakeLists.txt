@@ -2,6 +2,7 @@ set(SRCS
     "main.cpp"
     "display/lvgl_fs_port.cpp"
     "UartHandler.cpp"
+    "UIManager.cpp"
     "driver/PCA9685.cpp"
     "driver/sd_card_manager.cpp"
     

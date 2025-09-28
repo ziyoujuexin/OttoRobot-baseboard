@@ -1,11 +1,6 @@
 #include "AnimationPlayer.h"
 #include "esp_log.h"
-
-// Forward declaration of the command queue and structure from main.cpp
-struct UiCommand {
-    char animation_name[32];
-};
-extern QueueHandle_t ui_command_queue;
+#include "../UIManager.hpp" // Include UIManager to get the UiCommand definition
 
 static const char* TAG = "AnimationPlayer";
 
@@ -15,10 +10,15 @@ struct PlayerCommand {
 };
 
 // --- Constructor / Destructor ---
-AnimationPlayer::AnimationPlayer(AnimationManager* anim_manager, DualScreenManager* display_manager)
-    : m_anim_manager(anim_manager), m_display_manager(display_manager) { // display_manager is no longer used for UI updates
+AnimationPlayer::AnimationPlayer(AnimationManager* anim_manager, DualScreenManager* display_manager, QueueHandle_t ui_command_queue)
+    : m_anim_manager(anim_manager), 
+      m_display_manager(display_manager), 
+      m_ui_command_queue(ui_command_queue) { 
     if (!m_anim_manager) {
         ESP_LOGE(TAG, "AnimationPlayer received null AnimationManager!");
+    }
+    if (!m_ui_command_queue) {
+        ESP_LOGE(TAG, "AnimationPlayer received null ui_command_queue!");
     }
 }
 
@@ -41,7 +41,7 @@ void AnimationPlayer::start() {
     UiCommand initial_cmd;
     strncpy(initial_cmd.animation_name, "eyec", sizeof(initial_cmd.animation_name) - 1);
     initial_cmd.animation_name[sizeof(initial_cmd.animation_name) - 1] = '\0';
-    xQueueSend(ui_command_queue, &initial_cmd, 0);
+    xQueueSend(m_ui_command_queue, &initial_cmd, 0);
 }
 
 // This function is called by external tasks (like UartHandler) to request a one-shot animation
@@ -88,7 +88,7 @@ void AnimationPlayer::player_task() {
             strncpy(ui_cmd.animation_name, m_current_anim_name.c_str(), sizeof(ui_cmd.animation_name) - 1);
             ui_cmd.animation_name[sizeof(ui_cmd.animation_name) - 1] = '\0';
             
-            if (xQueueSend(ui_command_queue, &ui_cmd, 0) != pdPASS) {
+            if (xQueueSend(m_ui_command_queue, &ui_cmd, 0) != pdPASS) {
                 ESP_LOGE(TAG, "Failed to send command to UI queue from player task.");
             }
             animation_needs_update = false; // Reset flag

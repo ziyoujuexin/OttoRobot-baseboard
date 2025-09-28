@@ -16,7 +16,7 @@ class AnimationManager;
 
 class AnimationPlayer {
 public:
-    AnimationPlayer(AnimationManager* anim_manager, DualScreenManager* display_manager);
+    AnimationPlayer(AnimationManager* anim_manager, DualScreenManager* display_manager, QueueHandle_t ui_command_queue);
     ~AnimationPlayer();
 
     void start();
@@ -31,9 +31,10 @@ private:
 
     AnimationManager* m_anim_manager;
     DualScreenManager* m_display_manager; // Kept for now as per main.cpp, but logic will be removed
+    QueueHandle_t m_ui_command_queue; // Handle to the central UI command queue
     
     TaskHandle_t m_task_handle = nullptr;
-    QueueHandle_t m_player_queue = nullptr;
+    QueueHandle_t m_player_queue = nullptr; // Internal queue for one-shot commands
 
     // State machine for animation playback
     enum class PlayerState { PLAYING_DEFAULT, PLAYING_ONESHOT };

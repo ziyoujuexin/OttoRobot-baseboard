@@ -11,7 +11,13 @@ SDCardAnimationProvider::SDCardAnimationProvider(const std::string& base_path)
 
 AnimationData SDCardAnimationProvider::getAnimationData(const std::string& animation_name) {
     AnimationData anim_data;
-    std::string vfs_path = m_base_path + "/" + animation_name + ".gif";
+    std::string vfs_path;
+    // Check if animation_name already ends with .gif
+    if (animation_name.length() >= 4 && animation_name.substr(animation_name.length() - 4) == ".gif") {
+        vfs_path = m_base_path + "/" + animation_name;
+    } else {
+        vfs_path = m_base_path + "/" + animation_name + ".gif";
+    }
 
     // 1. Open the file
     FILE* f = fopen(vfs_path.c_str(), "rb");

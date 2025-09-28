@@ -7,7 +7,11 @@
 #include "esp_http_server.h"
 #include "json_parser.h"
 #include <string>
+#include <vector>
+#include <dirent.h>
 #include "freertos/task.h" // For vTaskDelay
+#include "freertos/queue.h"
+#include "../UIManager.hpp" // For UiCommand
 
 static const char *TAG = "WebServer";
 
@@ -17,6 +21,8 @@ static esp_err_t command_api_handler(httpd_req_t *req);
 static esp_err_t servo_api_handler(httpd_req_t *req);
 static esp_err_t root_handler(httpd_req_t *req);
 static esp_err_t upload_handler(httpd_req_t *req);
+static esp_err_t animations_api_handler(httpd_req_t *req);
+static esp_err_t play_animation_handler(httpd_req_t *req);
 static void wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data);
 
 extern const char index_html_start[] asm("_binary_index_html_start");
@@ -24,8 +30,8 @@ extern const char index_html_end[]   asm("_binary_index_html_end");
 
 class WebServerImpl {
 public:
-    WebServerImpl(ActionManager& action_manager, MotionController& motion_controller) 
-        : m_action_manager(action_manager), m_motion_controller(motion_controller) {}
+    WebServerImpl(ActionManager& action_manager, MotionController& motion_controller, QueueHandle_t ui_command_queue) 
+        : m_action_manager(action_manager), m_motion_controller(motion_controller), m_ui_command_queue(ui_command_queue) {}
 
     void start() {
         wifi_init();
@@ -34,6 +40,7 @@ public:
 private:
     ActionManager& m_action_manager;
     MotionController& m_motion_controller;
+    QueueHandle_t m_ui_command_queue;
     httpd_handle_t m_server = NULL;
 
     void wifi_init() {
@@ -64,7 +71,7 @@ private:
         httpd_config_t config = HTTPD_DEFAULT_CONFIG();
         config.lru_purge_enable = true;
 
-        ESP_LOGI(TAG, "Starting server on port: \'%d\'", config.server_port);
+        ESP_LOGI(TAG, "Starting server on port: '%d'", config.server_port);
         if (httpd_start(&m_server, &config) == ESP_OK) {
             httpd_uri_t root = { .uri = "/", .method = HTTP_GET, .handler = root_handler, .user_ctx = this };
             httpd_register_uri_handler(m_server, &root);
@@ -80,6 +87,13 @@ private:
 
             httpd_uri_t upload_uri = { .uri = "/upload", .method = HTTP_POST, .handler = upload_handler, .user_ctx = this };
             httpd_register_uri_handler(m_server, &upload_uri);
+
+            httpd_uri_t animations_uri = { .uri = "/api/animations", .method = HTTP_GET, .handler = animations_api_handler, .user_ctx = this };
+            httpd_register_uri_handler(m_server, &animations_uri);
+
+            httpd_uri_t play_animation_uri = { .uri = "/api/play", .method = HTTP_POST, .handler = play_animation_handler, .user_ctx = this };
+            httpd_register_uri_handler(m_server, &play_animation_uri);
+
             return;
         }
         ESP_LOGI(TAG, "Error starting server!");
@@ -90,6 +104,7 @@ private:
     friend esp_err_t tuning_api_handler(httpd_req_t *req);
     friend esp_err_t command_api_handler(httpd_req_t *req);
     friend esp_err_t root_handler(httpd_req_t *req);
+    friend esp_err_t play_animation_handler(httpd_req_t *req);
     friend void wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data);
 };
 
@@ -101,6 +116,73 @@ esp_err_t root_handler(httpd_req_t *req)
     httpd_resp_set_type(req, "text/html");
     httpd_resp_send(req, index_html_start, index_html_len);
     return ESP_OK;
+}
+
+esp_err_t animations_api_handler(httpd_req_t *req) {
+    std::string json_response = "[";
+    bool first = true;
+
+    DIR* dir = opendir("/sdcard/animations");
+    if (dir == NULL) {
+        ESP_LOGE(TAG, "Failed to open animations directory");
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to open animations directory");
+        return ESP_FAIL;
+    }
+
+    struct dirent* ent;
+    while ((ent = readdir(dir)) != NULL) {
+        std::string filename(ent->d_name);
+        if (filename.length() > 4 && filename.substr(filename.length() - 4) == ".gif") {
+            if (!first) {
+                json_response += ",";
+            }
+            json_response += "\"";
+            json_response += filename;
+            json_response += "\"";
+            first = false;
+        }
+    }
+    closedir(dir);
+
+    json_response += "]";
+    
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_send(req, json_response.c_str(), json_response.length());
+    return ESP_OK;
+}
+
+esp_err_t play_animation_handler(httpd_req_t *req) {
+    WebServerImpl* server = (WebServerImpl*)req->user_ctx;
+    char content[128];
+    int ret = httpd_req_recv(req, content, sizeof(content) - 1);
+    if (ret <= 0) {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Failed to receive data");
+        return ESP_FAIL;
+    }
+    content[ret] = '\0';
+
+    jparse_ctx_t jctx;
+    json_parse_start(&jctx, content, ret);
+
+    char anim_name_buf[64];
+    if (json_obj_get_string(&jctx, "animation", anim_name_buf, sizeof(anim_name_buf)) == 0) {
+        UiCommand cmd;
+        strncpy(cmd.animation_name, anim_name_buf, sizeof(cmd.animation_name) - 1);
+        cmd.animation_name[sizeof(cmd.animation_name) - 1] = '\0';
+
+        if (xQueueSend(server->m_ui_command_queue, &cmd, pdMS_TO_TICKS(100)) == pdPASS) {
+            ESP_LOGI(TAG, "Queued animation '%s' for playback.", cmd.animation_name);
+            httpd_resp_send(req, "Animation queued", HTTPD_RESP_USE_STRLEN);
+            return ESP_OK;
+        } else {
+            ESP_LOGE(TAG, "Failed to queue animation command.");
+            httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to queue command");
+            return ESP_FAIL;
+        }
+    }
+
+    httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid JSON: missing 'animation' key");
+    return ESP_FAIL;
 }
 
 esp_err_t command_api_handler(httpd_req_t *req)
@@ -369,10 +451,10 @@ void wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t event_id
 
 // --- Public WebServer Class --- 
 
-WebServer::WebServer(ActionManager& action_manager, MotionController& motion_controller)
-    : m_action_manager(action_manager), m_motion_controller(motion_controller) {}
+WebServer::WebServer(ActionManager& action_manager, MotionController& motion_controller, QueueHandle_t ui_command_queue)
+    : m_action_manager(action_manager), m_motion_controller(motion_controller), m_ui_command_queue(ui_command_queue) {}
 
 void WebServer::start() {
-    WebServerImpl* impl = new WebServerImpl(m_action_manager, m_motion_controller);
+    WebServerImpl* impl = new WebServerImpl(m_action_manager, m_motion_controller, m_ui_command_queue);
     impl->start();
 }

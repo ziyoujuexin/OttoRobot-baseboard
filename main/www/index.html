@@ -70,6 +70,16 @@
         </div>
 
         <div class="section">
+            <h2>Animation Player</h2>
+            <div class="tuner-actions">
+                <button onclick="getAnimationList()">Refresh List</button>
+            </div>
+            <div id="animation-list-container" class="grid-container" style="margin-top: 15px;">
+                <!-- Animation buttons will be inserted here -->
+            </div>
+        </div>
+
+        <div class="section">
             <h2>Gait Parameter Tuner</h2>
             <div class="tuner-controls">
                 <div class="form-group">
@@ -122,6 +132,10 @@
     <div id="toast-container"></div>
 
     <script>
+    window.onload = function() {
+        getAnimationList();
+    };
+
     function sendCommand(motionType) {
         const form = new URLSearchParams();
         form.append('motion', motionType);
@@ -142,13 +156,50 @@
                 body: JSON.stringify(payload)
             });
             if (!response.ok) {
-                console.error('Command failed:', response.statusText);
-                showToast(`Error: ${response.statusText}`, 'error');
+                const errorText = await response.text();
+                console.error('Command failed:', response.statusText, errorText);
+                showToast(`Error: ${errorText || response.statusText}`, 'error');
             }
             return response;
         } catch (error) {
             console.error('Error sending command:', error);
             showToast(`Network Error: ${error.message}`, 'error');
+        }
+    }
+
+    async function getAnimationList() {
+        try {
+            const response = await fetch('/api/animations');
+            if (!response.ok) {
+                throw new Error(`Failed to fetch list: ${response.statusText}`);
+            }
+            const animations = await response.json();
+            const container = document.getElementById('animation-list-container');
+            container.innerHTML = ''; // Clear existing buttons
+            if (animations.length === 0) {
+                container.innerHTML = '<p>No animations found on SD card.</p>';
+                return;
+            }
+            animations.forEach(name => {
+                const btn = document.createElement('button');
+                btn.className = 'btn';
+                btn.textContent = name.replace('.gif', '');
+                btn.onclick = () => playAnimation(name);
+                container.appendChild(btn);
+            });
+        } catch (error) {
+            console.error('Error getting animation list:', error);
+            showToast(error.message, 'error');
+            const container = document.getElementById('animation-list-container');
+            container.innerHTML = `<p style="color: red;">Error loading animations.</p>`;
+        }
+    }
+
+    async function playAnimation(animationName) {
+        showToast(`Playing: ${animationName}`, 'info');
+        const response = await sendJsonCommand({ animation: animationName }, '/api/play');
+        if (response && response.ok) {
+            showToast('Play command sent!', 'success');
         }
     }
 
@@ -338,6 +389,7 @@
             uploadStatus.textContent = `Success: ${file.name} uploaded!`;
             uploadStatus.style.color = '#4CAF50';
             showToast('Animation uploaded successfully!', 'success');
+            getAnimationList(); // Refresh the list after successful upload
         })
         .catch(error => {
             uploadStatus.textContent = `Error: ${error.message}`;
