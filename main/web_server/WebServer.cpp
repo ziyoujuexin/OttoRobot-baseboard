@@ -10,8 +10,8 @@
 #include <vector>
 #include <dirent.h>
 #include "freertos/task.h" // For vTaskDelay
-#include "freertos/queue.h"
-#include "../UIManager.hpp" // For UiCommand
+#include "../display/AnimationPlayer.h" // For AnimationPlayer class
+#include "../UIManager.hpp" // For UiCommand struct definition
 
 static const char *TAG = "WebServer";
 
@@ -30,8 +30,8 @@ extern const char index_html_end[]   asm("_binary_index_html_end");
 
 class WebServerImpl {
 public:
-    WebServerImpl(ActionManager& action_manager, MotionController& motion_controller, QueueHandle_t ui_command_queue) 
-        : m_action_manager(action_manager), m_motion_controller(motion_controller), m_ui_command_queue(ui_command_queue) {}
+    WebServerImpl(ActionManager& action_manager, MotionController& motion_controller, AnimationPlayer& animation_player) 
+        : m_action_manager(action_manager), m_motion_controller(motion_controller), m_animation_player(animation_player) {}
 
     void start() {
         wifi_init();
@@ -40,7 +40,7 @@ public:
 private:
     ActionManager& m_action_manager;
     MotionController& m_motion_controller;
-    QueueHandle_t m_ui_command_queue;
+    AnimationPlayer& m_animation_player;
     httpd_handle_t m_server = NULL;
 
     void wifi_init() {
@@ -166,19 +166,10 @@ esp_err_t play_animation_handler(httpd_req_t *req) {
 
     char anim_name_buf[64];
     if (json_obj_get_string(&jctx, "animation", anim_name_buf, sizeof(anim_name_buf)) == 0) {
-        UiCommand cmd;
-        strncpy(cmd.animation_name, anim_name_buf, sizeof(cmd.animation_name) - 1);
-        cmd.animation_name[sizeof(cmd.animation_name) - 1] = '\0';
-
-        if (xQueueSend(server->m_ui_command_queue, &cmd, pdMS_TO_TICKS(100)) == pdPASS) {
-            ESP_LOGI(TAG, "Queued animation '%s' for playback.", cmd.animation_name);
-            httpd_resp_send(req, "Animation queued", HTTPD_RESP_USE_STRLEN);
-            return ESP_OK;
-        } else {
-            ESP_LOGE(TAG, "Failed to queue animation command.");
-            httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to queue command");
-            return ESP_FAIL;
-        }
+        ESP_LOGI(TAG, "Requesting one-shot animation '%s' from web.", anim_name_buf);
+        server->m_animation_player.playOneShotAnimation(anim_name_buf);
+        httpd_resp_send(req, "Animation request sent to player", HTTPD_RESP_USE_STRLEN);
+        return ESP_OK;
     }
 
     httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid JSON: missing 'animation' key");
@@ -451,10 +442,10 @@ void wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t event_id
 
 // --- Public WebServer Class --- 
 
-WebServer::WebServer(ActionManager& action_manager, MotionController& motion_controller, QueueHandle_t ui_command_queue)
-    : m_action_manager(action_manager), m_motion_controller(motion_controller), m_ui_command_queue(ui_command_queue) {}
+WebServer::WebServer(ActionManager& action_manager, MotionController& motion_controller, AnimationPlayer& animation_player)
+    : m_action_manager(action_manager), m_motion_controller(motion_controller), m_animation_player(animation_player) {}
 
 void WebServer::start() {
-    WebServerImpl* impl = new WebServerImpl(m_action_manager, m_motion_controller, m_ui_command_queue);
+    WebServerImpl* impl = new WebServerImpl(m_action_manager, m_motion_controller, m_animation_player);
     impl->start();
 }

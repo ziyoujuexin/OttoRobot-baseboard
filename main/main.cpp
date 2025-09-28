@@ -87,8 +87,8 @@ extern "C" void app_main(void)
     auto sound_manager = std::make_unique<SoundManager>(motion_controller.get(), uart_handler.get());
     sound_manager->start();
 
-    // Pass the UI command queue from the UIManager to the WebServer
-    auto web_server = std::make_unique<WebServer>(*action_manager, *motion_controller, ui_manager->get_command_queue());
+    // Pass the AnimationPlayer instance to the WebServer
+    auto web_server = std::make_unique<WebServer>(*action_manager, *motion_controller, *animation_player);
     web_server->start();
 
 
