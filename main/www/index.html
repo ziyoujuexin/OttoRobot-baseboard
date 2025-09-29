@@ -12,6 +12,10 @@
         .btn:hover { background-color: #45a049; }
         .btn-stop { background-color: #f44336; }
         .btn-stop:hover { background-color: #da190b; }
+        .tuner-actions button { font-size: 14px; padding: 8px 12px; }
+        .animation-item-btn.delete-mode { background-color: #E53935; }
+        .animation-item-btn.delete-mode:hover { background-color: #C62828; }
+        #delete-mode-btn.active { background-color: #f44336; }
         .section { border-top: 2px solid #eee; padding-top: 20px; margin-top: 30px; }
         .tuner-controls { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: end; margin-bottom: 20px; }
         .form-group { display: flex; flex-direction: column; gap: 5px; }
@@ -73,6 +77,7 @@
             <h2>Animation Player</h2>
             <div class="tuner-actions">
                 <button onclick="getAnimationList()">Refresh List</button>
+                <button id="delete-mode-btn" onclick="toggleDeleteMode()">Delete</button>
             </div>
             <div id="animation-list-container" class="grid-container" style="margin-top: 15px;">
                 <!-- Animation buttons will be inserted here -->
@@ -167,7 +172,30 @@
         }
     }
 
+    let isInDeleteMode = false;
+
+    function toggleDeleteMode() {
+        isInDeleteMode = !isInDeleteMode;
+        const deleteBtn = document.getElementById('delete-mode-btn');
+        const animButtons = document.querySelectorAll('#animation-list-container .animation-item-btn');
+
+        if (isInDeleteMode) {
+            deleteBtn.textContent = 'Cancel';
+            deleteBtn.classList.add('active');
+            animButtons.forEach(btn => btn.classList.add('delete-mode'));
+        } else {
+            deleteBtn.textContent = 'Delete';
+            deleteBtn.classList.remove('active');
+            animButtons.forEach(btn => btn.classList.remove('delete-mode'));
+        }
+    }
+
     async function getAnimationList() {
+        // Exit delete mode whenever the list is refreshed
+        if (isInDeleteMode) {
+            toggleDeleteMode();
+        }
+
         try {
             const response = await fetch('/api/animations');
             if (!response.ok) {
@@ -178,13 +206,22 @@
             container.innerHTML = ''; // Clear existing buttons
             if (animations.length === 0) {
                 container.innerHTML = '<p>No animations found on SD card.</p>';
+                document.getElementById('delete-mode-btn').style.display = 'none'; // Hide delete button if no files
                 return;
             }
+            document.getElementById('delete-mode-btn').style.display = 'inline-block'; // Show delete button
+
             animations.forEach(name => {
                 const btn = document.createElement('button');
-                btn.className = 'btn';
+                btn.className = 'btn animation-item-btn';
                 btn.textContent = name.replace('.gif', '');
-                btn.onclick = () => playAnimation(name);
+                btn.onclick = () => {
+                    if (isInDeleteMode) {
+                        deleteAnimation(name);
+                    } else {
+                        playAnimation(name);
+                    }
+                };
                 container.appendChild(btn);
             });
         } catch (error) {
@@ -200,6 +237,26 @@
         const response = await sendJsonCommand({ animation: animationName }, '/api/play');
         if (response && response.ok) {
             showToast('Play command sent!', 'success');
+        }
+    }
+
+    async function deleteAnimation(filename) {
+        if (!confirm(`Are you sure you want to delete '${filename}'? This cannot be undone.`)) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/delete?file=${encodeURIComponent(filename)}`);
+            if (response.ok) {
+                showToast(`'${filename}' deleted successfully.`, 'success');
+                getAnimationList(); // Refresh the list to show the change
+            } else {
+                const errorText = await response.text();
+                throw new Error(errorText || 'Server error');
+            }
+        } catch (error) {
+            showToast(`Error deleting file: ${error.message}`, 'error');
+            console.error('Delete failed:', error);
         }
     }
 

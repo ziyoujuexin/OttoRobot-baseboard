@@ -23,6 +23,7 @@ static esp_err_t root_handler(httpd_req_t *req);
 static esp_err_t upload_handler(httpd_req_t *req);
 static esp_err_t animations_api_handler(httpd_req_t *req);
 static esp_err_t play_animation_handler(httpd_req_t *req);
+static esp_err_t delete_animation_handler(httpd_req_t *req);
 static void wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data);
 
 extern const char index_html_start[] asm("_binary_index_html_start");
@@ -94,6 +95,9 @@ private:
             httpd_uri_t play_animation_uri = { .uri = "/api/play", .method = HTTP_POST, .handler = play_animation_handler, .user_ctx = this };
             httpd_register_uri_handler(m_server, &play_animation_uri);
 
+            httpd_uri_t delete_animation_uri = { .uri = "/api/delete", .method = HTTP_GET, .handler = delete_animation_handler, .user_ctx = this };
+            httpd_register_uri_handler(m_server, &delete_animation_uri);
+
             return;
         }
         ESP_LOGI(TAG, "Error starting server!");
@@ -105,6 +109,7 @@ private:
     friend esp_err_t command_api_handler(httpd_req_t *req);
     friend esp_err_t root_handler(httpd_req_t *req);
     friend esp_err_t play_animation_handler(httpd_req_t *req);
+    friend esp_err_t delete_animation_handler(httpd_req_t *req);
     friend void wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data);
 };
 
@@ -174,6 +179,40 @@ esp_err_t play_animation_handler(httpd_req_t *req) {
 
     httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid JSON: missing 'animation' key");
     return ESP_FAIL;
+}
+
+esp_err_t delete_animation_handler(httpd_req_t *req) {
+    char file_buf[128];
+    if (httpd_req_get_url_query_str(req, file_buf, sizeof(file_buf)) != ESP_OK) {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Missing file query parameter");
+        return ESP_FAIL;
+    }
+
+    char param_val[100];
+    if (httpd_query_key_value(file_buf, "file", param_val, sizeof(param_val)) != ESP_OK) {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Failed to parse file parameter");
+        return ESP_FAIL;
+    }
+
+    // Security check: ensure no path traversal
+    std::string filename(param_val);
+    if (filename.find("/") != std::string::npos || filename.find("..") != std::string::npos) {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid filename");
+        return ESP_FAIL;
+    }
+
+    std::string full_path = "/sdcard/animations/" + filename;
+    ESP_LOGI(TAG, "Attempting to delete file: %s", full_path.c_str());
+
+    if (remove(full_path.c_str()) == 0) {
+        ESP_LOGI(TAG, "Successfully deleted file: %s", full_path.c_str());
+        httpd_resp_send(req, "File deleted successfully", HTTPD_RESP_USE_STRLEN);
+        return ESP_OK;
+    } else {
+        ESP_LOGE(TAG, "Failed to delete file: %s", full_path.c_str());
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to delete file");
+        return ESP_FAIL;
+    }
 }
 
 esp_err_t command_api_handler(httpd_req_t *req)
