@@ -3,6 +3,8 @@
 #include "esp_heap_caps.h"
 #include <cstdio>      // For FILE, fopen, etc.
 #include <sys/stat.h>  // For stat
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
 static const char* TAG = "SDCardProvider";
 
@@ -46,12 +48,34 @@ AnimationData SDCardAnimationProvider::getAnimationData(const std::string& anima
         return anim_data;
     }
 
-    // 4. Read the entire file into the buffer
-    size_t bytes_read = fread(buffer, 1, file_size, f);
-    fclose(f); // Close the file immediately after reading
+    // 4. Read the file in chunks to avoid blocking the CPU for too long
+    const size_t chunkSize = 16 * 1024; // 16KB chunks
+    size_t bytes_read = 0;
+    while (bytes_read < (size_t)file_size) {
+        size_t bytes_to_read = (size_t)file_size - bytes_read;
+        if (bytes_to_read > chunkSize) {
+            bytes_to_read = chunkSize;
+        }
+
+        size_t chunk_bytes_read = fread(buffer + bytes_read, 1, bytes_to_read, f);
+
+        if (chunk_bytes_read != bytes_to_read) {
+            ESP_LOGE(TAG, "File read error. Expected %zu, got %zu", bytes_to_read, chunk_bytes_read);
+            fclose(f);
+            heap_caps_free(buffer);
+            return anim_data; // Return invalid data
+        }
+
+        bytes_read += chunk_bytes_read;
+
+        // Yield to other tasks to prevent WDT timeout
+        vTaskDelay(pdMS_TO_TICKS(1));
+    }
+
+    fclose(f); // Close the file after successful reading
 
     if (bytes_read != (size_t)file_size) {
-        ESP_LOGE(TAG, "Failed to read the full animation file. Expected %ld, got %d", file_size, bytes_read);
+        ESP_LOGE(TAG, "Failed to read the full animation file. Expected %ld, got %zu", file_size, bytes_read);
         heap_caps_free(buffer); // Clean up allocated memory on failure
         return anim_data;
     }

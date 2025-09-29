@@ -1,5 +1,6 @@
 #include "UIManager.hpp"
 #include "esp_log.h"
+#include "freertos/FreeRTOS.h"
 #include "lvgl.h"
 
 static const char* TAG = "UIManager";
@@ -59,6 +60,10 @@ void UIManager::lvgl_task(void *pvParameter) {
 
             // 3. Update the display with the new data (from memory)
             self->m_display_manager->UpdateAnimationSource(current_anim_data);
+
+            // Force a yield here to allow other tasks (like idle task for WDT) to run
+            // before potentially processing another command from the queue immediately.
+            vTaskDelay(pdMS_TO_TICKS(10));
         }
 
         // 2. Standard LVGL handler loop
