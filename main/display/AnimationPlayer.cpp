@@ -59,7 +59,7 @@ void AnimationPlayer::playOneShotAnimation(const std::string& animation_name) {
 // --- Main Task Loop (State Machine) ---
 void AnimationPlayer::player_task() {
     PlayerCommand received_cmd; // For commands from UartHandler etc.
-    const TickType_t one_shot_duration = pdMS_TO_TICKS(5000); // 5 seconds for one-shot animations
+    TickType_t current_one_shot_duration = pdMS_TO_TICKS(5000); // Default duration
     bool animation_needs_update = false;
 
     while (true) {
@@ -70,10 +70,60 @@ void AnimationPlayer::player_task() {
             m_current_anim_name = received_cmd.name;
             m_one_shot_start_time = xTaskGetTickCount();
             animation_needs_update = true;
+
+            // --- Animation Duration Parsing Logic ---
+            current_one_shot_duration = pdMS_TO_TICKS(5000); // Default duration
+            try {
+                std::string name_str(m_current_anim_name);
+
+                // 1. Strip .gif extension if it exists
+                const std::string extension = ".gif";
+                if (name_str.length() >= extension.length() && name_str.substr(name_str.length() - extension.length()) == extension) {
+                    name_str.erase(name_str.length() - extension.length());
+                }
+
+                // 2. Count underscores
+                int underscore_count = 0;
+                for (char c : name_str) {
+                    if (c == '_') {
+                        underscore_count++;
+                    }
+                }
+
+                // 3. Apply rules based on underscore count
+                if (underscore_count == 0) {
+                    ESP_LOGI(TAG, "Animation '%s': 0 underscores, using default 5s duration.", m_current_anim_name);
+                    // Duration is already set to default
+                } else if (name_str.back() != 's') {
+                    ESP_LOGW(TAG, "Animation '%s': Invalid format (must end with 's'), using default 5s.", m_current_anim_name);
+                } else if (underscore_count == 1) {
+                    // Case: name_3s
+                    size_t pos = name_str.find('_');
+                    std::string duration_val = name_str.substr(pos + 1, name_str.length() - pos - 2);
+                    int duration_sec = std::stoi(duration_val);
+                    current_one_shot_duration = pdMS_TO_TICKS(duration_sec * 1200); // 1.2x duration because display on screen is slower
+                    ESP_LOGI(TAG, "Animation '%s': Parsed integer duration: %d seconds.", m_current_anim_name, duration_sec);
+                } else if (underscore_count == 2) {
+                    // Case: name_1_5s
+                    size_t first_pos = name_str.find('_');
+                    size_t second_pos = name_str.find('_', first_pos + 1);
+                    std::string int_part = name_str.substr(first_pos + 1, second_pos - first_pos - 1);
+                    std::string frac_part = name_str.substr(second_pos + 1, name_str.length() - second_pos - 2);
+                    std::string float_str = int_part + "." + frac_part;
+                    float duration_sec = std::stof(float_str);
+                    current_one_shot_duration = pdMS_TO_TICKS(static_cast<uint32_t>(duration_sec * 1200.0f));
+                    ESP_LOGI(TAG, "Animation '%s': Parsed float duration: %.2f seconds.", m_current_anim_name.c_str(), duration_sec);
+                } else {
+                    ESP_LOGW(TAG, "Animation '%s': Invalid format (>2 underscores), using default 5s.", m_current_anim_name);
+                }
+            } catch (const std::exception& e) {
+                ESP_LOGE(TAG, "Exception while parsing duration for '%s': %s. Using default 5s.", m_current_anim_name, e.what());
+            }
+
         } else {
             // 2. Process state machine if no new command
             if (m_current_state == PlayerState::PLAYING_ONESHOT) {
-                if (xTaskGetTickCount() - m_one_shot_start_time >= one_shot_duration) {
+                if (xTaskGetTickCount() - m_one_shot_start_time >= current_one_shot_duration) {
                     ESP_LOGI(TAG, "One-shot '%s' finished, returning to default.", m_current_anim_name.c_str());
                     m_current_state = PlayerState::PLAYING_DEFAULT;
                     m_current_anim_name = "eyec";

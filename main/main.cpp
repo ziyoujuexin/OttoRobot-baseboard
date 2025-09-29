@@ -95,7 +95,5 @@ extern "C" void app_main(void)
     // --- 4. Post-Init Actions & Main Loop ---
     ESP_LOGI(TAG, "Phase 4: Post-Initialization and Main Loop");
 
-    while(1) {
-        vTaskDelay(portMAX_DELAY);
-    }
+    vTaskDelete(NULL); // Delete the main task as all work is now in other tasks
 }
