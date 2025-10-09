@@ -51,7 +51,7 @@ void AnimationPlayer::playOneShotAnimation(const std::string& animation_name) {
     cmd.name[sizeof(cmd.name) - 1] = '\0';
 
     // Send the request to the player's own state machine task
-    if (xQueueSend(m_player_queue, &cmd, pdMS_TO_TICKS(100)) != pdPASS) {
+    if (!m_player_queue || xQueueSend(m_player_queue, &cmd, pdMS_TO_TICKS(100)) != pdPASS) {
         ESP_LOGE(TAG, "Failed to send one-shot command to player queue.");
     }
 }

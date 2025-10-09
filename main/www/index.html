@@ -4,9 +4,64 @@
     <title>Otto Robot Control</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
-        body { font-family: Arial, sans-serif; background-color: #f0f2f5; margin: 0; padding: 20px; }
+        body { 
+            font-family: Arial, sans-serif; 
+            background-color: #f0f2f5; 
+            margin: 0; 
+            padding: 15px; 
+            box-sizing: border-box;
+            height: 100vh;
+            overflow: hidden; /* Prevent body from scrolling */
+        }
         h1, h2 { color: #333; text-align: center; }
-        .container { max-width: 800px; margin: auto; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        h3 { margin-top: 0; }
+
+        /* --- New IDE Layout --- */
+        .ide-layout {
+            display: grid;
+            grid-template-columns: 1fr 1fr; /* Changed to 50/50 split */
+            grid-template-rows: 100%;
+            gap: 15px;
+            height: calc(100vh - 30px); /* Full height minus body padding */
+        }
+
+        .right-column {
+            display: grid;
+            /* Give both panes equal height */
+            grid-template-rows: 1fr 1fr; 
+            gap: 15px;
+            overflow: hidden;
+        }
+
+        .pane {
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            padding: 20px;
+            overflow-y: auto; /* The magic for independent scrolling */
+            display: flex;
+            flex-direction: column;
+        }
+
+        .pane-bottom-right {
+            padding: 15px;
+        }
+
+        /* Log line colors */
+        .log-line { display: block; }
+        .log-warn { color: #FFA500; } /* Orange */
+        .log-error { color: #F44336; } /* Red */
+        .log-info { color: #eee; } /* Default color */
+
+        /* System messages from the web logger UI itself */
+        .log-system-good { color: #4CAF50; }
+        .log-system-warn { color: #FFA500; }
+        .log-system-bad { color: #F44336; }
+
+        /* --- Original styles adapted --- */
+        .section { border-top: 2px solid #eee; padding-top: 20px; margin-top: 20px; }
+        .section:first-child { border-top: none; margin-top: 0; padding-top: 0; }
+
         .grid-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 15px; margin-bottom: 20px; }
         .btn { background-color: #4CAF50; color: white; padding: 15px; text-align: center; border: none; border-radius: 5px; font-size: 16px; cursor: pointer; transition: background-color 0.3s; }
         .btn:hover { background-color: #45a049; }
@@ -16,7 +71,7 @@
         .animation-item-btn.delete-mode { background-color: #E53935; }
         .animation-item-btn.delete-mode:hover { background-color: #C62828; }
         #delete-mode-btn.active { background-color: #f44336; }
-        .section { border-top: 2px solid #eee; padding-top: 20px; margin-top: 30px; }
+        
         .tuner-controls { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: end; margin-bottom: 20px; }
         .form-group { display: flex; flex-direction: column; gap: 5px; }
         label { color: #555; font-weight: bold; }
@@ -37,108 +92,135 @@
         #drop-zone { border: 2px dashed #ccc; border-radius: 8px; padding: 40px; text-align: center; color: #aaa; margin-top: 20px; cursor: pointer; transition: background-color 0.3s, border-color 0.3s; }
         #drop-zone.dragover { background-color: #e8f0fe; border-color: #4285f4; }
         #upload-status { margin-top: 15px; font-weight: bold; text-align: center; }
+
+        /* --- Log container specific changes --- */
+        #log-container {
+            background-color: #222;
+            color: #eee;
+            padding: 10px;
+            border-radius: 5px;
+            height: 100%; /* Fill the parent pane */
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            font-family: Consolas, 'Menlo', 'Monaco', 'Courier New', monospace; /* New font */
+            font-size: 14px;
+            box-sizing: border-box;
+            flex-grow: 1; /* Make it fill the available space in the flex container */
+        }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Otto Robot Control</h1>
-        <div class="grid-container">
-            <button class="btn" onclick="sendCommand(1)">Forward</button>
-            <button class="btn" onclick="sendCommand(2)">Backward</button>
-            <button class="btn" onclick="sendCommand(3)">Turn Left</button>
-            <button class="btn" onclick="sendCommand(4)">Turn Right</button>
-            <button class="btn" onclick="sendCommand(5)">Wave Hand</button>
-            <button class="btn" onclick="sendCommand(6)">Move Ear</button>
-            <button class="btn" onclick="sendCommand(7)">Nod Head</button>
-            <button class="btn" onclick="sendCommand(8)">Shake Head</button>
-            <button class="btn" onclick="sendCommand(9)">Single Leg</button>
-            <button class="btn" onclick="sendCommand(0x11)">Track Left</button>
-            <button class="btn" onclick="sendCommand(0x12)">Track Right</button>
-            <button class="btn" onclick="sendCommand(0x13)">Sad</button>
-            <button class="btn" onclick="sendCommand(0x0C)">Silly</button>
-            <button class="btn" onclick="sendCommand(0x0E)">Funny</button>
-            <button class="btn" onclick="sendCommand(0x0F)">Happy</button>
-            <button class="btn" onclick="sendCommand(0x14)">Laughing</button>
-            <button class="btn" onclick="sendCommand(0x15)">Angry</button>
-            <button class="btn" onclick="sendCommand(0x16)">Crying</button>
-            <button class="btn btn-stop" onclick="sendCommand(0)">STOP</button>
-        </div>
-
-        <div class="section">
-            <h2>Animation Uploader</h2>
-            <input type="file" id="file-input" accept="image/gif" style="display: none;">
-            <div id="drop-zone" onclick="document.getElementById('file-input').click();">
-                Drag & Drop a GIF here or click to select a file.
+    <div class="ide-layout">
+        <!-- Left Pane -->
+        <div class="pane pane-left">
+            <h1>Otto Robot Control</h1>
+            <div class="grid-container">
+                <button class="btn" onclick="sendCommand(1)">Forward</button>
+                <button class="btn" onclick="sendCommand(2)">Backward</button>
+                <button class="btn" onclick="sendCommand(3)">Turn Left</button>
+                <button class="btn" onclick="sendCommand(4)">Turn Right</button>
+                <button class="btn" onclick="sendCommand(5)">Wave Hand</button>
+                <button class="btn" onclick="sendCommand(6)">Move Ear</button>
+                <button class="btn" onclick="sendCommand(7)">Nod Head</button>
+                <button class="btn" onclick="sendCommand(8)">Shake Head</button>
+                <button class="btn" onclick="sendCommand(9)">Single Leg</button>
+                <button class="btn" onclick="sendCommand(0x11)">Track Left</button>
+                <button class="btn" onclick="sendCommand(0x12)">Track Right</button>
+                <button class="btn" onclick="sendCommand(0x13)">Sad</button>
+                <button class="btn" onclick="sendCommand(0x0C)">Silly</button>
+                <button class="btn" onclick="sendCommand(0x0E)">Funny</button>
+                <button class="btn" onclick="sendCommand(0x0F)">Happy</button>
+                <button class="btn" onclick="sendCommand(0x14)">Laughing</button>
+                <button class="btn" onclick="sendCommand(0x15)">Angry</button>
+                <button class="btn" onclick="sendCommand(0x16)">Crying</button>
+                <button class="btn btn-stop" onclick="sendCommand(0)">STOP</button>
             </div>
-            <div id="upload-status"></div>
-        </div>
-
-        <div class="section">
-            <h2>Animation Player</h2>
-            <div class="tuner-actions">
-                <button onclick="getAnimationList()">Refresh List</button>
-                <button id="delete-mode-btn" onclick="toggleDeleteMode()">Delete</button>
+    
+            <div class="section">
+                <h2>Gait Parameter Tuner</h2>
+                <div class="tuner-controls">
+                    <div class="form-group">
+                        <label for="action-select">Gait Action:</label>
+                        <select id="action-select">
+                            <option value="walk_forward">Walk Forward</option>
+                            <option value="walk_backward">Walk Backward</option>
+                            <option value="turn_left">Turn Left</option>
+                            <option value="turn_right">Turn Right</option>
+                            <option value="wiggle_ears">Wiggle Ears</option>
+                            <option value="wave_hand">Wave Hand</option>
+                            <option value="nod_head">Nod Head</option>
+                            <option value="shake_head">Shake Head</option>
+                            <option value="single_leg">Single Leg</option>
+                            <option value="tracking_L">Tracking Left</option>
+                            <option value="tracking_R">Tracking Right</option>
+                             <option value="happy">Happy</option>
+                            <option value="silly">Silly</option>
+                            <option value="funny">Funny</option>
+                            <option value="sad">Sad</option>
+                            <option value="laughing">Laughing</option>
+                            <option value="angry">Angry</option>
+                            <option value="crying">Crying</option>
+                        </select>
+                    </div>
+                    <div class="tuner-actions">
+                        <button onclick="getParams()">Get Parameters</button>
+                        <button onclick="saveParams()">Save to NVS</button>
+                    </div>
+                </div>
+                <div id="param-display">Select a gait and click 'Get Parameters' to view and tune.</div>
             </div>
-            <div id="animation-list-container" class="grid-container" style="margin-top: 15px;">
-                <!-- Animation buttons will be inserted here -->
-            </div>
-        </div>
-
-        <div class="section">
-            <h2>Gait Parameter Tuner</h2>
-            <div class="tuner-controls">
+    
+            <div class="section">
+                <h2>Servo Debugger</h2>
                 <div class="form-group">
-                    <label for="action-select">Gait Action:</label>
-                    <select id="action-select">
-                        <option value="walk_forward">Walk Forward</option>
-                        <option value="walk_backward">Walk Backward</option>
-                        <option value="turn_left">Turn Left</option>
-                        <option value="turn_right">Turn Right</option>
-                        <option value="wiggle_ears">Wiggle Ears</option>
-                        <option value="wave_hand">Wave Hand</option>
-                        <option value="nod_head">Nod Head</option>
-                        <option value="shake_head">Shake Head</option>
-                        <option value="single_leg">Single Leg</option>
-                        <option value="tracking_L">Tracking Left</option>
-                        <option value="tracking_R">Tracking Right</option>
-                         <option value="happy">Happy</option>
-                        <option value="silly">Silly</option>
-                        <option value="funny">Funny</option>
-                        <option value="sad">Sad</option>
-                        <option value="laughing">Laughing</option>
-                        <option value="angry">Angry</option>
-                        <option value="crying">Crying</option>
-                    </select>
+                    <label for="servo-channel">Servo Channel (0-15)</label>
+                    <input type="number" id="servo-channel" value="0" min="0" max="15">
                 </div>
-                <div class="tuner-actions">
-                    <button onclick="getParams()">Get Parameters</button>
-                    <button onclick="saveParams()">Save to NVS</button>
+                <div class="form-group">
+                    <label for="servo-angle">Angle (0-180)</label>
+                    <div class="input-group">
+                        <input type="range" id="servo-angle" min="0" max="180" value="90" oninput="document.getElementById('servo-angle-value').innerText = this.value">
+                        <span id="servo-angle-value" style="width: 40px;">90</span>
+                    </div>
                 </div>
+                <button onclick="setServoAngle()" style="width: 100%; padding: 12px; margin-top: 10px;" class="btn">Set Angle</button>
             </div>
-            <div id="param-display">Select a gait and click 'Get Parameters' to view and tune.</div>
         </div>
 
-        <div class="section">
-            <h2>Servo Debugger</h2>
-            <div class="form-group">
-                <label for="servo-channel">Servo Channel (0-15)</label>
-                <input type="number" id="servo-channel" value="0" min="0" max="15">
-            </div>
-            <div class="form-group">
-                <label for="servo-angle">Angle (0-180)</label>
-                <div class="input-group">
-                    <input type="range" id="servo-angle" min="0" max="180" value="90" oninput="document.getElementById('servo-angle-value').innerText = this.value">
-                    <span id="servo-angle-value" style="width: 40px;">90</span>
+        <!-- Right Column -->
+        <div class="right-column">
+            <!-- Top-Right Pane -->
+            <div class="pane pane-top-right">
+                <h2>Animation</h2>
+                <div class="section">
+                    <h3>Uploader</h3>
+                    <input type="file" id="file-input" accept="image/gif" style="display: none;">
+                    <div id="drop-zone" onclick="document.getElementById('file-input').click();">
+                        Drag & Drop a GIF here or click to select a file.
+                    </div>
+                    <div id="upload-status"></div>
+                </div>
+                <div class="section">
+                    <h3>Player</h3>
+                    <div class="tuner-actions">
+                        <button onclick="getAnimationList()">Refresh List</button>
+                        <button id="delete-mode-btn" onclick="toggleDeleteMode()">Delete</button>
+                    </div>
+                    <div id="animation-list-container" class="grid-container" style="margin-top: 15px;">
+                        <!-- Animation buttons will be inserted here -->
+                    </div>
                 </div>
             </div>
-            <button onclick="setServoAngle()" style="width: 100%; padding: 12px; margin-top: 10px;" class="btn">Set Angle</button>
-        </div>
 
-        <div class="section">
-            <h2>Live Log</h2>
-            <pre id="log-container" style="background-color: #222; color: #eee; padding: 10px; border-radius: 5px; height: 300px; overflow-y: scroll; white-space: pre-wrap; word-wrap: break-word;"></pre>
+            <!-- Bottom-Right Pane -->
+            <div class="pane pane-bottom-right">
+                 <h2>Live Log</h2>
+                 <pre id="log-container"></pre>
+            </div>
         </div>
     </div>
+
     <div id="toast-container"></div>
 
     <script>
@@ -152,35 +234,63 @@
         const logContainer = document.getElementById('log-container');
         const socket = new WebSocket('ws://' + window.location.host + '/ws/logs');
 
+        const logSystemMessage = (message, level) => {
+            const lineSpan = document.createElement('span');
+            lineSpan.className = `log-line log-system-${level}`;
+            lineSpan.textContent = message;
+            logContainer.appendChild(lineSpan);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        };
+
         socket.onopen = function(event) {
             console.log("WebSocket connection established.");
-            logContainer.innerHTML += "[WebLogger] Connection established.\n";
+            logSystemMessage('[WebLogger] Connection established.\n', 'good');
         };
 
         socket.onmessage = function(event) {
-            // Sanitize the incoming message to prevent HTML injection
-            const message = event.data.replace(/</g, "&lt;").replace(/>/g, "&gt;");
-            logContainer.innerHTML += message;
-            // Auto-scroll to the bottom
-            logContainer.scrollTop = logContainer.scrollHeight;
+            const isScrolledToBottom = logContainer.scrollHeight - logContainer.clientHeight <= logContainer.scrollTop + 1;
+
+            // The received data might contain multiple lines. Process each one.
+            const lines = event.data.split('\n');
+            lines.forEach(line => {
+                if (line.length === 0) return; // Skip empty lines
+
+                const lineSpan = document.createElement('span');
+                const firstChar = line.trim().charAt(0);
+
+                if (firstChar === 'W') {
+                    lineSpan.className = 'log-line log-warn';
+                } else if (firstChar === 'E') {
+                    lineSpan.className = 'log-line log-error';
+                } else {
+                    lineSpan.className = 'log-line log-info';
+                }
+
+                lineSpan.textContent = line;
+                logContainer.appendChild(lineSpan);
+            });
+
+            // Auto-scroll to the bottom only if the user was already at the bottom
+            if(isScrolledToBottom) {
+                logContainer.scrollTop = logContainer.scrollHeight;
+            }
 
             // Trim log to prevent the DOM from getting too large
-            const maxLines = 200;
-            const lines = logContainer.innerHTML.split('\n');
-            if (lines.length > maxLines) {
-                logContainer.innerHTML = lines.slice(lines.length - maxLines).join('\n');
+            const maxLines = 500;
+            while (logContainer.childElementCount > maxLines) {
+                logContainer.removeChild(logContainer.firstChild);
             }
         };
 
         socket.onclose = function(event) {
             console.log("WebSocket connection closed. Attempting to reconnect in 2 seconds...");
-            logContainer.innerHTML += "[WebLogger] Connection closed. Reconnecting...\n";
+            logSystemMessage('[WebLogger] Connection closed. Reconnecting...\n', 'warn');
             setTimeout(initWebSocket, 2000);
         };
 
         socket.onerror = function(error) {
             console.error("WebSocket error:", error);
-            logContainer.innerHTML += "[WebLogger] WebSocket error!\n";
+            logSystemMessage('[WebLogger] WebSocket error!\n', 'bad');
         };
     }
 
@@ -342,7 +452,7 @@
 
     function tuneParam(servoIndex, paramType, value) {
         const action = document.getElementById('action-select').value;
-        sendJsonCommand({ 
+        sendJsonCommand({
             command: 'tune_param', 
             action: action, 
             servo: parseInt(servoIndex), 

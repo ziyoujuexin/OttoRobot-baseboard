@@ -25,6 +25,9 @@ static std::vector<int> s_clients;
 // Mutex to protect access to the s_clients list
 static SemaphoreHandle_t s_clients_mutex = nullptr;
 
+// Guard to ensure the install function only runs once
+static bool s_installed = false;
+
 // --- WebSocket and Log Dispatcher Implementation ---
 
 /**
@@ -34,10 +37,10 @@ static void log_dispatcher_task(void *pvParameters) {
     httpd_handle_t server = (httpd_handle_t)pvParameters;
     char *log_message = nullptr;
     for (;;) {
-        // Wait forever for a new log message to appear in the queue
         if (xQueueReceive(s_log_queue, &log_message, portMAX_DELAY) == pdPASS) {
             if (log_message == nullptr) continue;
 
+            std::vector<int> dead_clients;
             if (xSemaphoreTake(s_clients_mutex, portMAX_DELAY) == pdTRUE) {
                 if (!s_clients.empty()) {
                     httpd_ws_frame_t ws_pkt;
@@ -46,14 +49,25 @@ static void log_dispatcher_task(void *pvParameters) {
                     ws_pkt.len = strlen(log_message);
                     ws_pkt.type = HTTPD_WS_TYPE_TEXT;
 
-                    // Asynchronously send to all clients
                     for (int client_fd : s_clients) {
-                        httpd_ws_send_frame_async(server, client_fd, &ws_pkt);
+                        if (httpd_ws_send_frame_async(server, client_fd, &ws_pkt) != ESP_OK) {
+                            // If send fails, mark client for deletion
+                            dead_clients.push_back(client_fd);
+                        }
                     }
                 }
+                
+                // Remove dead clients after iterating
+                if (!dead_clients.empty()) {
+                    ESP_LOGI(TAG, "Cleaning up %d dead clients", dead_clients.size());
+                    for (int fd : dead_clients) {
+                        s_clients.erase(std::remove(s_clients.begin(), s_clients.end(), fd), s_clients.end());
+                    }
+                }
+
                 xSemaphoreGive(s_clients_mutex);
             }
-            // Free the message buffer allocated in the vprintf hook
+            // The dispatcher task now owns the buffer and must free it.
             free(log_message);
         }
     }
@@ -73,28 +87,8 @@ static esp_err_t ws_handler(httpd_req_t *req) {
         return ESP_OK;
     }
 
-    httpd_ws_frame_t ws_pkt;
-    memset(&ws_pkt, 0, sizeof(httpd_ws_frame_t));
-    ws_pkt.type = HTTPD_WS_TYPE_TEXT;
-    
-    esp_err_t ret = httpd_ws_recv_frame(req, &ws_pkt, 0); // 0 max_len means payload is not copied
-    if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "httpd_ws_recv_frame failed with %d", ret);
-        return ret;
-    }
-
-    // ESP_OK means a frame was received. Check the type.
-    if (ws_pkt.type == HTTPD_WS_TYPE_CLOSE) {
-        // On Close: Remove client from the list
-        ESP_LOGI(TAG, "Client disconnected");
-        int sock_fd = httpd_req_to_sockfd(req);
-        if (xSemaphoreTake(s_clients_mutex, portMAX_DELAY) == pdTRUE) {
-            s_clients.erase(std::remove(s_clients.begin(), s_clients.end(), sock_fd), s_clients.end());
-            xSemaphoreGive(s_clients_mutex);
-        }
-    }
-    // We don't process incoming frames, so we just return OK.
-    return ESP_OK;
+    // Non-handshake requests are not expected
+    return ESP_FAIL;
 }
 
 static const httpd_uri_t ws_uri = {
@@ -139,6 +133,11 @@ static int web_log_vprintf(const char *format, va_list args) {
 // --- Public Class Method ---
 
 void WebLogger::install(httpd_handle_t server) {
+    if (s_installed) {
+        return;
+    }
+    s_installed = true;
+
     ESP_LOGI(TAG, "Installing WebLogger");
 
     // Create the mutex for thread-safe client list access

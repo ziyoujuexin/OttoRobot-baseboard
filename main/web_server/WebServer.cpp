@@ -72,7 +72,8 @@ private:
     void start_webserver() {
         httpd_config_t config = HTTPD_DEFAULT_CONFIG();
         config.lru_purge_enable = true;
-        config.max_uri_handlers = 10; // Increased from default 8 to accommodate the new WS handler
+        config.max_uri_handlers = 10;
+        config.task_priority = 6; // Increase priority to prevent starvation by other tasks
 
         ESP_LOGI(TAG, "Starting server on port: '%d'", config.server_port);
         if (httpd_start(&m_server, &config) == ESP_OK) {
