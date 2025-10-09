@@ -1,4 +1,5 @@
 #include "web_server/WebServer.hpp"
+#include "web_server/WebLogger.hpp"
 #include "esp_log.h"
 #include "esp_wifi.h"
 #include "nvs_flash.h"
@@ -71,6 +72,7 @@ private:
     void start_webserver() {
         httpd_config_t config = HTTPD_DEFAULT_CONFIG();
         config.lru_purge_enable = true;
+        config.max_uri_handlers = 10; // Increased from default 8 to accommodate the new WS handler
 
         ESP_LOGI(TAG, "Starting server on port: '%d'", config.server_port);
         if (httpd_start(&m_server, &config) == ESP_OK) {
@@ -97,6 +99,9 @@ private:
 
             httpd_uri_t delete_animation_uri = { .uri = "/api/delete", .method = HTTP_GET, .handler = delete_animation_handler, .user_ctx = this };
             httpd_register_uri_handler(m_server, &delete_animation_uri);
+
+            // Install the web logger to capture and forward logs
+            WebLogger::install(m_server);
 
             return;
         }

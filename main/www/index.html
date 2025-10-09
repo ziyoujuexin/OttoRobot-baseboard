@@ -133,13 +133,56 @@
             </div>
             <button onclick="setServoAngle()" style="width: 100%; padding: 12px; margin-top: 10px;" class="btn">Set Angle</button>
         </div>
+
+        <div class="section">
+            <h2>Live Log</h2>
+            <pre id="log-container" style="background-color: #222; color: #eee; padding: 10px; border-radius: 5px; height: 300px; overflow-y: scroll; white-space: pre-wrap; word-wrap: break-word;"></pre>
+        </div>
     </div>
     <div id="toast-container"></div>
 
     <script>
     window.onload = function() {
         getAnimationList();
+        initWebSocket();
     };
+
+    function initWebSocket() {
+        console.log("Initializing WebSocket...");
+        const logContainer = document.getElementById('log-container');
+        const socket = new WebSocket('ws://' + window.location.host + '/ws/logs');
+
+        socket.onopen = function(event) {
+            console.log("WebSocket connection established.");
+            logContainer.innerHTML += "[WebLogger] Connection established.\n";
+        };
+
+        socket.onmessage = function(event) {
+            // Sanitize the incoming message to prevent HTML injection
+            const message = event.data.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+            logContainer.innerHTML += message;
+            // Auto-scroll to the bottom
+            logContainer.scrollTop = logContainer.scrollHeight;
+
+            // Trim log to prevent the DOM from getting too large
+            const maxLines = 200;
+            const lines = logContainer.innerHTML.split('\n');
+            if (lines.length > maxLines) {
+                logContainer.innerHTML = lines.slice(lines.length - maxLines).join('\n');
+            }
+        };
+
+        socket.onclose = function(event) {
+            console.log("WebSocket connection closed. Attempting to reconnect in 2 seconds...");
+            logContainer.innerHTML += "[WebLogger] Connection closed. Reconnecting...\n";
+            setTimeout(initWebSocket, 2000);
+        };
+
+        socket.onerror = function(error) {
+            console.error("WebSocket error:", error);
+            logContainer.innerHTML += "[WebLogger] WebSocket error!\n";
+        };
+    }
 
     function sendCommand(motionType) {
         const form = new URLSearchParams();

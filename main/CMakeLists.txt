@@ -1,6 +1,5 @@
 set(SRCS
     "main.cpp"
-    "display/lvgl_fs_port.cpp"
     "UartHandler.cpp"
     "UIManager.cpp"
     "driver/PCA9685.cpp"
@@ -17,12 +16,14 @@ set(SRCS
     "motion_manager/DecisionMaker.cpp"
 
     "web_server/WebServer.cpp"
+    "web_server/WebLogger.cpp"
 
     "display/AnimationManager.cpp"
     "display/SDCardAnimationProvider.cpp"
     "display/DualScreenManager.cpp"
     "display/GC9A01_driver.cpp"
     "display/AnimationPlayer.cpp"
+    "display/lvgl_fs_port.cpp"
 )
 
 set(INCLUDE_DIRS
