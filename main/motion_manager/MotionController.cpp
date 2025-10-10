@@ -303,6 +303,12 @@ void MotionController::motion_engine_task() {
 
                                 if (!action_already_exists) {
                                     const RegisteredAction* action_to_add = m_action_manager.get_action(action_name);
+                                    if (action_to_add && action_to_add->name[0] == '\0') {
+                                        ESP_LOGW(TAG, "Action '%s' is empty. Ignoring command.", action_name.c_str());
+                                        ESP_LOGW(TAG, "Trying to re-register default actions.");
+                                        m_action_manager.register_default_actions(true);
+                                        action_to_add = m_action_manager.get_action(action_name);
+                                    }
                                     if (action_to_add) {
                                         // If starting a body-moving action, freeze the head to prevent conflict.
                                         if (strcmp(action_name.c_str(), "tracking_L") == 0 ||

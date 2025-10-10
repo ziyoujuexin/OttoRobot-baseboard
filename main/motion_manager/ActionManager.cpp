@@ -16,7 +16,7 @@ void ActionManager::init() {
         ESP_LOGE(TAG, "Failed to initialize MotionStorage");
         return;
     }
-    register_default_actions();
+    register_default_actions(false);
     ESP_LOGI(TAG, "ActionManager initialized.");
 }
 
@@ -29,11 +29,11 @@ const RegisteredAction* ActionManager::get_action(const std::string& name) const
     return nullptr;
 }
 
-void ActionManager::register_default_actions() {
+void ActionManager::register_default_actions(bool force) {
     ESP_LOGI(TAG, "Checking and registering default actions...");
 
     RegisteredAction temp_action;
-    if (m_storage->load_action("walk_forward", temp_action)) {
+    if (!force && m_storage->load_action("walk_forward", temp_action)) {
         ESP_LOGI(TAG, "Default actions found in NVS. Loading from storage.");
         m_action_cache["walk_forward"] = temp_action;
         m_storage->load_action("walk_backward", m_action_cache["walk_backward"]);

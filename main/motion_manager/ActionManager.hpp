@@ -30,7 +30,7 @@ public:
     std::string get_action_params_json(const std::string& action_name);
 
     // keep this register function for public before moction is completed, change to private when release
-    void register_default_actions();
+    void register_default_actions(bool force = false); // Register default actions if not present in NVS
 private:
 
     void print_action_details(const RegisteredAction &action);
