@@ -10,43 +10,42 @@
 #define WIFI_SSID     "LIANQIU-2"
 #define WIFI_PASSWORD "lianqiu123"
 
-// 运动状态定义
-#define MOTION_STOP        0x00
-#define MOTION_FORWARD     0x01
-#define MOTION_BACKWARD    0x02
-#define MOTION_LEFT        0x03
-#define MOTION_RIGHT       0x04
-#define MOTION_WAVE_HAND   0x05
-#define MOTION_MOVE_EAR    0x06
-#define MOTION_NOD_HEAD    0x07
-#define MOTION_SHAKE_HEAD  0x08
-#define MOTION_SINGLE_LEG  0x09
-#define MOTION_FACE_TRACE  0x0A
-#define MOTION_FACE_END    0x0B
+#define MOTION_STOP           0x00
+#define MOTION_FORWARD        0x01
+#define MOTION_BACKWARD       0x02
+#define MOTION_LEFT           0x03
+#define MOTION_RIGHT          0x04
 
-// Custom commands for face tracking coordination
-#define MOTION_TRACKING_L 0x11
-#define MOTION_TRACKING_R 0x12
-#define MOTION_SAD        0x13
-#define MOTION_LAUGHING   0x14
-#define MOTION_ANGRY      0x15
-#define MOTION_CRYING     0x16
-#define MOTION_SILLY      0x0C
-#define MOTION_FUNNY   0x0E
-#define MOTION_HAPPY      0x0F
+#define MOTION_WAVE_HAND      0x05
+#define MOTION_MOVE_EAR       0x06
+#define MOTION_NOD_HEAD       0x07
+#define MOTION_SHAKE_HEAD     0x08
+#define MOTION_SINGLE_LEG     0x09
 
-// Custom groups, hardcoded for UART compatibility
-#define MOTION_RUN_DEMO_GROUP 0x10
+#define MOTION_FACE_TRACE     0x0A
+#define MOTION_FACE_END       0x0B
 
-// Commands for Web UI parameter tuning
-#define MOTION_TUNE_PARAM    0x20
-#define MOTION_SAVE_PARAMS   0x21
-#define MOTION_GET_PARAMS    0x22
+#define MOTION_HAPPY          0x10 
+#define MOTION_SAD            0x11
+#define MOTION_SILLY          0x12
+#define MOTION_FUNNY          0x13
+#define MOTION_LAUGHING       0x14
+#define MOTION_ANGRY          0x15
+#define MOTION_CRYING         0x16
+#define MOTION_SURPRISED      0x17
+#define MOTION_THINKING       0x18
 
 #define MOTION_WAKE_DETECT   0xC0
 #define MOTION_PLAY_ANIMATION 0xD0
 
-#define MOTION_SERVO_CONTROL 0xF0
+#define MOTION_TRACKING_L     0x1A
+#define MOTION_TRACKING_R     0x1B
+
+#define MOTION_TUNE_PARAM     0x20
+#define MOTION_SAVE_PARAMS    0x21
+#define MOTION_GET_PARAMS     0x22
+#define MOTION_WAKE_DETECT    0xC0
+#define MOTION_SERVO_CONTROL  0xF0
 
 enum class ServoChannel : uint8_t {
     // EAR

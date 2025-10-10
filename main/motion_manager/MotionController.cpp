@@ -44,8 +44,7 @@ void MotionController::init_joint_channel_map() {
 // --- Public Methods ---
 void MotionController::init() {
     init_joint_channel_map();
-
-    m_gait_command_map[MOTION_FORWARD] = "walk_forward";
+ m_gait_command_map[MOTION_FORWARD] = "walk_forward";
     m_gait_command_map[MOTION_BACKWARD] = "walk_backward";
     m_gait_command_map[MOTION_LEFT] = "turn_left";
     m_gait_command_map[MOTION_RIGHT] = "turn_right";
@@ -55,16 +54,19 @@ void MotionController::init() {
     m_gait_command_map[MOTION_SHAKE_HEAD] = "shake_head";
     m_gait_command_map[MOTION_SINGLE_LEG] = "single_leg";
     m_gait_command_map[MOTION_FACE_TRACE] = "face_trace";
-    m_gait_command_map[MOTION_TRACKING_L] = "tracking_L";
-    m_gait_command_map[MOTION_TRACKING_R] = "tracking_R";
-    m_gait_command_map[MOTION_WAVE_HAND] = "happy";
-    m_gait_command_map[MOTION_MOVE_EAR] = "sad";
-    m_gait_command_map[MOTION_NOD_HEAD] = "silly";
-    m_gait_command_map[MOTION_SHAKE_HEAD] = "funny";
+    m_gait_command_map[MOTION_HAPPY] = "happy";
+    m_gait_command_map[MOTION_SAD] = "sad";
+    m_gait_command_map[MOTION_SILLY] = "silly";
+    m_gait_command_map[MOTION_FUNNY] = "funny";
     m_gait_command_map[MOTION_LAUGHING] = "laughing";
     m_gait_command_map[MOTION_ANGRY] = "angry";
     m_gait_command_map[MOTION_CRYING] = "crying";
+    m_gait_command_map[MOTION_SURPRISED] = "surprised";
+    m_gait_command_map[MOTION_THINKING] = "thinking";
 
+    // --- 修正特殊动作的映射 ---
+    m_gait_command_map[MOTION_TRACKING_L] = "tracking_L";
+    m_gait_command_map[MOTION_TRACKING_R] = "tracking_R";
     
 
     m_motion_queue = xQueueCreate(10, sizeof(motion_command_t));

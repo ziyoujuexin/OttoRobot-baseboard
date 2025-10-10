@@ -1,3 +1,4 @@
+
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -51,7 +52,6 @@ extern "C" void app_main(void)
     if (!gc9a01_lvgl_driver_init()) {
         ESP_LOGE(TAG, "Failed to initialize display driver. Continuing without display.");
     }
-
     // --- 3. Application Services and Managers Initialization ---
     ESP_LOGI(TAG, "Phase 3: Initializing Application Services & Managers");
 

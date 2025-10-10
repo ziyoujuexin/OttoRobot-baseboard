@@ -44,8 +44,6 @@ void ActionManager::register_default_actions() {
         m_storage->load_action("nod_head", m_action_cache["nod_head"]);
         m_storage->load_action("shake_head", m_action_cache["shake_head"]);
         m_storage->load_action("single_leg", m_action_cache["single_leg"]);
-        m_storage->load_action("tracking_L", m_action_cache["tracking_L"]);
-        m_storage->load_action("tracking_R", m_action_cache["tracking_R"]);
         m_storage->load_action("happy", m_action_cache["happy"]);
         m_storage->load_action("sad", m_action_cache["sad"]);
         m_storage->load_action("silly", m_action_cache["silly"]);
@@ -53,6 +51,10 @@ void ActionManager::register_default_actions() {
         m_storage->load_action("laughing", m_action_cache["laughing"]);
         m_storage->load_action("angry", m_action_cache["angry"]);
         m_storage->load_action("crying", m_action_cache["crying"]);
+        m_storage->load_action("surprised", m_action_cache["surprised"]);
+        m_storage->load_action("thinking", m_action_cache["thinking"]);
+        m_storage->load_action("tracking_L", m_action_cache["tracking_L"]);
+        m_storage->load_action("tracking_R", m_action_cache["tracking_R"]);
         return;
     }
 
@@ -178,42 +180,7 @@ void ActionManager::register_default_actions() {
     m_storage->save_action(single_leg);
     m_action_cache[single_leg.name] = single_leg;
 
-    RegisteredAction tracking_L = {};
-    strcpy(tracking_L.name, "tracking_L");
-    tracking_L.default_steps = 1;
-    tracking_L.is_atomic = false;
-    tracking_L.gait_period_ms = 1500;
-    tracking_L.params.amplitude[static_cast<uint8_t>(ServoChannel::LEFT_LEG_ROTATE)]  = 40;
-    tracking_L.params.amplitude[static_cast<uint8_t>(ServoChannel::RIGHT_LEG_ROTATE)] = -40;
-    tracking_L.params.amplitude[static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT)] = -30;
-    tracking_L.params.amplitude[static_cast<uint8_t>(ServoChannel::RIGHT_ANKLE_LIFT)] = 35;
-    tracking_L.params.offset[static_cast<uint8_t>(ServoChannel::LEFT_LEG_ROTATE)] = 20;
-    tracking_L.params.offset[static_cast<uint8_t>(ServoChannel::RIGHT_LEG_ROTATE)] = 20;
-    tracking_L.params.offset[static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT)] = 12;
-    tracking_L.params.offset[static_cast<uint8_t>(ServoChannel::RIGHT_ANKLE_LIFT)] = 12;
-    tracking_L.params.phase_diff[static_cast<uint8_t>(ServoChannel::LEFT_LEG_ROTATE)] = PI / 2 + PI;
-    tracking_L.params.phase_diff[static_cast<uint8_t>(ServoChannel::RIGHT_LEG_ROTATE)] = PI;
-    tracking_L.params.phase_diff[static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT)] = PI;
-    tracking_L.params.phase_diff[static_cast<uint8_t>(ServoChannel::RIGHT_ANKLE_LIFT)] = 2 * PI;
-    m_storage->save_action(tracking_L); 
-    m_action_cache[tracking_L.name] = tracking_L;
-
-    auto tracking_R = tracking_L;
-    strcpy(tracking_R.name, "tracking_R");
-    tracking_R.params.amplitude[static_cast<uint8_t>(ServoChannel::LEFT_LEG_ROTATE)]  = -40;
-    tracking_R.params.amplitude[static_cast<uint8_t>(ServoChannel::RIGHT_LEG_ROTATE)] = 40;
-    tracking_R.params.amplitude[static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT)] = 35;
-    tracking_R.params.amplitude[static_cast<uint8_t>(ServoChannel::RIGHT_ANKLE_LIFT)] = -35;
-    tracking_R.params.offset[static_cast<uint8_t>(ServoChannel::LEFT_LEG_ROTATE)] = 20;
-    tracking_R.params.offset[static_cast<uint8_t>(ServoChannel::RIGHT_LEG_ROTATE)] = 20;
-    tracking_R.params.offset[static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT)] = 0;
-    tracking_R.params.offset[static_cast<uint8_t>(ServoChannel::RIGHT_ANKLE_LIFT)] = 0;
-    tracking_R.params.phase_diff[static_cast<uint8_t>(ServoChannel::LEFT_LEG_ROTATE)] = 0;
-    tracking_R.params.phase_diff[static_cast<uint8_t>(ServoChannel::RIGHT_LEG_ROTATE)] = PI / 2;
-    tracking_R.params.phase_diff[static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT)] = PI;
-    tracking_R.params.phase_diff[static_cast<uint8_t>(ServoChannel::RIGHT_ANKLE_LIFT)] = 0;
-    m_storage->save_action(tracking_R);
-    m_action_cache[tracking_R.name] = tracking_R;
+    
 
     RegisteredAction silly = {};
     strcpy(silly.name, "silly");
@@ -350,6 +317,86 @@ void ActionManager::register_default_actions() {
     m_storage->save_action(crying);
     m_action_cache[crying.name] = crying;
 
+RegisteredAction surprised = {};
+    strcpy(surprised.name, "surprised");
+    surprised.type = ActionType::GAIT_PERIODIC;
+    surprised.is_atomic = false;
+    surprised.default_steps = 1;      
+    surprised.gait_period_ms = 1200; 
+    surprised.params.offset[static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT)] = -10;
+    surprised.params.offset[static_cast<uint8_t>(ServoChannel::RIGHT_ANKLE_LIFT)] = 10;
+    surprised.params.offset[static_cast<uint8_t>(ServoChannel::LEFT_LEG_ROTATE)] = -15;
+    surprised.params.offset[static_cast<uint8_t>(ServoChannel::RIGHT_LEG_ROTATE)] = -15;
+    surprised.params.offset[static_cast<uint8_t>(ServoChannel::HEAD_TILT)] = -20;
+    surprised.params.offset[static_cast<uint8_t>(ServoChannel::LEFT_EAR_LIFT)] = -30;
+    surprised.params.offset[static_cast<uint8_t>(ServoChannel::RIGHT_EAR_LIFT)] = -30;
+    surprised.params.offset[static_cast<uint8_t>(ServoChannel::LEFT_ARM_LIFT)] = -30;
+    surprised.params.offset[static_cast<uint8_t>(ServoChannel::RIGHT_ARM_LIFT)] = -30;
+    sad.params.amplitude[static_cast<uint8_t>(ServoChannel::LEFT_ARM_SWING)] = -20;
+    sad.params.amplitude[static_cast<uint8_t>(ServoChannel::RIGHT_ARM_SWING)] = 20;
+    m_storage->save_action(surprised);
+    m_action_cache[surprised.name] = surprised;
+
+
+    RegisteredAction thinking = {};
+    strcpy(thinking.name, "thinking");
+    thinking.type = ActionType::GAIT_PERIODIC;
+    thinking.is_atomic = false;
+    thinking.default_steps = 4;
+    thinking.gait_period_ms = 3000; 
+    thinking.params.offset[static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT)] = -10;
+    thinking.params.offset[static_cast<uint8_t>(ServoChannel::RIGHT_ANKLE_LIFT)] = 10;
+    thinking.params.offset[static_cast<uint8_t>(ServoChannel::LEFT_LEG_ROTATE)] = 15;
+    thinking.params.offset[static_cast<uint8_t>(ServoChannel::RIGHT_LEG_ROTATE)] = 15;
+    thinking.params.offset[static_cast<uint8_t>(ServoChannel::HEAD_PAN)] = 25;
+    thinking.params.amplitude[static_cast<uint8_t>(ServoChannel::HEAD_PAN)] = 5;
+    thinking.params.amplitude[static_cast<uint8_t>(ServoChannel::LEFT_EAR_SWING)] = 30;
+    thinking.params.amplitude[static_cast<uint8_t>(ServoChannel::RIGHT_EAR_SWING)] = 5;
+    thinking.params.amplitude[static_cast<uint8_t>(ServoChannel::LEFT_LEG_ROTATE)] = 5;
+    thinking.params.amplitude[static_cast<uint8_t>(ServoChannel::HEAD_TILT)] = 5;
+    thinking.params.offset[static_cast<uint8_t>(ServoChannel::LEFT_ARM_LIFT)] = -70; 
+    thinking.params.offset[static_cast<uint8_t>(ServoChannel::LEFT_ARM_SWING)] = 20;  
+    m_storage->save_action(thinking);
+    m_action_cache[thinking.name] = thinking;
+    
+
+    RegisteredAction tracking_L = {};
+    strcpy(tracking_L.name, "tracking_L");
+    tracking_L.default_steps = 1;
+    tracking_L.is_atomic = false;
+    tracking_L.gait_period_ms = 1500;
+    tracking_L.params.amplitude[static_cast<uint8_t>(ServoChannel::LEFT_LEG_ROTATE)]  = 40;
+    tracking_L.params.amplitude[static_cast<uint8_t>(ServoChannel::RIGHT_LEG_ROTATE)] = -40;
+    tracking_L.params.amplitude[static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT)] = -30;
+    tracking_L.params.amplitude[static_cast<uint8_t>(ServoChannel::RIGHT_ANKLE_LIFT)] = 35;
+    tracking_L.params.offset[static_cast<uint8_t>(ServoChannel::LEFT_LEG_ROTATE)] = 20;
+    tracking_L.params.offset[static_cast<uint8_t>(ServoChannel::RIGHT_LEG_ROTATE)] = 20;
+    tracking_L.params.offset[static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT)] = 12;
+    tracking_L.params.offset[static_cast<uint8_t>(ServoChannel::RIGHT_ANKLE_LIFT)] = 12;
+    tracking_L.params.phase_diff[static_cast<uint8_t>(ServoChannel::LEFT_LEG_ROTATE)] = PI / 2 + PI;
+    tracking_L.params.phase_diff[static_cast<uint8_t>(ServoChannel::RIGHT_LEG_ROTATE)] = PI;
+    tracking_L.params.phase_diff[static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT)] = PI;
+    tracking_L.params.phase_diff[static_cast<uint8_t>(ServoChannel::RIGHT_ANKLE_LIFT)] = 2 * PI;
+    m_storage->save_action(tracking_L); 
+    m_action_cache[tracking_L.name] = tracking_L;
+
+    auto tracking_R = tracking_L;
+    strcpy(tracking_R.name, "tracking_R");
+    tracking_R.params.amplitude[static_cast<uint8_t>(ServoChannel::LEFT_LEG_ROTATE)]  = -40;
+    tracking_R.params.amplitude[static_cast<uint8_t>(ServoChannel::RIGHT_LEG_ROTATE)] = 40;
+    tracking_R.params.amplitude[static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT)] = 35;
+    tracking_R.params.amplitude[static_cast<uint8_t>(ServoChannel::RIGHT_ANKLE_LIFT)] = -35;
+    tracking_R.params.offset[static_cast<uint8_t>(ServoChannel::LEFT_LEG_ROTATE)] = 20;
+    tracking_R.params.offset[static_cast<uint8_t>(ServoChannel::RIGHT_LEG_ROTATE)] = 20;
+    tracking_R.params.offset[static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT)] = 0;
+    tracking_R.params.offset[static_cast<uint8_t>(ServoChannel::RIGHT_ANKLE_LIFT)] = 0;
+    tracking_R.params.phase_diff[static_cast<uint8_t>(ServoChannel::LEFT_LEG_ROTATE)] = 0;
+    tracking_R.params.phase_diff[static_cast<uint8_t>(ServoChannel::RIGHT_LEG_ROTATE)] = PI / 2;
+    tracking_R.params.phase_diff[static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT)] = PI;
+    tracking_R.params.phase_diff[static_cast<uint8_t>(ServoChannel::RIGHT_ANKLE_LIFT)] = 0;
+    m_storage->save_action(tracking_R);
+    m_action_cache[tracking_R.name] = tracking_R;
+    
     ESP_LOGI(TAG, "Default actions created and cached.");
 }
 

@@ -116,25 +116,27 @@
         <div class="pane pane-left">
             <h1>Otto Robot Control</h1>
             <div class="grid-container">
-                <button class="btn" onclick="sendCommand(1)">Forward</button>
-                <button class="btn" onclick="sendCommand(2)">Backward</button>
-                <button class="btn" onclick="sendCommand(3)">Turn Left</button>
-                <button class="btn" onclick="sendCommand(4)">Turn Right</button>
-                <button class="btn" onclick="sendCommand(5)">Wave Hand</button>
-                <button class="btn" onclick="sendCommand(6)">Move Ear</button>
-                <button class="btn" onclick="sendCommand(7)">Nod Head</button>
-                <button class="btn" onclick="sendCommand(8)">Shake Head</button>
-                <button class="btn" onclick="sendCommand(9)">Single Leg</button>
-                <button class="btn" onclick="sendCommand(0x11)">Track Left</button>
-                <button class="btn" onclick="sendCommand(0x12)">Track Right</button>
-                <button class="btn" onclick="sendCommand(0x13)">Sad</button>
-                <button class="btn" onclick="sendCommand(0x0C)">Silly</button>
-                <button class="btn" onclick="sendCommand(0x0E)">Funny</button>
-                <button class="btn" onclick="sendCommand(0x0F)">Happy</button>
+                <button class="btn" onclick="sendCommand(0x01)">Forward</button>
+                <button class="btn" onclick="sendCommand(0x02)">Backward</button>
+                <button class="btn" onclick="sendCommand(0x03)">Turn Left</button>
+                <button class="btn" onclick="sendCommand(0x04)">Turn Right</button>
+                <button class="btn" onclick="sendCommand(0x05)">Wave Hand</button>
+                <button class="btn" onclick="sendCommand(0x06)">Move Ear</button>
+                <button class="btn" onclick="sendCommand(0x07)">Nod Head</button>
+                <button class="btn" onclick="sendCommand(0x08)">Shake Head</button>
+                <button class="btn" onclick="sendCommand(0x09)">Single Leg</button>
+                <button class="btn" onclick="sendCommand(0x10)">Happy</button>
+                <button class="btn" onclick="sendCommand(0x11)">Sad</button>
+                <button class="btn" onclick="sendCommand(0x12)">Silly</button>
+                <button class="btn" onclick="sendCommand(0x13)">Funny</button>
                 <button class="btn" onclick="sendCommand(0x14)">Laughing</button>
                 <button class="btn" onclick="sendCommand(0x15)">Angry</button>
                 <button class="btn" onclick="sendCommand(0x16)">Crying</button>
-                <button class="btn btn-stop" onclick="sendCommand(0)">STOP</button>
+                <button class="btn" onclick="sendCommand(0x17)">Surprised</button>
+                <button class="btn" onclick="sendCommand(0x18)">Thinking</button>
+                <button class="btn" onclick="sendCommand(0x1A)">Track Left</button>
+                <button class="btn" onclick="sendCommand(0x1B)">Track Right</button>
+                <button class="btn btn-stop" onclick="sendCommand(0x00)">STOP</button>
             </div>
     
             <div class="section">
@@ -152,15 +154,17 @@
                             <option value="nod_head">Nod Head</option>
                             <option value="shake_head">Shake Head</option>
                             <option value="single_leg">Single Leg</option>
-                            <option value="tracking_L">Tracking Left</option>
-                            <option value="tracking_R">Tracking Right</option>
-                             <option value="happy">Happy</option>
+                            <option value="happy">Happy</option>
+                            <option value="sad">Sad</option>
                             <option value="silly">Silly</option>
                             <option value="funny">Funny</option>
-                            <option value="sad">Sad</option>
                             <option value="laughing">Laughing</option>
                             <option value="angry">Angry</option>
                             <option value="crying">Crying</option>
+                            <option value="surprised">Surprised</option>
+                            <option value="thinking">Thinking</option>
+                            <option value="tracking_L">Tracking Left</option>
+                            <option value="tracking_R">Tracking Right</option>
                         </select>
                     </div>
                     <div class="tuner-actions">
