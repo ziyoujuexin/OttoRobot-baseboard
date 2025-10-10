@@ -72,6 +72,7 @@ private:
     void start_webserver() {
         httpd_config_t config = HTTPD_DEFAULT_CONFIG();
         config.lru_purge_enable = true;
+        config.stack_size = 8192;
         config.max_uri_handlers = 10;
         config.task_priority = 6; // Increase priority to prevent starvation by other tasks
 
@@ -187,6 +188,26 @@ esp_err_t play_animation_handler(httpd_req_t *req) {
     return ESP_FAIL;
 }
 
+// Helper function to perform in-place URL decoding for strings like "file%20name.txt"
+static void url_decode_in_place(char* str) {
+    if(!str) return;
+    char *p = str, *q = str;
+    while (*p) {
+        if (*p == '%' && p[1] && p[2]) {
+            // Convert hex chars to int
+            char hex[3] = { p[1], p[2], '\0' };
+            *q++ = (char)strtol(hex, NULL, 16);
+            p += 3;
+        } else if (*p == '+') {
+            *q++ = ' ';
+            p++;
+        } else {
+            *q++ = *p++;
+        }
+    }
+    *q = '\0';
+}
+
 esp_err_t delete_animation_handler(httpd_req_t *req) {
     char file_buf[128];
     if (httpd_req_get_url_query_str(req, file_buf, sizeof(file_buf)) != ESP_OK) {
@@ -199,6 +220,9 @@ esp_err_t delete_animation_handler(httpd_req_t *req) {
         httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Failed to parse file parameter");
         return ESP_FAIL;
     }
+
+    // URL-decode the filename in place
+    url_decode_in_place(param_val);
 
     // Security check: ensure no path traversal
     std::string filename(param_val);

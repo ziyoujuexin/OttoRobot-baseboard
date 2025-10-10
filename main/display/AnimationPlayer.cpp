@@ -34,7 +34,7 @@ void AnimationPlayer::start() {
         ESP_LOGE(TAG, "Failed to create player queue!");
         return;
     }
-    xTaskCreate(player_task_wrapper, "anim_player_task", 4096, this, 5, &m_task_handle);
+    xTaskCreate(player_task_wrapper, "anim_player_task", 8192, this, 5, &m_task_handle);
     ESP_LOGI(TAG, "AnimationPlayer task started.");
 
     // Post a command to the UI task to play the initial default animation
@@ -73,51 +73,63 @@ void AnimationPlayer::player_task() {
 
             // --- Animation Duration Parsing Logic ---
             current_one_shot_duration = pdMS_TO_TICKS(5000); // Default duration
-            try {
-                std::string name_str(m_current_anim_name);
 
-                // 1. Strip .gif extension if it exists
-                const std::string extension = ".gif";
-                if (name_str.length() >= extension.length() && name_str.substr(name_str.length() - extension.length()) == extension) {
-                    name_str.erase(name_str.length() - extension.length());
+            std::string name_str(m_current_anim_name);
+
+            // 1. Strip .gif extension if it exists
+            const std::string extension = ".gif";
+            if (name_str.length() >= extension.length() && name_str.substr(name_str.length() - extension.length()) == extension) {
+                name_str.erase(name_str.length() - extension.length());
+            }
+
+            // 2. Count underscores
+            int underscore_count = 0;
+            for (char c : name_str) {
+                if (c == '_') {
+                    underscore_count++;
                 }
+            }
 
-                // 2. Count underscores
-                int underscore_count = 0;
-                for (char c : name_str) {
-                    if (c == '_') {
-                        underscore_count++;
-                    }
+            // 3. Apply rules based on underscore count
+            if (underscore_count == 0) {
+                ESP_LOGI(TAG, "Animation '%s': 0 underscores, using default 5s duration.", m_current_anim_name.c_str());
+            } else if (name_str.back() != 's') {
+                ESP_LOGW(TAG, "Animation '%s': Invalid format (must end with 's'), using default 5s.", m_current_anim_name.c_str());
+            } else if (underscore_count == 1) {
+                // Case: name_3s
+                size_t pos = name_str.find('_');
+                std::string duration_val = name_str.substr(pos + 1, name_str.length() - pos - 2);
+                
+                char* end;
+                const char* start = duration_val.c_str();
+                long duration_sec_long = strtol(start, &end, 10);
+
+                if (start == end || *end != '\0' || errno == ERANGE) {
+                    ESP_LOGW(TAG, "Animation '%s': Invalid integer format for duration '%s'. Using default 5s.", m_current_anim_name.c_str(), duration_val.c_str());
+                } else {
+                    current_one_shot_duration = pdMS_TO_TICKS(static_cast<int>(duration_sec_long) * 1200);
+                    ESP_LOGI(TAG, "Animation '%s': Parsed integer duration: %d seconds.", m_current_anim_name.c_str(), static_cast<int>(duration_sec_long));
                 }
+            } else if (underscore_count == 2) {
+                // Case: name_1_5s
+                size_t first_pos = name_str.find('_');
+                size_t second_pos = name_str.find('_', first_pos + 1);
+                std::string int_part = name_str.substr(first_pos + 1, second_pos - first_pos - 1);
+                std::string frac_part = name_str.substr(second_pos + 1, name_str.length() - second_pos - 2);
+                std::string float_str = int_part + "." + frac_part;
 
-                // 3. Apply rules based on underscore count
-                if (underscore_count == 0) {
-                    ESP_LOGI(TAG, "Animation '%s': 0 underscores, using default 5s duration.", m_current_anim_name);
-                    // Duration is already set to default
-                } else if (name_str.back() != 's') {
-                    ESP_LOGW(TAG, "Animation '%s': Invalid format (must end with 's'), using default 5s.", m_current_anim_name);
-                } else if (underscore_count == 1) {
-                    // Case: name_3s
-                    size_t pos = name_str.find('_');
-                    std::string duration_val = name_str.substr(pos + 1, name_str.length() - pos - 2);
-                    int duration_sec = std::stoi(duration_val);
-                    current_one_shot_duration = pdMS_TO_TICKS(duration_sec * 1200); // 1.2x duration because display on screen is slower
-                    ESP_LOGI(TAG, "Animation '%s': Parsed integer duration: %d seconds.", m_current_anim_name, duration_sec);
-                } else if (underscore_count == 2) {
-                    // Case: name_1_5s
-                    size_t first_pos = name_str.find('_');
-                    size_t second_pos = name_str.find('_', first_pos + 1);
-                    std::string int_part = name_str.substr(first_pos + 1, second_pos - first_pos - 1);
-                    std::string frac_part = name_str.substr(second_pos + 1, name_str.length() - second_pos - 2);
-                    std::string float_str = int_part + "." + frac_part;
-                    float duration_sec = std::stof(float_str);
+                char* end;
+                const char* start = float_str.c_str();
+                float duration_sec = strtof(start, &end);
+
+                if (start == end || *end != '\0' || errno == ERANGE) {
+                    ESP_LOGW(TAG, "Animation '%s': Invalid float format for duration '%s'. Using default 5s.", m_current_anim_name.c_str(), float_str.c_str());
+                } else {
                     current_one_shot_duration = pdMS_TO_TICKS(static_cast<uint32_t>(duration_sec * 1200.0f));
                     ESP_LOGI(TAG, "Animation '%s': Parsed float duration: %.2f seconds.", m_current_anim_name.c_str(), duration_sec);
-                } else {
-                    ESP_LOGW(TAG, "Animation '%s': Invalid format (>2 underscores), using default 5s.", m_current_anim_name);
                 }
-            } catch (const std::exception& e) {
-                ESP_LOGE(TAG, "Exception while parsing duration for '%s': %s. Using default 5s.", m_current_anim_name, e.what());
+            } else {
+                ESP_LOGW(TAG, "Animation '%s': Invalid format (>2 underscores), using default 5s.", m_current_anim_name.c_str());
             }
 
         } else {
