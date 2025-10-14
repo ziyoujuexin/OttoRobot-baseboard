@@ -179,7 +179,7 @@ bool gc9a01_lvgl_driver_init(void) {
 
     const esp_lcd_panel_dev_config_t panel_config_left = {
         .reset_gpio_num = PIN_NUM_RST_LEFT,
-        .rgb_endian = LCD_RGB_ELEMENT_ORDER_RGB, // Set to standard RGB
+        .rgb_endian = LCD_RGB_ELEMENT_ORDER_BGR, // Set to standard RGB
         .bits_per_pixel = LCD_BIT_PER_PIXEL,
         .vendor_config = &vendor_config,
     };
@@ -209,7 +209,7 @@ bool gc9a01_lvgl_driver_init(void) {
 
     const esp_lcd_panel_dev_config_t panel_config_right = {
         .reset_gpio_num = PIN_NUM_RST_RIGHT,
-        .rgb_endian = LCD_RGB_ELEMENT_ORDER_RGB, // Set to standard RGB
+        .rgb_endian = LCD_RGB_ELEMENT_ORDER_BGR, // Set to standard RGB
         .bits_per_pixel = LCD_BIT_PER_PIXEL,
         .vendor_config = &vendor_config,
     };
