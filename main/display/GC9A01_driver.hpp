@@ -34,6 +34,15 @@
 bool gc9a01_lvgl_driver_init(void);
 
 /**
+ * @brief Enable or disable mirrored display mode.
+ *
+ * When enabled, the content of the left screen is mirrored to the right screen.
+ *
+ * @param enabled True to enable mirror mode, false to disable.
+ */
+void set_mirror_mode(bool enabled);
+
+/**
  * @brief Get the LVGL display object for the left screen.
  *
  * @return Pointer to the left screen's lv_disp_t object.

@@ -30,7 +30,7 @@ static const char *TAG = "MAIN";
 
 // The LVGL tick hook is a FreeRTOS requirement and can stay global.
 void vApplicationTickHook( void ){
-    lv_tick_inc(1); // RTOS run 500Hz
+    lv_tick_inc(1); // RTOS run 1000Hz
 }
 
 

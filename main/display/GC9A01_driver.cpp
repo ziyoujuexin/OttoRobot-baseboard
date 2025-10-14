@@ -14,6 +14,13 @@ static const char* TAG = "GC9A01_driver";
 
 
 
+static bool g_mirror_mode_enabled = false;
+
+void set_mirror_mode(bool enabled) {
+    g_mirror_mode_enabled = enabled;
+    ESP_LOGI(TAG, "Mirror mode %s", enabled ? "enabled" : "disabled");
+}
+
 // LVGL display handles
 static lv_display_t* disp_left = nullptr;
 static lv_display_t* disp_right = nullptr;
@@ -23,12 +30,6 @@ static esp_lcd_panel_handle_t panel_handle_left = nullptr;
 static esp_lcd_panel_handle_t panel_handle_right = nullptr;
 
 static bool panel_flush_ready(esp_lcd_panel_io_t* io, esp_lcd_panel_io_event_data_t* edata, void* user_ctx) {
-    lv_display_t* disp = (lv_display_t*)user_ctx;
-    lv_display_flush_ready(disp);
-    return false; // No need for a context switch
-}
-
-static bool panel_flush_ready_sec(esp_lcd_panel_io_t* io, esp_lcd_panel_io_event_data_t* edata, void* user_ctx) {
     lv_display_t* disp = (lv_display_t*)user_ctx;
     lv_display_flush_ready(disp);
     return false; // No need for a context switch
@@ -50,11 +51,19 @@ static void lvgl_flush_cb(lv_display_t* disp, const lv_area_t* area, uint8_t* px
     // Copy the buffer's content to the specific area of the display.
     esp_lcd_panel_draw_bitmap(panel_handle, offsetx1, offsety1, offsetx2 + 1, offsety2 + 1, px_map);
     
-    // Notify LVGL that flushing is done.
-    // lv_display_flush_ready(disp);
+    if (g_mirror_mode_enabled) {
+        esp_lcd_panel_draw_bitmap(panel_handle_right, offsetx1, offsety1, offsetx2 + 1, offsety2 + 1, px_map);
+    }
 }
 
 static void lvgl_flush_cb_sec(lv_display_t* disp, const lv_area_t* area, uint8_t* px_map) {
+    if (g_mirror_mode_enabled) {
+        // In mirror mode, the left screen's flush callback handles both screens.
+        // We just need to notify LVGL that this display is ready for the next frame.
+        lv_display_flush_ready(disp);
+        return;
+    }
+
     esp_lcd_panel_handle_t panel_handle = (esp_lcd_panel_handle_t)lv_display_get_user_data(disp);
     int offsetx1 = area->x1;
     int offsety1 = area->y1;
@@ -146,7 +155,7 @@ bool gc9a01_lvgl_driver_init(void) {
         .on_color_trans_done = panel_flush_ready,
     };
     esp_lcd_panel_io_callbacks_t cbs_sec = {
-        .on_color_trans_done = panel_flush_ready_sec,
+        .on_color_trans_done = panel_flush_ready,
     };
 
     // --- Initialize Left Screen ---

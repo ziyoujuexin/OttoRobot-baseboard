@@ -1,6 +1,7 @@
 #include "DualScreenManager.h"
 #include "esp_log.h"
 #include "freertos/task.h"
+#include "GC9A01_driver.hpp" // For mirror mode control
 
 static const char* TAG = "DualScreenManager";
 
@@ -15,6 +16,8 @@ DualScreenManager::DualScreenManager()
 
 void DualScreenManager::init() {
     ESP_LOGI(TAG, "Initializing LVGL objects for DualScreenManager.");
+    set_mirror_mode(false); // Default to independent screens
+
     // Create the GIF objects once at the beginning
     lv_obj_t* left_screen_obj = lv_display_get_screen_active(m_left_disp);
     if (left_screen_obj) {
@@ -45,6 +48,9 @@ void DualScreenManager::UpdateAnimationSource(const AnimationData& anim_data) {
         return;
     }
     ESP_LOGI(TAG, "Updating animation source from memory at %p, size %d", anim_data.data, anim_data.size);
+
+    // Enable mirror mode for synchronized animation playback
+    set_mirror_mode(true);
 
     // Ensure the GIF objects are visible
     if (m_left_gif_obj) lv_obj_remove_flag(m_left_gif_obj, LV_OBJ_FLAG_HIDDEN);
@@ -91,6 +97,10 @@ void DualScreenManager::clear_disp(lv_display_t* disp) {
 
 void DualScreenManager::ClearScreen(ScreenId screen) {
     ESP_LOGI(TAG, "Clearing screen %d", screen);
+
+    // Disabling mirror mode since we are breaking the synchronized state
+    set_mirror_mode(false);
+
     if (screen == SCREEN_LEFT || screen == SCREEN_BOTH) {
         clear_disp(m_left_disp);
     }
