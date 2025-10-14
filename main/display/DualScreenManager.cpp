@@ -39,43 +39,55 @@ DualScreenManager::~DualScreenManager() {
     // lv_obj_del will be handled by parent screen cleanup
 }
 
-void DualScreenManager::UpdateAnimationSource(const AnimationData& anim_data) {
-    if (!anim_data.is_valid || !anim_data.data) {
-        ESP_LOGE(TAG, "Received invalid animation data.");
-        // Optionally, hide the GIF object if the data is invalid
+void DualScreenManager::UpdateAnimationSource(const AnimationPair& anim_pair) {
+    if (!anim_pair.is_valid()) {
+        ESP_LOGE(TAG, "Received invalid animation pair.");
         if (m_left_gif_obj) lv_obj_add_flag(m_left_gif_obj, LV_OBJ_FLAG_HIDDEN);
         if (m_right_gif_obj) lv_obj_add_flag(m_right_gif_obj, LV_OBJ_FLAG_HIDDEN);
         return;
     }
-    ESP_LOGI(TAG, "Updating animation source from memory at %p, size %d", anim_data.data, anim_data.size);
 
-    // Enable mirror mode for synchronized animation playback
-    set_mirror_mode(true);
+    ESP_LOGI(TAG, "Updating animation source. Mirrored: %s", anim_pair.is_mirrored ? "true" : "false");
+
+    // Set mirror mode based on the provided animation pair
+    set_mirror_mode(anim_pair.is_mirrored);
 
     // Ensure the GIF objects are visible
     if (m_left_gif_obj) lv_obj_remove_flag(m_left_gif_obj, LV_OBJ_FLAG_HIDDEN);
     if (m_right_gif_obj) lv_obj_remove_flag(m_right_gif_obj, LV_OBJ_FLAG_HIDDEN);
 
-    // Create an image descriptor for the in-memory data
-    // IMPORTANT: The `anim_data` (and the buffer it points to) MUST remain valid
-    // for the lifetime of the GIF object, or until the source is changed.
-    m_left_img_dsc.header.magic = LV_IMAGE_HEADER_MAGIC;
-    m_left_img_dsc.header.w = 0; // For GIF, width and height are read from the data
-    m_left_img_dsc.header.h = 0;
-    m_left_img_dsc.header.cf = LV_COLOR_FORMAT_UNKNOWN; // Color format is also from data
-    m_left_img_dsc.data_size = anim_data.size;
-    m_left_img_dsc.data = anim_data.data;
-
-    // The right screen uses the same data source descriptor
-    m_right_img_dsc = m_left_img_dsc;
-
-    if (m_left_gif_obj) {
+    // --- Set Left Screen --- 
+    if (m_left_gif_obj && anim_pair.left_anim.is_valid) {
+        m_left_img_dsc.header.magic = LV_IMAGE_HEADER_MAGIC;
+        m_left_img_dsc.header.w = 0;
+        m_left_img_dsc.header.h = 0;
+        m_left_img_dsc.header.cf = LV_COLOR_FORMAT_UNKNOWN;
+        m_left_img_dsc.data_size = anim_pair.left_anim.size;
+        m_left_img_dsc.data = anim_pair.left_anim.data;
         lv_gif_set_src(m_left_gif_obj, &m_left_img_dsc);
         lv_gif_restart(m_left_gif_obj);
+    } else if (m_left_gif_obj) {
+        lv_obj_add_flag(m_left_gif_obj, LV_OBJ_FLAG_HIDDEN);
     }
-    if (m_right_gif_obj) {
+
+    // --- Set Right Screen --- 
+    if (m_right_gif_obj && anim_pair.right_anim.is_valid) {
+        if (anim_pair.is_mirrored) {
+            // In mirror mode, right screen uses the same descriptor as the left
+            m_right_img_dsc = m_left_img_dsc;
+        } else {
+            // In independent mode, create a new descriptor for the right screen
+            m_right_img_dsc.header.magic = LV_IMAGE_HEADER_MAGIC;
+            m_right_img_dsc.header.w = 0;
+            m_right_img_dsc.header.h = 0;
+            m_right_img_dsc.header.cf = LV_COLOR_FORMAT_UNKNOWN;
+            m_right_img_dsc.data_size = anim_pair.right_anim.size;
+            m_right_img_dsc.data = anim_pair.right_anim.data;
+        }
         lv_gif_set_src(m_right_gif_obj, &m_right_img_dsc);
         lv_gif_restart(m_right_gif_obj);
+    } else if (m_right_gif_obj) {
+        lv_obj_add_flag(m_right_gif_obj, LV_OBJ_FLAG_HIDDEN);
     }
 }
 

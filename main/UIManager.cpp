@@ -42,7 +42,7 @@ void UIManager::lvgl_task(void *pvParameter) {
     self->m_display_manager->init();
     
     uint32_t task_delay_ms = 5;
-    AnimationData current_anim_data; // Holds the currently loaded animation data
+    AnimationPair current_anim_pair; // Holds the currently loaded animation data
 
     while(1) {
         // 1. Check and process UI commands (non-blocking)
@@ -51,15 +51,15 @@ void UIManager::lvgl_task(void *pvParameter) {
             ESP_LOGI(TAG, "LVGL task received command to play: %s", received_cmd.animation_name);
             
             // 1. Release previous animation data if it's valid
-            if (current_anim_data.is_valid) {
-                self->m_animation_manager->releaseAnimationData(current_anim_data);
+            if (current_anim_pair.is_valid()) {
+                self->m_animation_manager->releaseAnimationPair(current_anim_pair);
             }
 
             // 2. Get new animation data from the provider
-            current_anim_data = self->m_animation_manager->getAnimationData(received_cmd.animation_name);
+            current_anim_pair = self->m_animation_manager->getAnimationData(received_cmd.animation_name);
 
             // 3. Update the display with the new data (from memory)
-            self->m_display_manager->UpdateAnimationSource(current_anim_data);
+            self->m_display_manager->UpdateAnimationSource(current_anim_pair);
 
             // Force a yield here to allow other tasks (like idle task for WDT) to run
             // before potentially processing another command from the queue immediately.

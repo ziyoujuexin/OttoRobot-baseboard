@@ -22,7 +22,7 @@ public:
     DualScreenManager(const DualScreenManager&) = delete;
     DualScreenManager& operator=(const DualScreenManager&) = delete;
 
-    void UpdateAnimationSource(const AnimationData& anim_data);
+    void UpdateAnimationSource(const AnimationPair& anim_pair);
 
     void ClearScreen(ScreenId screen);
 

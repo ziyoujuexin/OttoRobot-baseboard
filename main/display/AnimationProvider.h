@@ -1,42 +1,46 @@
 #ifndef ANIMATION_PROVIDER_H
 #define ANIMATION_PROVIDER_H
 
+#include <cstdint>
 #include <string>
-#include <cstddef> // For size_t
-#include <cstdint> // For uint8_t
 
-/**
- * @struct AnimationData
- * @brief Holds the raw data of an animation loaded into memory.
- */
+// Represents the raw data of a single animation file
 struct AnimationData {
-    const uint8_t* data = nullptr; // Pointer to the animation data in memory
-    size_t size = 0;               // Size of the data in bytes
-    bool is_valid = false;         // Flag to check if the data is valid
+    const uint8_t* data = nullptr;
+    uint32_t size = 0;
+    bool is_valid = false;
+};
+
+// Represents a set of animations for the dual-screen setup
+struct AnimationPair {
+    AnimationData left_anim;
+    AnimationData right_anim;
+    bool is_mirrored = false; // True if left_anim should be used for both screens
+
+    // Helper to check if the pair contains any valid data
+    bool is_valid() const {
+        return left_anim.is_valid || right_anim.is_valid;
+    }
 };
 
 /**
  * @class AnimationProvider
- * @brief Abstract base class for providing animation data.
+ * @brief Abstract interface for providing animation data.
  */
 class AnimationProvider {
 public:
     virtual ~AnimationProvider() = default;
 
-    /**
-     * @brief Gets the animation data for a given animation name.
-     * This method is responsible for loading the animation into memory.
-     * @param animation_name The logical name of the animation (e.g., "happy").
-     * @return An AnimationData struct containing the pointer to the data and its size.
-     *         If loading fails, the is_valid flag in the struct will be false.
-     */
-    virtual AnimationData getAnimationData(const std::string& animation_name) = 0;
-
-    /**
-     * @brief Releases the memory allocated for the animation data.
-     * @param anim_data The AnimationData struct whose memory should be freed.
-     */
+    virtual AnimationPair getAnimationData(const std::string& animation_name) = 0;
     virtual void releaseAnimationData(AnimationData& anim_data) = 0;
+    // Add a helper to release a pair
+    virtual void releaseAnimationPair(AnimationPair& anim_pair) {
+        releaseAnimationData(anim_pair.left_anim);
+        // Only release right if it's not mirrored (i.e., not pointing to the same data)
+        if (!anim_pair.is_mirrored) {
+            releaseAnimationData(anim_pair.right_anim);
+        }
+    }
 };
 
 #endif // ANIMATION_PROVIDER_H

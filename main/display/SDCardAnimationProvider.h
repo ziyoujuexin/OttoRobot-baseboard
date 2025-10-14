@@ -11,7 +11,7 @@ class SDCardAnimationProvider : public AnimationProvider {
 public:
     explicit SDCardAnimationProvider(const std::string& base_path = "/sdcard/animations");
 
-    AnimationData getAnimationData(const std::string& animation_name) override;
+    AnimationPair getAnimationData(const std::string& animation_name) override;
     void releaseAnimationData(AnimationData& anim_data) override;
 
 private:
