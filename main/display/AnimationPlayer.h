@@ -41,7 +41,7 @@ private:
     PlayerState m_current_state = PlayerState::PLAYING_DEFAULT;
     std::string m_current_anim_name = "eyec";
     TickType_t m_one_shot_start_time = 0;
-    float m_time_scale_percent = 1.1f;
+    float m_time_scale_percent = 1.06f;
 };
 
 #endif // ANIMATION_PLAYER_H
