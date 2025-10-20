@@ -10,7 +10,7 @@
 
 static const char* TAG = "GC9A01_driver";
 
-#define SPI_SPEED_HZ 40 * 1000 * 1000
+#define SPI_SPEED_HZ 80 * 1000 * 1000
 
 
 
@@ -146,7 +146,7 @@ bool gc9a01_lvgl_driver_init(void) {
         .sclk_io_num = PIN_NUM_SCLK,
         .quadwp_io_num = -1,
         .quadhd_io_num = -1,
-        .max_transfer_sz = LCD_H_RES * 80 * sizeof(uint16_t),
+        .max_transfer_sz = LCD_H_RES * 120 * sizeof(uint16_t),
     };
     ESP_ERROR_CHECK(spi_bus_initialize(LCD_HOST, &buscfg, SPI_DMA_CH_AUTO));
     ESP_LOGI(TAG, "SPI bus initialized.");
@@ -229,10 +229,10 @@ bool gc9a01_lvgl_driver_init(void) {
     ESP_ERROR_CHECK(esp_lcd_panel_io_register_event_callbacks(io_handle_left, &cbs, disp_left));
     lv_display_set_flush_cb(disp_left, lvgl_flush_cb);
     lv_display_set_user_data(disp_left, panel_handle_left);
-    lv_color_t* buf_left = (lv_color_t*)heap_caps_malloc(LCD_H_RES * 30 * sizeof(lv_color_t), MALLOC_CAP_SPIRAM);
-    lv_color_t* buf_left_sec = (lv_color_t*)heap_caps_malloc(LCD_H_RES * 30 * sizeof(lv_color_t), MALLOC_CAP_SPIRAM);
+    lv_color_t* buf_left = (lv_color_t*)heap_caps_malloc(LCD_H_RES * 60 * sizeof(lv_color_t), MALLOC_CAP_SPIRAM);
+    lv_color_t* buf_left_sec = (lv_color_t*)heap_caps_malloc(LCD_H_RES * 60 * sizeof(lv_color_t), MALLOC_CAP_SPIRAM);
     assert(buf_left);
-    lv_display_set_buffers(disp_left, buf_left, buf_left_sec, LCD_H_RES * 30 * sizeof(lv_color_t), LV_DISPLAY_RENDER_MODE_PARTIAL);
+    lv_display_set_buffers(disp_left, buf_left, buf_left_sec, LCD_H_RES * 60 * sizeof(lv_color_t), LV_DISPLAY_RENDER_MODE_PARTIAL);
     ESP_LOGI(TAG, "Left screen registered.");
 
     // --- Register Right Screen with LVGL ---
@@ -241,10 +241,10 @@ bool gc9a01_lvgl_driver_init(void) {
     ESP_ERROR_CHECK(esp_lcd_panel_io_register_event_callbacks(io_handle_right, &cbs_sec, disp_right));
     lv_display_set_flush_cb(disp_right, lvgl_flush_cb_sec);
     lv_display_set_user_data(disp_right, panel_handle_right);
-    lv_color_t* buf_right = (lv_color_t*)heap_caps_malloc(LCD_H_RES * 30  * sizeof(lv_color_t), MALLOC_CAP_SPIRAM);
-    lv_color_t* buf_right_sec = (lv_color_t*)heap_caps_malloc(LCD_H_RES * 30  * sizeof(lv_color_t), MALLOC_CAP_SPIRAM);
+    lv_color_t* buf_right = (lv_color_t*)heap_caps_malloc(LCD_H_RES * 60  * sizeof(lv_color_t), MALLOC_CAP_SPIRAM);
+    lv_color_t* buf_right_sec = (lv_color_t*)heap_caps_malloc(LCD_H_RES * 60  * sizeof(lv_color_t), MALLOC_CAP_SPIRAM);
     assert(buf_right);
-    lv_display_set_buffers(disp_right, buf_right, buf_right_sec, LCD_H_RES * 30  * sizeof(lv_color_t), LV_DISPLAY_RENDER_MODE_PARTIAL);
+    lv_display_set_buffers(disp_right, buf_right, buf_right_sec, LCD_H_RES * 60  * sizeof(lv_color_t), LV_DISPLAY_RENDER_MODE_PARTIAL);
     ESP_LOGI(TAG, "Right screen registered.");
     ESP_LOGW(TAG, "Heap after display init: %d", esp_get_free_heap_size());
     return true;

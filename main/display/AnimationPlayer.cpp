@@ -107,7 +107,7 @@ void AnimationPlayer::player_task() {
                 if (start == end || *end != '\0' || errno == ERANGE) {
                     ESP_LOGW(TAG, "Animation '%s': Invalid integer format for duration '%s'. Using default 5s.", m_current_anim_name.c_str(), duration_val.c_str());
                 } else {
-                    current_one_shot_duration = pdMS_TO_TICKS(static_cast<int>(duration_sec_long) * 1200);
+                    current_one_shot_duration = pdMS_TO_TICKS(static_cast<int>(duration_sec_long) * 1000.0f * m_time_scale_percent);
                     ESP_LOGI(TAG, "Animation '%s': Parsed integer duration: %d seconds.", m_current_anim_name.c_str(), static_cast<int>(duration_sec_long));
                 }
             } else if (underscore_count == 2) {
@@ -125,7 +125,7 @@ void AnimationPlayer::player_task() {
                 if (start == end || *end != '\0' || errno == ERANGE) {
                     ESP_LOGW(TAG, "Animation '%s': Invalid float format for duration '%s'. Using default 5s.", m_current_anim_name.c_str(), float_str.c_str());
                 } else {
-                    current_one_shot_duration = pdMS_TO_TICKS(static_cast<uint32_t>(duration_sec * 1200.0f));
+                    current_one_shot_duration = pdMS_TO_TICKS(static_cast<uint32_t>(duration_sec * 1000.0f * m_time_scale_percent));
                     ESP_LOGI(TAG, "Animation '%s': Parsed float duration: %.2f seconds.", m_current_anim_name.c_str(), duration_sec);
                 }
             } else {
