@@ -1,6 +1,7 @@
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include <esp_task_wdt.h>
 #include <memory> // Required for std::unique_ptr
 
 // Core Drivers & Services
@@ -94,5 +95,6 @@ extern "C" void app_main(void)
     // --- 4. Post-Init Actions & Main Loop ---
     ESP_LOGI(TAG, "Phase 4: Post-Initialization and Main Loop");
 
+    esp_task_wdt_delete(xTaskGetCurrentTaskHandle());
     vTaskDelete(NULL); // Delete the main task as all work is now in other tasks
 }
