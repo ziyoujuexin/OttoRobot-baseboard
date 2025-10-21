@@ -8,6 +8,21 @@
 #define PI 3.1415926
 
 static const char* TAG = "MotionController";
+
+static float apply_easing(float t_linear, EasingType type) {
+    switch (type) {
+        case EasingType::EASE_IN_QUAD:
+            return t_linear * t_linear;
+        case EasingType::EASE_OUT_QUAD:
+            return 1.0f - (1.0f - t_linear) * (1.0f - t_linear);
+        case EasingType::EASE_IN_OUT_QUAD:
+            return t_linear < 0.5f ? 2.0f * t_linear * t_linear : 1.0f - powf(-2.0f * t_linear + 2.0f, 2.0f) / 2.0f;
+        case EasingType::LINEAR:
+        default:
+            return t_linear;
+    }
+}
+
 static std::queue<motion_command_t> s_turning_queue;
 
 // --- Constructor / Destructor ---
@@ -97,17 +112,22 @@ void MotionController::init() {
 
     // Initialize Face Tracking Action state
     m_is_tracking_active = false;
-    memset(&m_head_tracking_action, 0, sizeof(ActionInstance));
+    m_head_tracking_action = ActionInstance(); // Value-initialize instead of memset on non-trivial type
     strncpy(m_head_tracking_action.action.name, "head_track", MOTION_NAME_MAX_LEN - 1);
+    m_head_tracking_action.action.name[MOTION_NAME_MAX_LEN - 1] = '\0';
     m_head_tracking_action.action.type = ActionType::GAIT_PERIODIC;
     m_head_tracking_action.action.is_atomic = false;
     m_head_tracking_action.action.default_steps = 1; // Will run continuously
     m_head_tracking_action.action.gait_period_ms = 1000;
+
+    motion_params_t base_wave = {};
     for (int i = 0; i < GAIT_JOINT_COUNT; ++i) {
-        m_head_tracking_action.action.params.offset[i] = 0.0f;
-        m_head_tracking_action.action.params.amplitude[i] = 0.01f; // Very small amplitude to allow fine control
-        m_head_tracking_action.action.params.phase_diff[i] = 0.0f;
+        base_wave.offset[i] = 0.0f;
+        base_wave.amplitude[i] = 0.01f; // Very small amplitude to allow fine control
+        base_wave.phase_diff[i] = 0.0f;
     }
+    m_head_tracking_action.action.harmonic_terms.push_back(base_wave);
+    m_head_tracking_action.action.easing_type = EasingType::LINEAR;
 
     m_decision_maker->start(); // Start the new decision maker task
 
@@ -214,7 +234,7 @@ void MotionController::motion_engine_task() {
                             memcpy(&duration_ms, &received_cmd.params[sizeof(uint8_t) + sizeof(float)], sizeof(uint32_t));
                         }
 
-                        ESP_LOGI(TAG, "Received SERVO_CONTROL for channel %d to angle %.1f, duration %u ms", channel, angle, duration_ms);
+                        ESP_LOGI(TAG, "Received SERVO_CONTROL for channel %d to angle %.1f, duration %u ms", channel, angle, (unsigned int)duration_ms);
 
                         if (channel >= static_cast<uint8_t>(ServoChannel::SERVO_COUNT)) {
                             ESP_LOGE(TAG, "Invalid channel for SERVO_CONTROL: %d", channel);
@@ -223,7 +243,8 @@ void MotionController::motion_engine_task() {
 
                         // Create a temporary action to control a single servo
                         RegisteredAction servo_action;
-                        memset(&servo_action, 0, sizeof(RegisteredAction));
+                        // memset(&servo_action, 0, sizeof(RegisteredAction));
+                        servo_action = RegisteredAction(); // Value-initialize instead of memset on non-trivial type
                         
                         // Generate a unique name to allow overriding
                         snprintf(servo_action.name, MOTION_NAME_MAX_LEN, "servo_ctrl_%d", channel);
@@ -233,8 +254,11 @@ void MotionController::motion_engine_task() {
                         servo_action.default_steps = 1; // Action runs for one "step"
                         servo_action.gait_period_ms = duration_ms; // The "step" duration is the hold time
 
+                        motion_params_t servo_params = {};
                         // Set offset for the target servo. Final Angle = 90 + offset.
-                        servo_action.params.offset[channel] = angle - 90.0f;
+                        servo_params.offset[channel] = angle - 90.0f;
+                        servo_action.harmonic_terms.push_back(servo_params);
+                        servo_action.easing_type = EasingType::LINEAR;
 
                         // Remove any existing temporary action for the same servo channel to override it
                         m_active_actions.erase(
@@ -421,16 +445,12 @@ void MotionController::motion_mixer_task() {
             for (auto& action : m_active_actions) {
                 if (action.gait_period_ms == 0) continue;
 
-                if (strcmp(action.name, "head_track") == 0) {
-                    action.params.offset[static_cast<uint8_t>(ServoChannel::HEAD_PAN)] = m_head_tracking_action.action.params.offset[static_cast<uint8_t>(ServoChannel::HEAD_PAN)];
-                    action.params.offset[static_cast<uint8_t>(ServoChannel::HEAD_TILT)] = m_head_tracking_action.action.params.offset[static_cast<uint8_t>(ServoChannel::HEAD_TILT)];
-                }
-
                 int frames_per_gait = action.gait_period_ms / control_period_ms;
                 if (frames_per_gait == 0) continue;
 
                 int current_frame = action_frame_counters[action.name];
-                float t = (float)(current_frame % frames_per_gait) / frames_per_gait;
+                float t_linear = (float)(current_frame % frames_per_gait) / frames_per_gait;
+                float t_warped = apply_easing(t_linear, action.easing_type);
 
                 bool is_walk_action = (strcmp(action.name, "walk_forward") == 0 || strcmp(action.name, "walk_backward") == 0);
 
@@ -446,20 +466,27 @@ void MotionController::motion_mixer_task() {
                         continue;
                     }
 
-                    float amp = action.params.amplitude[i];
-                    float offset = action.params.offset[i];
-                    bool is_head_track_action = strcmp(action.name, "head_track") == 0;
-                    bool is_head_joint = (i == static_cast<uint8_t>(ServoChannel::HEAD_PAN) || i == static_cast<uint8_t>(ServoChannel::HEAD_TILT));
+                    if (action.harmonic_terms.empty()) continue;
 
-                    if (std::abs(amp) > 0.01f || std::abs(offset) > 0.01f || (is_head_track_action && is_head_joint)) {
-                        float wave_component = (!is_head_track_action && std::abs(amp) > 0.01f) 
-                                             ? amp * sin(2 * PI * t + action.params.phase_diff[i]) 
-                                             : 0.0f;
-                        float angle = 90.0f + offset + wave_component;
-                        if (angle < 0) angle = 0;
-                        if (angle > 180) angle = 180;
-                        final_angles[i] = angle;
+                    float base_offset = action.harmonic_terms[0].offset[i];
+                    float wave_component = 0.0f;
+                    int k = 1;
+
+                    for (const auto& term : action.harmonic_terms) {
+                        float amp   = term.amplitude[i];
+                        float phase = term.phase_diff[i];
+
+                        if (std::abs(amp) > 0.01f) {
+                            wave_component += amp * sinf(k * 2 * PI * t_warped + phase);
+                        }
+                        k++;
                     }
+
+                    float angle = 90.0f + base_offset + wave_component;
+
+                    if (angle < 0) angle = 0;
+                    if (angle > 180) angle = 180;
+                    final_angles[i] = angle;
                 }
                 
                 action_frame_counters[action.name]++;
@@ -657,8 +684,8 @@ void MotionController::face_tracking_task() {
             }
         }
 
-        m_head_tracking_action.action.params.offset[static_cast<uint8_t>(ServoChannel::HEAD_PAN)] = m_pan_offset;
-        m_head_tracking_action.action.params.offset[static_cast<uint8_t>(ServoChannel::HEAD_TILT)] = m_tilt_offset;
+        m_head_tracking_action.action.harmonic_terms[0].offset[static_cast<uint8_t>(ServoChannel::HEAD_PAN)] = m_pan_offset;
+        m_head_tracking_action.action.harmonic_terms[0].offset[static_cast<uint8_t>(ServoChannel::HEAD_TILT)] = m_tilt_offset;
         ESP_LOGI(TAG, "Face tracking offsets updated: Pan=%.2f, Tilt=%.2f", m_pan_offset, m_tilt_offset);
     }
 }

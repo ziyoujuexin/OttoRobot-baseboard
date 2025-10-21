@@ -1,0 +1,174 @@
+**致代码实现AI：**
+
+这是一份关于增强机器人运动控制系统的行动指南。请遵循以下步骤，将现有的单一正弦波步态模型（Gait）升级为支持傅里叶谐波叠加（Fourier Series）和缓动函数（Easing Functions）的复杂运动模型。
+
+### 1\. 核心目标
+
+在保留现有 `gait_period_ms` 和 `default_steps` 作为动作总时长和步数控制的前提下，修改运动解算架构，以实现以下两个目标：
+
+1.  **动作形态**：使用多个谐波（正弦波）叠加（傅里叶级数）来构造复杂的周期性动作形态（例如“快抬起、慢放下”），而不仅仅是单一的正弦波。
+2.  **动作节奏**：引入缓动函数（Easing）来“扭曲”动作周期内的执行时间，实现“慢启动快结束”（缓入）或“快启动慢结束”（缓出）等动态效果。
+
+### 2\. 架构与文件修改
+
+#### 阶段一：数据结构修改 (Motion\_types.hpp)
+
+**文件**: `Motion_types.hpp`
+
+1.  **定义缓动类型 (EasingType)**：
+
+      * 在文件中（例如 `ActionType` 附近）添加一个新的枚举类，用于定义支持的缓动函数：
+
+    <!-- end list -->
+
+    ```cpp
+    enum class EasingType : uint8_t {
+        LINEAR,         // 线性（即当前行为）
+        EASE_IN_QUAD,   // 二次缓入 (t^2)
+        EASE_OUT_QUAD,  // 二次缓出 (1 - (1-t)^2)
+        EASE_IN_OUT_QUAD // 二次缓入缓出
+        // ... 可根据需要添加更多类型
+    };
+    ```
+
+2.  **修改 `RegisteredAction` 结构体**：
+
+      * **移除**：`motion_params_t params;`
+      * **添加**：
+        1.  `std::vector<motion_params_t> harmonic_terms;`
+              * **用途**：存储傅里叶级数的谐波项。
+              * **约定**：
+                  * `harmonic_terms[0]`：基波 (k=1)。其 `offset` 数组 将作为该舵机姿态的基础偏移量 (C)。
+                  * `harmonic_terms[1]`：二次谐波 (k=2)。
+                  * `harmonic_terms[n]`：第 (n+1) 次谐波 (k=n+1)。
+        2.  `EasingType easing_type;`
+              * **用途**：指定此动作在执行时应采用的缓动节奏。
+
+#### 阶段二：核心逻辑修改 (MotionController.cpp)
+
+**文件**: `MotionController.cpp`
+
+1.  **实现 `EasingFunction`**：
+
+      * 在 `MotionController.cpp` 顶部（`TAG` 定义 之后）或合适的位置，添加一个辅助函数 `apply_easing`。
+
+    <!-- end list -->
+
+    ```cpp
+    static float apply_easing(float t_linear, EasingType type) {
+        switch (type) {
+            case EasingType::EASE_IN_QUAD:
+                return t_linear * t_linear;
+            case EasingType::EASE_OUT_QUAD:
+                return 1.0f - (1.0f - t_linear) * (1.0f - t_linear);
+            case EasingType::EASE_IN_OUT_QUAD:
+                return t_linear < 0.5f ? 2.0f * t_linear * t_linear : 1.0f - powf(-2.0f * t_linear + 2.0f, 2.0f) / 2.0f;
+            case EasingType::LINEAR:
+            default:
+                return t_linear;
+        }
+    }
+    ```
+
+2.  **修改 `motion_mixer_task`**：
+
+      * 定位到 `for (auto& action : m_active_actions)` 循环内，找到计算最终角度的核心逻辑。
+      * **替换**原有的角度计算（`amp * sin(...) + offset`）：
+      * **步骤 1：计算时间**
+        ```cpp
+        // ... (原有的 t 计算逻辑)
+        float t_linear = (float)(current_frame % frames_per_gait) / frames_per_gait;
+        float t_warped = apply_easing(t_linear, action.easing_type); // <--- 应用缓动
+        ```
+      * **步骤 2：计算傅里叶谐波叠加**
+        ```cpp
+        // ... (在 for (int i = 0; i < GAIT_JOINT_COUNT; ++i) 循环内)
+
+        if (action.harmonic_terms.empty()) continue; // 如果没有定义谐波，则跳过
+
+        // C: 基础偏移量，取自基波 (k=1) 的 offset
+        float base_offset = action.harmonic_terms[0].offset[i];
+        float wave_component = 0.0f;
+        int k = 1; // 谐波次数
+
+        // Σ [ A_k * sin(k * 2*PI * t_warped + P_k) ]
+        for (const auto& term : action.harmonic_terms) {
+            float amp   = term.amplitude[i];
+            float phase = term.phase_diff[i];
+
+            if (std::abs(amp) > 0.01f) { // 仅当幅度不为0时才计算
+                wave_component += amp * sinf(k * 2 * PI * t_warped + phase);
+            }
+            k++;
+        }
+
+        // 最终角度 = 90 + C + 谐波叠加
+        float angle = 90.0f + base_offset + wave_component;
+
+        // ... (应用 0-180 度裁剪)
+        if (angle < 0) angle = 0;
+        if (angle > 180) angle = 180;
+        final_angles[i] = angle;
+
+        // 注意：需要调整原有的 final_angles[i] >= 0.0f 检查
+        // 确保即使 base_offset 不为0但 wave_component 为0时也能正确设置角度。
+        // 可将 if (std::abs(amp) > 0.01f || std::abs(offset) > 0.01f ...) 检查
+        // 替换为 if (!action.harmonic_terms.empty()) 或对 base_offset 和 wave_component 求和后检查。
+        ```
+
+#### 阶段三：动作管理与存储 (ActionManager.cpp)
+
+**文件**: `ActionManager.cpp`
+
+1.  **修改 `register_default_actions`**：
+
+      * 所有现有的动作定义（如 `forward`, `backward`, `happy`）必须更新。
+      * **原逻辑**：`forward.params.amplitude[...] = 33;`
+      * **新逻辑**：
+        ```cpp
+        // 1. 创建一个 motion_params_t 实例
+        motion_params_t base_wave = {};
+        base_wave.amplitude[static_cast<uint8_t>(ServoChannel::LEFT_LEG_ROTATE)]  = 33;
+        base_wave.offset[static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT)] = -10;
+        // ... (填充所有原 params 的值)
+
+        // 2. 将其作为 harmonic_terms 的第一个（且是唯一一个）元素
+        forward.harmonic_terms.push_back(base_wave);
+
+        // 3. 设置默认的缓动类型
+        forward.easing_type = EasingType::LINEAR;
+        ```
+      * **确保**所有默认动作都按此新结构进行初始化，并设置 `easing_type = EasingType::LINEAR;` 以保持旧有行为。
+
+2.  **修改 `tune_gait_parameter`**：
+
+      * 此函数需要增加一个参数：`int harmonic_index`。
+      * **修改**：`action.params.amplitude[servo_index] = value;`
+      * **替换为**：
+        ```cpp
+        if (harmonic_index >= 0 && harmonic_index < action.harmonic_terms.size()) {
+            if (param_type == "amplitude") action.harmonic_terms[harmonic_index].amplitude[servo_index] = value;
+            else if (param_type == "offset") action.harmonic_terms[harmonic_index].offset[servo_index] = value;
+            // ...
+        } else {
+            ESP_LOGE(TAG, "Invalid harmonic_index: %d", harmonic_index);
+            return false;
+        }
+        ```
+
+3.  **修改 `get_action_params_json`**：
+
+      * 重写此函数，使其能够序列化 `std::vector<motion_params_t> harmonic_terms`（一个JSON数组）和 `easing_type`（一个枚举值或字符串）。
+
+4.  **修改 `update_action_properties`**：
+
+      * （可选）可以向此函数添加 `EasingType new_easing_type` 参数，以便在运行时调整动作的缓动曲线。
+
+#### 阶段四：持久化存储 (MotionStorage)
+
+**文件**: `MotionStorage.hpp`, `MotionStorage.cpp` (未提供)
+
+  * **指示**：`ActionManager` 依赖 `m_storage` (一个 `MotionStorage` 实例) 来执行 `save_action` 和 `load_action`。
+  * **行动**：你必须阅读 `MotionStorage` 的实现（.hpp 和 .cpp 文件）。
+  * **任务**：修改 `save_action` 和 `load_action` 的 NVS 存储逻辑，使其能够正确地序列化和反序列化 `RegisteredAction` 结构。
+  * **关键**：`RegisteredAction` 不再包含固定大小的 `params`，而是包含一个**可变长度的 `std::vector`** (`harmonic_terms`) 和一个新的 `easing_type` 成员。NVS 的存储格式（可能是 `blob`）必须相应调整以支持这种动态结构。

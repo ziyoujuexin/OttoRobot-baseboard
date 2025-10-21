@@ -10,7 +10,7 @@
 
 static const char* TAG = "GC9A01_driver";
 
-#define SPI_SPEED_HZ 80 * 1000 * 1000
+#define SPI_SPEED_HZ 40 * 1000 * 1000
 
 
 

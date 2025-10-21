@@ -22,6 +22,13 @@ enum class ActionType : uint8_t {
     // KEYFRAME_SEQUENCE // 为未来扩展预留：简单的关键帧动作
 };
 
+enum class EasingType : uint8_t {
+    LINEAR,         // 线性（即当前行为）
+    EASE_IN_QUAD,   // 二次缓入 (t^2)
+    EASE_OUT_QUAD,  // 二次缓出 (1 - (1-t)^2)
+    EASE_IN_OUT_QUAD // 二次缓入缓出
+};
+
 // 定义一个注册在系统中的独立动作
 typedef struct {
     char name[MOTION_NAME_MAX_LEN]; // 动作名称 (将作为NVS的key)
@@ -29,7 +36,8 @@ typedef struct {
     bool is_atomic;                 // 是否为原子操作，执行时不可中断
     uint32_t default_steps;         // 执行该动作的默认步数
     uint32_t gait_period_ms;        // 单个步态周期的默认时长 (ms)
-    motion_params_t params;         // 动作参数
+    std::vector<motion_params_t> harmonic_terms; // 傅里叶级数的谐波项
+    EasingType easing_type;         // 缓动类型
 } RegisteredAction;
 
 // 定义动作组的执行模式

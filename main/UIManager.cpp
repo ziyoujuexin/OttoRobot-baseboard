@@ -1,5 +1,6 @@
 #include "UIManager.hpp"
 #include "esp_log.h"
+#include "esp_task_wdt.h"
 #include "freertos/FreeRTOS.h"
 #include "lvgl.h"
 
@@ -43,6 +44,8 @@ void UIManager::lvgl_task(void *pvParameter) {
     
     uint32_t task_delay_ms = 5;
     AnimationPair current_anim_pair; // Holds the currently loaded animation data
+
+    // ESP_ERROR_CHECK(esp_task_wdt_delete(xTaskGetCurrentTaskHandle())); // Remove WDT for this task
 
     while(1) {
         // 1. Check and process UI commands (non-blocking)

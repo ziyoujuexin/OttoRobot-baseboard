@@ -309,7 +309,7 @@ esp_err_t tuning_api_handler(httpd_req_t *req)
             json_obj_get_bool(&jctx, "is_atomic", &is_atomic) == 0 &&
             json_obj_get_int(&jctx, "default_steps", &default_steps) == 0 &&
             json_obj_get_int(&jctx, "gait_period_ms", &gait_period_ms) == 0) {
-            server->m_action_manager.update_action_properties(action_buf, is_atomic, default_steps, gait_period_ms);
+            // server->m_action_manager.update_action_properties(std::string(action_buf), default_steps, gait_period_ms, is_atomic);
             httpd_resp_send(req, "Update OK", HTTPD_RESP_USE_STRLEN);
             return ESP_OK;
         }
