@@ -34,6 +34,7 @@ public:
     bool queue_command(const motion_command_t& cmd);
     void set_single_servo(uint8_t channel, uint8_t angle);
     void home(HomeMode mode = HomeMode::All, const std::vector<ServoChannel>& channels = {});
+    bool is_body_moving(const RegisteredAction& action) const;
     bool is_body_moving() const;
     bool queue_face_location(const FaceLocation& face_loc);
     DecisionMaker* get_decision_maker() const;
@@ -52,7 +53,7 @@ private:
 
     bool is_active = false;
     SemaphoreHandle_t m_actions_mutex;
-    mutable std::vector<RegisteredAction> m_active_actions;
+    std::vector<ActionInstance> m_active_actions;
     // ---
 
     // Mapping from logical joint to physical servo channel

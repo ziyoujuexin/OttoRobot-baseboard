@@ -7,54 +7,77 @@
 
 #define MOTION_NAME_MAX_LEN NVS_KEY_NAME_MAX_SIZE
 #define MAX_ACTIONS_PER_GROUP 10
+#define MAX_KEYFRAMES_PER_ACTION 20 // Maximum number of keyframes in a single action
 
 const int GAIT_JOINT_COUNT = static_cast<int>(ServoChannel::SERVO_COUNT);
+
+// Parameters for GAIT_PERIODIC actions
 typedef struct {
     float amplitude[GAIT_JOINT_COUNT];   // Amplitude of oscillation
     float offset[GAIT_JOINT_COUNT];      // Center point of oscillation
     float phase_diff[GAIT_JOINT_COUNT];  // Phase difference relative to the cycle
 } motion_params_t;
 
-
-// 定义动作的类型
+// Defines the type of an action
 enum class ActionType : uint8_t {
-    GAIT_PERIODIC,  // 基于gait函数的周期性动作
-    // KEYFRAME_SEQUENCE // 为未来扩展预留：简单的关键帧动作
+    GAIT_PERIODIC,      // Periodic action based on gait functions
+    KEYFRAME_SEQUENCE   // Action based on a sequence of keyframes
 };
 
-// 定义一个注册在系统中的独立动作
+// Defines a single keyframe in a sequence
 typedef struct {
-    char name[MOTION_NAME_MAX_LEN]; // 动作名称 (将作为NVS的key)
-    ActionType type;                // 动作类型
-    bool is_atomic;                 // 是否为原子操作，执行时不可中断
-    uint32_t default_steps;         // 执行该动作的默认步数
-    uint32_t gait_period_ms;        // 单个步态周期的默认时长 (ms)
-    motion_params_t params;         // 动作参数
+    uint16_t transition_time_ms;    // Time to transition to this frame from the previous one (in ms)
+    float positions[GAIT_JOINT_COUNT]; // Target positions for each servo at this frame (in degrees)
+} Keyframe;
+
+// Holds the data for a keyframe sequence action
+typedef struct {
+    uint8_t frame_count;
+    Keyframe frames[MAX_KEYFRAMES_PER_ACTION];
+} KeyframeActionData;
+
+// Defines a registered action in the system
+typedef struct {
+    char name[MOTION_NAME_MAX_LEN]; // Action name (will be the key in NVS)
+    ActionType type;                // The type of action
+    bool is_atomic;                 // If true, the action cannot be interrupted
+    uint32_t default_steps;         // Default number of times to repeat the action
+    
+    union {
+        // Data for GAIT_PERIODIC actions
+        struct {
+            uint32_t gait_period_ms;    // Default duration of a single gait cycle (ms)
+            motion_params_t params;     // Gait parameters
+        } gait;
+
+        // Data for KEYFRAME_SEQUENCE actions
+        KeyframeActionData keyframe;
+    } data;
+
 } RegisteredAction;
 
-// 定义动作组的执行模式
+// Defines the execution mode for a group of actions
 enum class ExecutionMode : uint8_t {
-    SEQUENTIAL,     // 组内动作按顺序执行
-    SIMULTANEOUS    // 组内动作同时执行 (由Mixer处理)
+    SEQUENTIAL,     // Actions in the group are executed sequentially
+    SIMULTANEOUS    // Actions in the group are executed simultaneously (handled by the Mixer)
 };
 
-// 定义一个注册在系统中的动作组
+// Defines a group of registered actions
 typedef struct {
-    char name[MOTION_NAME_MAX_LEN]; // 组名称
-    ExecutionMode mode;             // 执行模式
-    uint8_t action_count;           // 组内动作数量
-    char action_names[MAX_ACTIONS_PER_GROUP][MOTION_NAME_MAX_LEN]; // 组内包含的动作名称列表
+    char name[MOTION_NAME_MAX_LEN]; // Group name
+    ExecutionMode mode;             // Execution mode
+    uint8_t action_count;           // Number of actions in the group
+    char action_names[MAX_ACTIONS_PER_GROUP][MOTION_NAME_MAX_LEN]; // List of action names in the group
 } RegisteredGroup;
 
 
-// 定义一个运动指令
+// Defines a command for the motion controller
 typedef struct {
-    uint8_t motion_type; // 运动类型 (例如：前进、后退、停止)
-    std::vector<uint8_t> params;       // 可变长度的参数
+    uint8_t motion_type; // Type of motion (e.g., walk forward, stop)
+    std::vector<uint8_t> params;       // Variable length parameters
 } motion_command_t;
 
-// 定义面部位置结构体
-// #pragma pack(1)
+// Defines the location of a detected face
 typedef struct {
     uint16_t x;
     uint16_t y;
@@ -63,18 +86,24 @@ typedef struct {
     bool detected;
 } FaceLocation;
 
-// 定义步态函数指针类型
+// Defines a pointer to a gait function
 typedef float (*gait_function_t)(float);
 
-// 定义一个步态
+// Defines a gait
 typedef struct {
-    gait_function_t function; // 步态函数
-    const char* name;         // 步态名称
+    gait_function_t function; // Gait function
+    const char* name;         // Gait name
 } Gait;
 
-// 定义一个动作实例
+// Defines an instance of a running action, holding its state
 typedef struct {
-    RegisteredAction action; // 动作定义
-    uint32_t remaining_steps; // 剩余步数
-    uint32_t start_time_ms;   // 开始时间
+    RegisteredAction action;    // The definition of the action
+    uint32_t remaining_steps;   // Number of remaining repetitions
+    uint32_t start_time_ms;     // Start time of the current step/cycle
+
+    // State for keyframe animations
+    uint8_t current_keyframe_index; // Index of the current target keyframe
+    uint32_t transition_start_time_ms; // Start time of the transition to the current keyframe
+    float start_positions[GAIT_JOINT_COUNT]; // Servo positions at the beginning of the transition
+
 } ActionInstance;
