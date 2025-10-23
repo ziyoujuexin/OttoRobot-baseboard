@@ -153,6 +153,7 @@ bool gc9a01_lvgl_driver_init(void) {
         .quadwp_io_num = -1,
         .quadhd_io_num = -1,
         .max_transfer_sz = LCD_H_RES * 120 * sizeof(uint16_t),
+        .isr_cpu_id = (esp_intr_cpu_affinity_t)0,
     };
     ESP_ERROR_CHECK(spi_bus_initialize(LCD_HOST, &buscfg, SPI_DMA_CH_AUTO));
     ESP_LOGI(TAG, "SPI bus initialized.");
@@ -172,7 +173,7 @@ bool gc9a01_lvgl_driver_init(void) {
         .dc_gpio_num = PIN_NUM_DC,
         .spi_mode = 0,
         .pclk_hz = SPI_SPEED_HZ,
-        .trans_queue_depth = 10,
+        .trans_queue_depth = 20,
         .lcd_cmd_bits = 8,
         .lcd_param_bits = 8,
     };
@@ -207,7 +208,7 @@ bool gc9a01_lvgl_driver_init(void) {
         .dc_gpio_num = PIN_NUM_DC,
         .spi_mode = 0,
         .pclk_hz = SPI_SPEED_HZ,
-        .trans_queue_depth = 10,
+        .trans_queue_depth = 20,
         .lcd_cmd_bits = 8,
         .lcd_param_bits = 8,
     };

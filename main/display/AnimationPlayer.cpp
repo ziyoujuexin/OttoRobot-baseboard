@@ -157,6 +157,6 @@ void AnimationPlayer::player_task() {
         }
 
         // 4. Wait for next cycle
-        vTaskDelay(pdMS_TO_TICKS(100));
+        vTaskDelay(pdMS_TO_TICKS(10));
     }
 }
