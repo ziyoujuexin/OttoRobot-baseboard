@@ -2,6 +2,7 @@
 #include "driver/spi_master.h"
 #include "driver/gpio.h"
 #include "esp_log.h"
+#include "esp_timer.h"
 #include "esp_lcd_panel_io.h"
 #include "esp_lcd_panel_ops.h"
 #include "esp_lcd_gc9a01.h"
@@ -10,11 +11,14 @@
 
 static const char* TAG = "GC9A01_driver";
 
-#define SPI_SPEED_HZ 40 * 1000 * 1000
-
-
+#define SPI_SPEED_HZ 80 * 1000 * 1000
 
 static bool g_mirror_mode_enabled = false;
+
+// The LVGL tick hook is a FreeRTOS requirement and can stay global.
+void lv_tick_task(void* arg) {
+    lv_tick_inc(1); // RTOS run 1000Hz
+}
 
 void set_mirror_mode(bool enabled) {
     g_mirror_mode_enabled = enabled;
@@ -53,7 +57,9 @@ static void lvgl_flush_cb(lv_display_t* disp, const lv_area_t* area, uint8_t* px
     
     if (g_mirror_mode_enabled) {
         esp_lcd_panel_draw_bitmap(panel_handle_right, offsetx1, offsety1, offsetx2 + 1, offsety2 + 1, px_map);
+        lv_disp_flush_ready(disp_right);
     }
+    lv_disp_flush_ready(disp);
 }
 
 static void lvgl_flush_cb_sec(lv_display_t* disp, const lv_area_t* area, uint8_t* px_map) {
@@ -232,6 +238,7 @@ bool gc9a01_lvgl_driver_init(void) {
     lv_color_t* buf_left = (lv_color_t*)heap_caps_malloc(LCD_H_RES * 60 * sizeof(lv_color_t), MALLOC_CAP_SPIRAM);
     lv_color_t* buf_left_sec = (lv_color_t*)heap_caps_malloc(LCD_H_RES * 60 * sizeof(lv_color_t), MALLOC_CAP_SPIRAM);
     assert(buf_left);
+    assert(buf_left_sec);
     lv_display_set_buffers(disp_left, buf_left, buf_left_sec, LCD_H_RES * 60 * sizeof(lv_color_t), LV_DISPLAY_RENDER_MODE_PARTIAL);
     ESP_LOGI(TAG, "Left screen registered.");
 
@@ -244,9 +251,18 @@ bool gc9a01_lvgl_driver_init(void) {
     lv_color_t* buf_right = (lv_color_t*)heap_caps_malloc(LCD_H_RES * 60  * sizeof(lv_color_t), MALLOC_CAP_SPIRAM);
     lv_color_t* buf_right_sec = (lv_color_t*)heap_caps_malloc(LCD_H_RES * 60  * sizeof(lv_color_t), MALLOC_CAP_SPIRAM);
     assert(buf_right);
+    assert(buf_right_sec);
     lv_display_set_buffers(disp_right, buf_right, buf_right_sec, LCD_H_RES * 60  * sizeof(lv_color_t), LV_DISPLAY_RENDER_MODE_PARTIAL);
     ESP_LOGI(TAG, "Right screen registered.");
     ESP_LOGW(TAG, "Heap after display init: %d", esp_get_free_heap_size());
+
+    const esp_timer_create_args_t lvgl_tick_timer_args = {
+        .callback = &lv_tick_task,
+        .name = "lvgl_tick"
+    };
+    esp_timer_handle_t lvgl_tick_timer = NULL;
+    ESP_ERROR_CHECK(esp_timer_create(&lvgl_tick_timer_args, &lvgl_tick_timer));
+    ESP_ERROR_CHECK(esp_timer_start_periodic(lvgl_tick_timer, 1000));
     return true;
 }
 

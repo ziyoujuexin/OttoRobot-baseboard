@@ -42,7 +42,7 @@ void UIManager::lvgl_task(void *pvParameter) {
     // Initialize LVGL objects in the context of the LVGL task
     self->m_display_manager->init();
     
-    uint32_t task_delay_ms = 5;
+    uint32_t task_delay_ms = 10;
     AnimationPair current_anim_pair; // Holds the currently loaded animation data
 
     // ESP_ERROR_CHECK(esp_task_wdt_delete(xTaskGetCurrentTaskHandle())); // Remove WDT for this task
@@ -66,9 +66,17 @@ void UIManager::lvgl_task(void *pvParameter) {
 
             // Force a yield here to allow other tasks (like idle task for WDT) to run
             // before potentially processing another command from the queue immediately.
-            vTaskDelay(pdMS_TO_TICKS(10));
+            // vTaskDelay(pdMS_TO_TICKS(10));
         }
-
+        // static uint32_t time_next;
+        // // 2. Standard LVGL handler loop
+        // if(xSemaphoreTake(self->m_lvgl_mutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+        //     time_next = lv_timer_handler();
+        //     vTaskDelay(pdMS_TO_TICKS(time_next));
+        //     xSemaphoreGive(self->m_lvgl_mutex);
+        // } else {
+        //     ESP_LOGW(TAG, "LVGL mutex take timed out");
+        // }
         // 2. Standard LVGL handler loop
         if(xSemaphoreTake(self->m_lvgl_mutex, pdMS_TO_TICKS(100)) == pdTRUE) {
             lv_timer_handler_run_in_period(task_delay_ms);
@@ -76,6 +84,6 @@ void UIManager::lvgl_task(void *pvParameter) {
         } else {
             ESP_LOGW(TAG, "LVGL mutex take timed out");
         }
-        vTaskDelay(pdMS_TO_TICKS(task_delay_ms));
+        // vTaskDelay(pdMS_TO_TICKS(task_delay_ms));
     }
 }

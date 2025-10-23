@@ -39,7 +39,7 @@ void AnimationPlayer::start() {
 
     // Post a command to the UI task to play the initial default animation
     UiCommand initial_cmd;
-    strncpy(initial_cmd.animation_name, "eyec", sizeof(initial_cmd.animation_name) - 1);
+    strncpy(initial_cmd.animation_name, "中眨眼_2_69s", sizeof(initial_cmd.animation_name) - 1);
     initial_cmd.animation_name[sizeof(initial_cmd.animation_name) - 1] = '\0';
     xQueueSend(m_ui_command_queue, &initial_cmd, 0);
 }
@@ -138,7 +138,7 @@ void AnimationPlayer::player_task() {
                 if (xTaskGetTickCount() - m_one_shot_start_time >= current_one_shot_duration) {
                     ESP_LOGI(TAG, "One-shot '%s' finished, returning to default.", m_current_anim_name.c_str());
                     m_current_state = PlayerState::PLAYING_DEFAULT;
-                    m_current_anim_name = "eyec";
+                    m_current_anim_name = "中眨眼_2_69s";
                     animation_needs_update = true;
                 }
             }
