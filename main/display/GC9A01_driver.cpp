@@ -57,16 +57,16 @@ static void lvgl_flush_cb(lv_display_t* disp, const lv_area_t* area, uint8_t* px
     
     if (g_mirror_mode_enabled) {
         esp_lcd_panel_draw_bitmap(panel_handle_right, offsetx1, offsety1, offsetx2 + 1, offsety2 + 1, px_map);
-        lv_disp_flush_ready(disp_right);
+        // lv_disp_flush_ready(disp_right);
     }
-    lv_disp_flush_ready(disp);
+    // lv_disp_flush_ready(disp);
 }
 
 static void lvgl_flush_cb_sec(lv_display_t* disp, const lv_area_t* area, uint8_t* px_map) {
     if (g_mirror_mode_enabled) {
         // In mirror mode, the left screen's flush callback handles both screens.
         // We just need to notify LVGL that this display is ready for the next frame.
-        lv_display_flush_ready(disp);
+        // lv_display_flush_ready(disp);
         return;
     }
 
@@ -152,7 +152,7 @@ bool gc9a01_lvgl_driver_init(void) {
         .sclk_io_num = PIN_NUM_SCLK,
         .quadwp_io_num = -1,
         .quadhd_io_num = -1,
-        .max_transfer_sz = LCD_H_RES * 120 * sizeof(uint16_t),
+        .max_transfer_sz = LCD_H_RES * 40 * sizeof(lv_color_t),
         .isr_cpu_id = (esp_intr_cpu_affinity_t)0,
     };
     ESP_ERROR_CHECK(spi_bus_initialize(LCD_HOST, &buscfg, SPI_DMA_CH_AUTO));
@@ -236,11 +236,11 @@ bool gc9a01_lvgl_driver_init(void) {
     ESP_ERROR_CHECK(esp_lcd_panel_io_register_event_callbacks(io_handle_left, &cbs, disp_left));
     lv_display_set_flush_cb(disp_left, lvgl_flush_cb);
     lv_display_set_user_data(disp_left, panel_handle_left);
-    lv_color_t* buf_left = (lv_color_t*)heap_caps_malloc(LCD_H_RES * 60 * sizeof(lv_color_t), MALLOC_CAP_SPIRAM);
-    lv_color_t* buf_left_sec = (lv_color_t*)heap_caps_malloc(LCD_H_RES * 60 * sizeof(lv_color_t), MALLOC_CAP_SPIRAM);
+    lv_color_t* buf_left = (lv_color_t*)heap_caps_malloc(LCD_H_RES * 20 * sizeof(lv_color_t), MALLOC_CAP_SPIRAM);
+    lv_color_t* buf_left_sec = (lv_color_t*)heap_caps_malloc(LCD_H_RES * 20 * sizeof(lv_color_t), MALLOC_CAP_SPIRAM);
     assert(buf_left);
     assert(buf_left_sec);
-    lv_display_set_buffers(disp_left, buf_left, buf_left_sec, LCD_H_RES * 60 * sizeof(lv_color_t), LV_DISPLAY_RENDER_MODE_PARTIAL);
+    lv_display_set_buffers(disp_left, buf_left, buf_left_sec, LCD_H_RES * 20 * sizeof(lv_color_t), LV_DISPLAY_RENDER_MODE_PARTIAL);
     ESP_LOGI(TAG, "Left screen registered.");
 
     // --- Register Right Screen with LVGL ---
@@ -249,11 +249,11 @@ bool gc9a01_lvgl_driver_init(void) {
     ESP_ERROR_CHECK(esp_lcd_panel_io_register_event_callbacks(io_handle_right, &cbs_sec, disp_right));
     lv_display_set_flush_cb(disp_right, lvgl_flush_cb_sec);
     lv_display_set_user_data(disp_right, panel_handle_right);
-    lv_color_t* buf_right = (lv_color_t*)heap_caps_malloc(LCD_H_RES * 60  * sizeof(lv_color_t), MALLOC_CAP_SPIRAM);
-    lv_color_t* buf_right_sec = (lv_color_t*)heap_caps_malloc(LCD_H_RES * 60  * sizeof(lv_color_t), MALLOC_CAP_SPIRAM);
+    lv_color_t* buf_right = (lv_color_t*)heap_caps_malloc(LCD_H_RES * 20  * sizeof(lv_color_t), MALLOC_CAP_SPIRAM);
+    lv_color_t* buf_right_sec = (lv_color_t*)heap_caps_malloc(LCD_H_RES * 20  * sizeof(lv_color_t), MALLOC_CAP_SPIRAM);
     assert(buf_right);
     assert(buf_right_sec);
-    lv_display_set_buffers(disp_right, buf_right, buf_right_sec, LCD_H_RES * 60  * sizeof(lv_color_t), LV_DISPLAY_RENDER_MODE_PARTIAL);
+    lv_display_set_buffers(disp_right, buf_right, buf_right_sec, LCD_H_RES * 20  * sizeof(lv_color_t), LV_DISPLAY_RENDER_MODE_PARTIAL);
     ESP_LOGI(TAG, "Right screen registered.");
     ESP_LOGW(TAG, "Heap after display init: %d", esp_get_free_heap_size());
 

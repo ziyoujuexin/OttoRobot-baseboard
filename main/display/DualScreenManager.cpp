@@ -56,7 +56,13 @@ void DualScreenManager::UpdateAnimationSource(const AnimationPair& anim_pair) {
     if (m_left_gif_obj) lv_obj_remove_flag(m_left_gif_obj, LV_OBJ_FLAG_HIDDEN);
     if (m_right_gif_obj) lv_obj_remove_flag(m_right_gif_obj, LV_OBJ_FLAG_HIDDEN);
 
-    // --- Set Left Screen --- 
+    // We'll only set flags and prepare descriptors here. Actual lv_gif_set_src
+    // and lv_gif_restart will be done once at the end so both screens start
+    // as close to simultaneously as possible.
+    bool update_left = false;
+    bool update_right = false;
+
+    // --- Prepare Left Screen ---
     if (m_left_gif_obj && anim_pair.left_anim.is_valid) {
         m_left_img_dsc.header.magic = LV_IMAGE_HEADER_MAGIC;
         m_left_img_dsc.header.w = 0;
@@ -64,13 +70,13 @@ void DualScreenManager::UpdateAnimationSource(const AnimationPair& anim_pair) {
         m_left_img_dsc.header.cf = LV_COLOR_FORMAT_UNKNOWN;
         m_left_img_dsc.data_size = anim_pair.left_anim.size;
         m_left_img_dsc.data = anim_pair.left_anim.data;
-        lv_gif_set_src(m_left_gif_obj, &m_left_img_dsc);
-        lv_gif_restart(m_left_gif_obj);
+        update_left = true;
     } else if (m_left_gif_obj) {
         lv_obj_add_flag(m_left_gif_obj, LV_OBJ_FLAG_HIDDEN);
+        update_left = false;
     }
 
-    // --- Set Right Screen --- 
+    // --- Prepare Right Screen ---
     if (m_right_gif_obj && anim_pair.right_anim.is_valid) {
         if (anim_pair.is_mirrored) {
             // In mirror mode, right screen uses the same descriptor as the left
@@ -84,10 +90,24 @@ void DualScreenManager::UpdateAnimationSource(const AnimationPair& anim_pair) {
             m_right_img_dsc.data_size = anim_pair.right_anim.size;
             m_right_img_dsc.data = anim_pair.right_anim.data;
         }
-        lv_gif_set_src(m_right_gif_obj, &m_right_img_dsc);
-        lv_gif_restart(m_right_gif_obj);
+        update_right = true;
     } else if (m_right_gif_obj) {
         lv_obj_add_flag(m_right_gif_obj, LV_OBJ_FLAG_HIDDEN);
+        update_right = false;
+    }
+
+    // --- Apply sources and restart GIFs together for best synchronization ---
+    if (update_left && m_left_gif_obj) {
+        lv_gif_set_src(m_left_gif_obj, &m_left_img_dsc);
+    }
+    if (update_right && m_right_gif_obj) {
+        lv_gif_set_src(m_right_gif_obj, &m_right_img_dsc);
+    }
+
+    // Restart both in quick succession so playback starts nearly synced.
+    if ((update_left || update_right)) {
+        if (update_left && m_left_gif_obj) lv_gif_restart(m_left_gif_obj);
+        if (update_right && m_right_gif_obj) lv_gif_restart(m_right_gif_obj);
     }
 }
 
