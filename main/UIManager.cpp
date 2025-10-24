@@ -23,7 +23,7 @@ void UIManager::init() {
         "lvgl_task", 
         4096, 
         this, // Pass the instance pointer
-        configMAX_PRIORITIES - 1, 
+        5, 
         &m_lvgl_task_handle, 
         0
     );
@@ -84,6 +84,6 @@ void UIManager::lvgl_task(void *pvParameter) {
         } else {
             ESP_LOGW(TAG, "LVGL mutex take timed out");
         }
-        // vTaskDelay(pdMS_TO_TICKS(task_delay_ms));
+        vTaskDelay(pdMS_TO_TICKS(task_delay_ms));
     }
 }

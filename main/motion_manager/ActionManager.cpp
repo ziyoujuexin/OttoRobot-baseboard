@@ -301,17 +301,18 @@ void ActionManager::register_default_actions(bool force) {
         angry.type = ActionType::GAIT_PERIODIC;
         angry.is_atomic = true;
         angry.default_steps = 4;
-        angry.data.gait.gait_period_ms = 900;
-        angry.data.gait.params.offset[static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT)] = -10;
-        angry.data.gait.params.offset[static_cast<uint8_t>(ServoChannel::RIGHT_ANKLE_LIFT)] = 10;
+        angry.data.gait.gait_period_ms = 1000;
+        angry.data.gait.params.amplitude[static_cast<uint8_t>(ServoChannel::LEFT_ARM_LIFT)] = 10;
+        angry.data.gait.params.amplitude[static_cast<uint8_t>(ServoChannel::RIGHT_ARM_LIFT)] = 10;
         angry.data.gait.params.amplitude[static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT)] = 20;
         angry.data.gait.params.amplitude[static_cast<uint8_t>(ServoChannel::RIGHT_ANKLE_LIFT)] = 20;
         angry.data.gait.params.phase_diff[static_cast<uint8_t>(ServoChannel::RIGHT_ANKLE_LIFT)] = PI;
-        angry.data.gait.params.offset[static_cast<uint8_t>(ServoChannel::LEFT_LEG_ROTATE)] = 20;
-        angry.data.gait.params.offset[static_cast<uint8_t>(ServoChannel::RIGHT_LEG_ROTATE)] = 20;
-        angry.data.gait.params.offset[static_cast<uint8_t>(ServoChannel::HEAD_TILT)] = 20;
         angry.data.gait.params.offset[static_cast<uint8_t>(ServoChannel::LEFT_EAR_SWING)] = -30;
         angry.data.gait.params.offset[static_cast<uint8_t>(ServoChannel::RIGHT_EAR_SWING)] = 30;
+        angry.data.gait.params.offset[static_cast<uint8_t>(ServoChannel::HEAD_TILT)] = 20;
+        angry.data.gait.params.offset[static_cast<uint8_t>(ServoChannel::LEFT_ARM_LIFT)] = 20;
+        angry.data.gait.params.offset[static_cast<uint8_t>(ServoChannel::RIGHT_ARM_LIFT)] = -20;
+        angry.data.gait.params.offset[static_cast<uint8_t>(ServoChannel::LEFT_ANKLE_LIFT)] = 10;
         m_storage->save_action(angry);
         m_action_cache[angry.name] = angry;
     }

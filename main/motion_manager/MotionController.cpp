@@ -112,9 +112,9 @@ void MotionController::init() {
 
     m_decision_maker->start(); // Start the new decision maker task
 
-    xTaskCreate(start_task_wrapper, "motion_engine_task", 8192, this, 5, NULL);
-    xTaskCreate(start_mixer_task_wrapper, "motion_mixer_task", 4096, this, 6, NULL); // Higher priority for mixer
-    xTaskCreate(start_face_tracking_task_wrapper, "face_tracking_task", 4096, this, 5, NULL);
+    xTaskCreate(start_task_wrapper, "motion_engine_task", 8192, this, 6, NULL);
+    xTaskCreate(start_mixer_task_wrapper, "motion_mixer_task", 4096, this, 7, NULL); // Higher priority for mixer
+    xTaskCreate(start_face_tracking_task_wrapper, "face_tracking_task", 4096, this, 6, NULL);
     ESP_LOGI(TAG, "Motion Controller initialized and tasks started.");
 }
 
