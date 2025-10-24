@@ -3,7 +3,6 @@
 #include "nvs.h"
 #include "esp_log.h"
 #include <cstring>
-#include <vector>
 
 static const char* TAG = "MotionStorage";
 
@@ -38,35 +37,7 @@ bool MotionStorage::save_action(const RegisteredAction& action) {
     char key[NVS_KEY_NAME_MAX_SIZE];
     snprintf(key, sizeof(key), "%s", action.name);
 
-    // Serialization
-    size_t vector_size = action.harmonic_terms.size() * sizeof(motion_params_t);
-    size_t total_size = sizeof(action.name) + sizeof(action.type) + sizeof(action.is_atomic) + sizeof(action.default_steps) + sizeof(action.gait_period_ms) + sizeof(action.easing_type) + sizeof(size_t) + vector_size;
-
-    std::vector<uint8_t> buffer(total_size);
-    uint8_t* ptr = buffer.data();
-
-    memcpy(ptr, action.name, sizeof(action.name));
-    ptr += sizeof(action.name);
-    memcpy(ptr, &action.type, sizeof(action.type));
-    ptr += sizeof(action.type);
-    memcpy(ptr, &action.is_atomic, sizeof(action.is_atomic));
-    ptr += sizeof(action.is_atomic);
-    memcpy(ptr, &action.default_steps, sizeof(action.default_steps));
-    ptr += sizeof(action.default_steps);
-    memcpy(ptr, &action.gait_period_ms, sizeof(action.gait_period_ms));
-    ptr += sizeof(action.gait_period_ms);
-    memcpy(ptr, &action.easing_type, sizeof(action.easing_type));
-    ptr += sizeof(action.easing_type);
-
-    size_t num_terms = action.harmonic_terms.size();
-    memcpy(ptr, &num_terms, sizeof(size_t));
-    ptr += sizeof(size_t);
-
-    if (!action.harmonic_terms.empty()) {
-        memcpy(ptr, action.harmonic_terms.data(), vector_size);
-    }
-
-    err = nvs_set_blob(handle, key, buffer.data(), total_size);
+    err = nvs_set_blob(handle, key, &action, sizeof(RegisteredAction));
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Failed to save action '%s'. Error: %s", key, esp_err_to_name(err));
     } else {
@@ -92,52 +63,15 @@ bool MotionStorage::load_action(const char* name, RegisteredAction& action) {
         return false;
     }
 
-    size_t required_size;
-    err = nvs_get_blob(handle, name, NULL, &required_size);
-    if (err != ESP_OK) {
-        nvs_close(handle);
-        if (err != ESP_ERR_NVS_NOT_FOUND) {
-            ESP_LOGE(TAG, "Failed to get size of action '%s'. Error: %s", name, esp_err_to_name(err));
-        }
-        return false;
-    }
-
-    std::vector<uint8_t> buffer(required_size);
-    err = nvs_get_blob(handle, name, buffer.data(), &required_size);
+    size_t required_size = sizeof(RegisteredAction);
+    err = nvs_get_blob(handle, name, &action, &required_size);
     nvs_close(handle);
 
-    if (err != ESP_OK) {
+    if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND) {
         ESP_LOGE(TAG, "Failed to load action '%s'. Error: %s", name, esp_err_to_name(err));
-        return false;
     }
-
-    // Deserialization
-    uint8_t* ptr = buffer.data();
-
-    memcpy(action.name, ptr, sizeof(action.name));
-    ptr += sizeof(action.name);
-    memcpy(&action.type, ptr, sizeof(action.type));
-    ptr += sizeof(action.type);
-    memcpy(&action.is_atomic, ptr, sizeof(action.is_atomic));
-    ptr += sizeof(action.is_atomic);
-    memcpy(&action.default_steps, ptr, sizeof(action.default_steps));
-    ptr += sizeof(action.default_steps);
-    memcpy(&action.gait_period_ms, ptr, sizeof(action.gait_period_ms));
-    ptr += sizeof(action.gait_period_ms);
-    memcpy(&action.easing_type, ptr, sizeof(action.easing_type));
-    ptr += sizeof(action.easing_type);
-
-    size_t num_terms;
-    memcpy(&num_terms, ptr, sizeof(size_t));
-    ptr += sizeof(size_t);
-
-    action.harmonic_terms.resize(num_terms);
-    if (num_terms > 0) {
-        size_t vector_size = num_terms * sizeof(motion_params_t);
-        memcpy(action.harmonic_terms.data(), ptr, vector_size);
-    }
-
-    return true;
+    
+    return err == ESP_OK;
 }
 
 bool MotionStorage::delete_action(const char* name) {

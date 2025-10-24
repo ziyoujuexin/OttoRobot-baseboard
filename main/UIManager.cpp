@@ -23,7 +23,7 @@ void UIManager::init() {
         "lvgl_task", 
         4096, 
         this, // Pass the instance pointer
-        configMAX_PRIORITIES - 1, 
+        5, 
         &m_lvgl_task_handle, 
         0
     );
