@@ -41,7 +41,7 @@ private:
     PlayerState m_current_state = PlayerState::PLAYING_DEFAULT;
     std::string m_current_anim_name = "中眨眼_2_69s";
     TickType_t m_one_shot_start_time = 0;
-    float m_time_scale_percent = 0.926f; // Speed adjustment factor
+
 };
 
 #endif // ANIMATION_PLAYER_H
