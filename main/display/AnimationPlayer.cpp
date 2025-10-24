@@ -39,7 +39,7 @@ void AnimationPlayer::start() {
 
     // Post a command to the UI task to play the initial default animation
     UiCommand initial_cmd;
-    strncpy(initial_cmd.animation_name, "eyec", sizeof(initial_cmd.animation_name) - 1);
+    strncpy(initial_cmd.animation_name, "中眨眼_2_69s", sizeof(initial_cmd.animation_name) - 1);
     initial_cmd.animation_name[sizeof(initial_cmd.animation_name) - 1] = '\0';
     xQueueSend(m_ui_command_queue, &initial_cmd, 0);
 }
@@ -73,6 +73,7 @@ void AnimationPlayer::player_task() {
 
             // --- Animation Duration Parsing Logic ---
             current_one_shot_duration = pdMS_TO_TICKS(5000); // Default duration
+            float time_scale = 1.26f; // Default time scale
 
             std::string name_str(m_current_anim_name);
 
@@ -82,7 +83,28 @@ void AnimationPlayer::player_task() {
                 name_str.erase(name_str.length() - extension.length());
             }
 
-            // 2. Count underscores
+            // 2. Check for and parse a custom time scale factor at the end of the name (e.g., "_x1.2" or "_x0.8")
+            size_t last_underscore_pos = name_str.rfind('_');
+            if (last_underscore_pos != std::string::npos && last_underscore_pos < name_str.length() - 1 && name_str[last_underscore_pos + 1] == 'x') {
+                // We found a potential scale factor like "_x..."
+                std::string scale_val_str = name_str.substr(last_underscore_pos + 2);
+                char* end;
+                const char* start = scale_val_str.c_str();
+                float parsed_scale = strtof(start, &end);
+
+                // Check if the entire scale string was a valid float
+                if (start != end && *end == '\0' && errno != ERANGE) {
+                    time_scale = parsed_scale;
+                    ESP_LOGI(TAG, "Animation '%s': Found custom time scale 'x%s'. Applying factor %.2f.", m_current_anim_name.c_str(), scale_val_str.c_str(), time_scale);
+                } else {
+                    ESP_LOGW(TAG, "Animation '%s': Found '_x' but failed to parse scale value '%s'. Using default scale.", m_current_anim_name.c_str(), scale_val_str.c_str());
+                }
+                // In either case (success or failure), remove the scale part from the name string
+                // so it doesn't interfere with duration parsing.
+                name_str.erase(last_underscore_pos);
+            }
+
+            // 3. Count underscores for duration parsing
             int underscore_count = 0;
             for (char c : name_str) {
                 if (c == '_') {
@@ -90,7 +112,7 @@ void AnimationPlayer::player_task() {
                 }
             }
 
-            // 3. Apply rules based on underscore count
+            // 4. Apply rules based on underscore count
             if (underscore_count == 0) {
                 ESP_LOGI(TAG, "Animation '%s': 0 underscores, using default 5s duration.", m_current_anim_name.c_str());
             } else if (name_str.back() != 's') {
@@ -107,8 +129,8 @@ void AnimationPlayer::player_task() {
                 if (start == end || *end != '\0' || errno == ERANGE) {
                     ESP_LOGW(TAG, "Animation '%s': Invalid integer format for duration '%s'. Using default 5s.", m_current_anim_name.c_str(), duration_val.c_str());
                 } else {
-                    current_one_shot_duration = pdMS_TO_TICKS(static_cast<int>(duration_sec_long) * 1000.0f * m_time_scale_percent);
-                    ESP_LOGI(TAG, "Animation '%s': Parsed integer duration: %d seconds.", m_current_anim_name.c_str(), static_cast<int>(duration_sec_long));
+                    current_one_shot_duration = pdMS_TO_TICKS(static_cast<uint32_t>(duration_sec_long * 1000.0f * time_scale));
+                    ESP_LOGI(TAG, "Animation '%s': Parsed integer duration: %d seconds. Scaled to %u ms.", m_current_anim_name.c_str(), static_cast<int>(duration_sec_long), (uint32_t)(duration_sec_long * 1000.0f * time_scale));
                 }
             } else if (underscore_count == 2) {
                 // Case: name_1_5s
@@ -125,8 +147,8 @@ void AnimationPlayer::player_task() {
                 if (start == end || *end != '\0' || errno == ERANGE) {
                     ESP_LOGW(TAG, "Animation '%s': Invalid float format for duration '%s'. Using default 5s.", m_current_anim_name.c_str(), float_str.c_str());
                 } else {
-                    current_one_shot_duration = pdMS_TO_TICKS(static_cast<uint32_t>(duration_sec * 1000.0f * m_time_scale_percent));
-                    ESP_LOGI(TAG, "Animation '%s': Parsed float duration: %.2f seconds.", m_current_anim_name.c_str(), duration_sec);
+                    current_one_shot_duration = pdMS_TO_TICKS(static_cast<uint32_t>(duration_sec * 1000.0f * time_scale));
+                    ESP_LOGI(TAG, "Animation '%s': Parsed float duration: %.2f seconds. Scaled to %u ms.", m_current_anim_name.c_str(), duration_sec, (uint32_t)(duration_sec * 1000.0f * time_scale));
                 }
             } else {
                 ESP_LOGW(TAG, "Animation '%s': Invalid format (>2 underscores), using default 5s.", m_current_anim_name.c_str());
@@ -138,7 +160,7 @@ void AnimationPlayer::player_task() {
                 if (xTaskGetTickCount() - m_one_shot_start_time >= current_one_shot_duration) {
                     ESP_LOGI(TAG, "One-shot '%s' finished, returning to default.", m_current_anim_name.c_str());
                     m_current_state = PlayerState::PLAYING_DEFAULT;
-                    m_current_anim_name = "eyec";
+                    m_current_anim_name = "中眨眼_2_69s";
                     animation_needs_update = true;
                 }
             }
@@ -157,6 +179,6 @@ void AnimationPlayer::player_task() {
         }
 
         // 4. Wait for next cycle
-        vTaskDelay(pdMS_TO_TICKS(100));
+        vTaskDelay(pdMS_TO_TICKS(10));
     }
 }

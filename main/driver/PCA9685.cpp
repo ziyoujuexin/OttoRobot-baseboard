@@ -1,5 +1,6 @@
 #include "PCA9685.hpp"
 #include <esp_log.h>
+#include <cstring>
 #include <i2cdev.h>
 
 static const char *TAG = "PCA9685";
