@@ -84,6 +84,8 @@ private:
     std::atomic<bool> m_is_tracking_active;
     int64_t m_last_tracking_turn_end_time;
     std::atomic<bool> m_is_head_frozen;
+    std::atomic<bool> m_is_manual_control_active; // New: Flag for manual servo control
+    int64_t m_manual_control_timeout_us; // New: Timeout for manual control
     std::atomic<bool> m_is_executed{false};
 
 private:

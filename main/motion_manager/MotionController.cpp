@@ -1,4 +1,5 @@
 #include "MotionController.hpp"
+#include "motion_manager/ServoCalibration.hpp"
 #include "esp_log.h"
 #include <cmath>
 #include <string.h>
@@ -17,7 +18,9 @@ MotionController::MotionController(Servo& servo_driver, ActionManager& action_ma
       m_motion_queue(NULL),
       m_actions_mutex(NULL),
       m_interrupt_flag(false),
-      m_increment_was_limited_last_cycle(false) 
+      m_increment_was_limited_last_cycle(false),
+      m_is_manual_control_active(false), // Initialize new member
+      m_manual_control_timeout_us(0) // Initialize new member
 {
     m_decision_maker = std::make_unique<DecisionMaker>(*this);
 }
@@ -56,7 +59,7 @@ void MotionController::init() {
     m_gait_command_map[MOTION_SINGLE_LEG] = "single_leg";
     m_gait_command_map[MOTION_FACE_TRACE] = "face_trace";
     m_gait_command_map[MOTION_HAPPY] = "happy";
-    m_gait_command_map[MOTION_SAD] = "sad";
+    m_gait_command_map[MOTION_SAD] = "look_around"; // Renamed
     m_gait_command_map[MOTION_SILLY] = "silly";
     m_gait_command_map[MOTION_FUNNY] = "funny";
     m_gait_command_map[MOTION_LAUGHING] = "laughing";
@@ -124,6 +127,9 @@ bool MotionController::queue_command(const motion_command_t& cmd) {
         m_interrupt_flag.store(true);
     }
 
+    // Clear manual control flag if a new action is queued
+    m_is_manual_control_active.store(false);
+
     if (xQueueSend(m_motion_queue, &cmd, 0) != pdTRUE) {
         ESP_LOGW(TAG, "Motion queue is full. Command dropped.");
         return false;
@@ -174,6 +180,8 @@ void MotionController::motion_engine_task() {
                 m_is_tracking_active.store(false); // Deactivate face tracking
                 m_interrupt_flag.store(false);
                 home();
+                // Clear manual control flag on STOP
+                m_is_manual_control_active.store(false);
                 continue;
             }
 
@@ -192,6 +200,9 @@ void MotionController::motion_engine_task() {
                     xSemaphoreGive(m_actions_mutex);
                     continue;
                 }
+
+                // Clear manual control flag if a new action is about to be added
+                m_is_manual_control_active.store(false);
 
                 // Helper to create and add a new action instance
                 auto add_new_action = [&](const RegisteredAction* action_template) {
@@ -216,9 +227,9 @@ void MotionController::motion_engine_task() {
                     if (new_instance.action.type == ActionType::KEYFRAME_SEQUENCE) {
                         new_instance.current_keyframe_index = 0;
                         new_instance.transition_start_time_ms = new_instance.start_time_ms;
-                        // Initialize start positions to home (90 degrees) for the first transition
+                        // Initialize start positions to calibrated home for the first transition
                         for (int i = 0; i < GAIT_JOINT_COUNT; ++i) {
-                            new_instance.start_positions[i] = 90.0f;
+                            new_instance.start_positions[i] = ServoCalibration::get_home_pos(static_cast<ServoChannel>(i));
                         }
                     }
 
@@ -306,65 +317,88 @@ void MotionController::motion_mixer_task() {
 
         if (xSemaphoreTake(m_actions_mutex, portMAX_DELAY) == pdTRUE) {
             
-            // --- Process all active actions ---
-            for (auto& instance : m_active_actions) {
-                // --- Handle Head Tracking Action Separately ---
-                if (strcmp(instance.action.name, "head_track") == 0) {
-                    instance.action.data.gait.params.offset[static_cast<uint8_t>(ServoChannel::HEAD_PAN)] = m_head_tracking_action.action.data.gait.params.offset[static_cast<uint8_t>(ServoChannel::HEAD_PAN)];
-                    instance.action.data.gait.params.offset[static_cast<uint8_t>(ServoChannel::HEAD_TILT)] = m_head_tracking_action.action.data.gait.params.offset[static_cast<uint8_t>(ServoChannel::HEAD_TILT)];
+            // Check for manual control timeout
+            if (m_is_manual_control_active.load()) {
+                if (esp_timer_get_time() > m_manual_control_timeout_us) {
+                    m_is_manual_control_active.store(false);
+                    ESP_LOGI(TAG, "Manual control timed out. Returning to idle behavior.");
                 }
+            }
 
-                // --- Switch based on Action Type ---
-                switch (instance.action.type) {
-                    case ActionType::GAIT_PERIODIC: {
-                        uint32_t period_ms = instance.action.data.gait.gait_period_ms;
-                        if (period_ms == 0) continue;
+            if (m_active_actions.empty() && !m_is_manual_control_active.load()) { // Only go home if idle AND not in manual control
+                is_active = false;
+                for (int i = 0; i < GAIT_JOINT_COUNT; ++i) {
+                    final_angles[i] = ServoCalibration::get_home_pos(static_cast<ServoChannel>(i));
+                }
+            } else if (!m_active_actions.empty()) { // Process active actions if any
+                is_active = true;
+                // --- Process all active actions ---
+                for (auto& instance : m_active_actions) {
+                    // --- Handle Head Tracking Action Separately ---
+                    if (strcmp(instance.action.name, "head_track") == 0) {
+                        instance.action.data.gait.params.offset[static_cast<uint8_t>(ServoChannel::HEAD_PAN)] = m_head_tracking_action.action.data.gait.params.offset[static_cast<uint8_t>(ServoChannel::HEAD_PAN)];
+                        instance.action.data.gait.params.offset[static_cast<uint8_t>(ServoChannel::HEAD_TILT)] = m_head_tracking_action.action.data.gait.params.offset[static_cast<uint8_t>(ServoChannel::HEAD_TILT)];
+                    }
 
-                        float t = (float)((current_time_ms - instance.start_time_ms) % period_ms) / period_ms;
+                    // --- Switch based on Action Type ---
+                    switch (instance.action.type) {
+                        case ActionType::GAIT_PERIODIC: {
+                            uint32_t period_ms = instance.action.data.gait.gait_period_ms;
+                            if (period_ms == 0) continue;
 
-                        for (int i = 0; i < GAIT_JOINT_COUNT; ++i) {
-                            if (final_angles[i] >= 0.0f) continue; // Don't override already set angles
+                            float t = (float)((current_time_ms - instance.start_time_ms) % period_ms) / period_ms;
 
-                            float amp = instance.action.data.gait.params.amplitude[i];
-                            float offset = instance.action.data.gait.params.offset[i];
-                            
-                            if (std::abs(amp) > 0.01f || std::abs(offset) > 0.01f) {
-                                float wave_component = (std::abs(amp) > 0.01f) 
-                                                     ? amp * sin(2 * PI * t + instance.action.data.gait.params.phase_diff[i]) 
-                                                     : 0.0f;
-                                float angle = 90.0f + offset + wave_component;
-                                final_angles[i] = std::max(0.0f, std::min(180.0f, angle));
+                            for (int i = 0; i < GAIT_JOINT_COUNT; ++i) {
+                                if (final_angles[i] >= 0.0f) continue; // Don't override already set angles
+
+                                float amp = instance.action.data.gait.params.amplitude[i];
+                                float offset = instance.action.data.gait.params.offset[i];
+                                
+                                if (std::abs(amp) > 0.01f || std::abs(offset) > 0.01f) {
+                                    float wave_component = (std::abs(amp) > 0.01f) 
+                                                         ? amp * sin(2 * PI * t + instance.action.data.gait.params.phase_diff[i]) 
+                                                         : 0.0f;
+                                    
+                                    float home_pos = ServoCalibration::get_home_pos(static_cast<ServoChannel>(i));
+                                    float angle = home_pos + offset + wave_component;
+                                    const auto& limit = ServoCalibration::limits[i];
+                                    final_angles[i] = std::max(limit.min, std::min(limit.max, angle));
+                                }
                             }
+                            break;
                         }
-                        break;
-                    }
 
-                    case ActionType::KEYFRAME_SEQUENCE: {
-                        const auto& keyframe_data = instance.action.data.keyframe;
-                        if (keyframe_data.frame_count == 0) continue;
+                        case ActionType::KEYFRAME_SEQUENCE: {
+                            const auto& keyframe_data = instance.action.data.keyframe;
+                            if (keyframe_data.frame_count == 0) continue;
 
-                        // Get current and next keyframes
-                        const auto& target_frame = keyframe_data.frames[instance.current_keyframe_index];
-                        uint32_t transition_duration = target_frame.transition_time_ms;
-                        if (transition_duration == 0) transition_duration = 1; // Avoid division by zero
+                            // Get current and next keyframes
+                            const auto& target_frame = keyframe_data.frames[instance.current_keyframe_index];
+                            uint32_t transition_duration = target_frame.transition_time_ms;
+                            if (transition_duration == 0) transition_duration = 1; // Avoid division by zero
 
-                        // Calculate interpolation progress (alpha)
-                        uint32_t elapsed_in_transition = current_time_ms - instance.transition_start_time_ms;
-                        float alpha = (float)elapsed_in_transition / (float)transition_duration;
-                        alpha = std::max(0.0f, std::min(1.0f, alpha)); // Clamp alpha
+                            // Calculate interpolation progress (alpha)
+                            uint32_t elapsed_in_transition = current_time_ms - instance.transition_start_time_ms;
+                            float alpha = (float)elapsed_in_transition / (float)transition_duration;
+                            alpha = std::max(0.0f, std::min(1.0f, alpha)); // Clamp alpha
 
-                        // Interpolate for each joint
-                        for (int i = 0; i < GAIT_JOINT_COUNT; ++i) {
-                            if (final_angles[i] >= 0.0f) continue;
+                            // Interpolate for each joint
+                            for (int i = 0; i < GAIT_JOINT_COUNT; ++i) {
+                                if (final_angles[i] >= 0.0f) continue;
 
-                            float start_pos = instance.start_positions[i];
-                            float target_pos = target_frame.positions[i];
-                            float angle = start_pos + (target_pos - start_pos) * alpha;
-                            final_angles[i] = std::max(0.0f, std::min(180.0f, angle));
+                                float start_pos = instance.start_positions[i];
+                                float target_pos = target_frame.positions[i];
+                                float angle = start_pos + (target_pos - start_pos) * alpha;
+                                
+                                const auto& limit = ServoCalibration::limits[i];
+                                final_angles[i] = std::max(limit.min, std::min(limit.max, angle));
+                            }
+                            break;
                         }
-                        break;
                     }
                 }
+            } else { // If active_actions is empty AND not in manual control, final_angles already set to home
+                // If active_actions is empty AND in manual control, do nothing, servos hold last position
             }
 
             // --- Action Completion and Removal Logic ---
@@ -459,7 +493,7 @@ void MotionController::home(HomeMode mode, const std::vector<ServoChannel>& chan
         }
 
         if (should_home) {
-            m_servo_driver.set_angle(i, 90);
+            m_servo_driver.set_angle(i, static_cast<int>(ServoCalibration::get_home_pos(current_channel)));
         }
     }
     vTaskDelay(pdMS_TO_TICKS(100));
@@ -467,6 +501,8 @@ void MotionController::home(HomeMode mode, const std::vector<ServoChannel>& chan
 
 void MotionController::set_single_servo(uint8_t channel, uint8_t angle) {
     m_servo_driver.set_angle(channel, angle);
+    m_is_manual_control_active.store(true);
+    m_manual_control_timeout_us = esp_timer_get_time() + 5 * 1000 * 1000; // 5 seconds timeout
 }
 
 // --- Face Tracking Task ---
