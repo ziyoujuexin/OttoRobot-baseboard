@@ -47,6 +47,14 @@ void MotionController::init_joint_channel_map() {
 // --- Public Methods ---
 void MotionController::init() {
     init_joint_channel_map();
+
+    // Initialize angle filters first to prevent race condition
+    m_angle_filters.resize(GAIT_JOINT_COUNT);
+    for (int i = 0; i < GAIT_JOINT_COUNT; ++i) {
+        m_angle_filters[i].set_alpha(0.3f);
+        m_angle_filters[i].reset(ServoCalibration::get_home_pos(static_cast<ServoChannel>(i)));
+    }
+
     m_gait_command_map[MOTION_FORWARD] = "walk_forward";
     m_gait_command_map[MOTION_BACKWARD] = "walk_backward";
     m_gait_command_map[MOTION_LEFT] = "turn_left";
@@ -64,8 +72,8 @@ void MotionController::init() {
     m_gait_command_map[MOTION_FUNNY] = "funny";
     m_gait_command_map[MOTION_LAUGHING] = "laughing";
     m_gait_command_map[MOTION_ANGRY] = "angry";
-    m_gait_command_map[MOTION_CRYING] = "crying";
-    m_gait_command_map[MOTION_SURPRISED] = "surprised";
+    m_gait_command_map[MOTION_CRYING] = "sudden_shock";
+    m_gait_command_map[MOTION_SURPRISED] = "curious_ponder";
     m_gait_command_map[MOTION_THINKING] = "thinking";
 
     // --- 修正特殊动作的映射 ---
@@ -118,6 +126,7 @@ void MotionController::init() {
     xTaskCreate(start_task_wrapper, "motion_engine_task", 8192, this, 5, NULL);
     xTaskCreate(start_mixer_task_wrapper, "motion_mixer_task", 4096, this, 6, NULL); // Higher priority for mixer
     xTaskCreate(start_face_tracking_task_wrapper, "face_tracking_task", 4096, this, 5, NULL);
+
     ESP_LOGI(TAG, "Motion Controller initialized and tasks started.");
 }
 
@@ -379,8 +388,11 @@ void MotionController::motion_mixer_task() {
 
                             // Calculate interpolation progress (alpha)
                             uint32_t elapsed_in_transition = current_time_ms - instance.transition_start_time_ms;
-                            float alpha = (float)elapsed_in_transition / (float)transition_duration;
-                            alpha = std::max(0.0f, std::min(1.0f, alpha)); // Clamp alpha
+                            float linear_alpha = (float)elapsed_in_transition / (float)transition_duration;
+                            linear_alpha = std::max(0.0f, std::min(1.0f, linear_alpha)); // Clamp alpha
+
+                            // Apply cosine easing for smooth acceleration and deceleration
+                            float eased_alpha = 0.5f * (1.0f - cosf(linear_alpha * PI));
 
                             // Interpolate for each joint
                             for (int i = 0; i < GAIT_JOINT_COUNT; ++i) {
@@ -388,7 +400,7 @@ void MotionController::motion_mixer_task() {
 
                                 float start_pos = instance.start_positions[i];
                                 float target_pos = target_frame.positions[i];
-                                float angle = start_pos + (target_pos - start_pos) * alpha;
+                                float angle = start_pos + (target_pos - start_pos) * eased_alpha;
                                 
                                 const auto& limit = ServoCalibration::limits[i];
                                 final_angles[i] = std::max(limit.min, std::min(limit.max, angle));
@@ -461,7 +473,8 @@ void MotionController::motion_mixer_task() {
         for (int i = 0; i < GAIT_JOINT_COUNT; ++i) {
             if (final_angles[i] >= 0.0f) {
                 uint8_t channel = m_joint_channel_map[i];
-                m_servo_driver.set_angle(channel, static_cast<int>(final_angles[i]));
+                float filtered_angle = m_angle_filters[i].apply(final_angles[i]);
+                m_servo_driver.set_angle(channel, static_cast<int>(filtered_angle));
             }
         }
 
@@ -688,5 +701,16 @@ bool MotionController::is_face_tracking_active() const
         xSemaphoreGive(m_actions_mutex);
     }
     return is_tracking;
+}
+
+void MotionController::set_filter_alpha(float alpha) {
+    if (alpha < 0.0f || alpha > 1.0f) {
+        ESP_LOGE(TAG, "Invalid alpha value %.2f. It should be between 0.0 and 1.0.", alpha);
+        return;
+    }
+    for (auto& filter : m_angle_filters) {
+        filter.set_alpha(alpha);
+    }
+    ESP_LOGI(TAG, "Set EMA filter alpha to %.2f for all joints.", alpha);
 }
 

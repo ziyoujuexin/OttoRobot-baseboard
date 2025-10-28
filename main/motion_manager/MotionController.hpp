@@ -9,6 +9,7 @@
 #include "motion_manager/Motion_types.hpp"
 #include "motion_manager/ActionManager.hpp"
 #include "motion_manager/DecisionMaker.hpp" // Include the new header
+#include "motion_manager/EMAFilter.hpp"
 #include <memory>
 #include <string>
 #include <vector>
@@ -40,6 +41,8 @@ public:
     DecisionMaker* get_decision_maker() const;
     bool is_face_tracking_active() const;
 
+    void set_filter_alpha(float alpha);
+
     motion_command_t get_current_command();
     bool is_idle() {
         return is_active == false;
@@ -66,6 +69,9 @@ private:
 
     // --- Decision Maker ---
     std::unique_ptr<DecisionMaker> m_decision_maker;
+
+    // --- Angle Filtering ---
+    std::vector<EMAFilter> m_angle_filters;
 
     void init_joint_channel_map();
 
