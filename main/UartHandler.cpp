@@ -3,7 +3,6 @@
 #include "esp_log.h"
 #include "soc/gpio_num.h"
 #include <vector>
-#include <string> // Required for std::string and std::stof
 #include <cstring> // For memcpy
 
 #define UART_NUM           UART_NUM_1
@@ -76,37 +75,51 @@ bool UartHandler::validate_frame(uint8_t *frame, int len) {
 
 void UartHandler::receive_task_handler() {
     uint8_t data[UART_BUFFER_SIZE];
-    std::vector<uint8_t> binary_buffer;
-    std::vector<char> text_buffer;
-    bool in_binary_frame = false;
+    std::vector<uint8_t> frame_buffer;
+    bool frame_started = false;
 
     while (1) {
         int len = uart_read_bytes(UART_NUM, data, UART_BUFFER_SIZE, pdMS_TO_TICKS(50));
         if (len <= 0) continue;
 
         for (int i = 0; i < len; i++) {
-            uint8_t byte = data[i];
-
-            if (in_binary_frame) {
-                binary_buffer.push_back(byte);
-                if (binary_buffer.size() >= 5) { // Have enough to check payload length
-                    uint8_t payload_len = binary_buffer[4];
+            if (!frame_started) {
+                if (frame_buffer.empty() && data[i] == (FRAME_HEADER >> 8)) {
+                    frame_buffer.push_back(data[i]);
+                } else if (frame_buffer.size() == 1 && data[i] == (uint8_t)FRAME_HEADER) {
+                    frame_buffer.push_back(data[i]);
+                    frame_started = true;
+                } else {
+                    frame_buffer.clear();
+                }
+            } else {
+                frame_buffer.push_back(data[i]);
+                if (frame_buffer.size() >= 5) {
+                    uint8_t payload_len = frame_buffer[4];
                     size_t total_frame_len = 7 + payload_len;
-                    if (binary_buffer.size() >= total_frame_len) {
-                        if (validate_frame(binary_buffer.data(), total_frame_len)) {
-                            uint8_t motion_type = binary_buffer[5];
+
+                    if (frame_buffer.size() >= total_frame_len) {
+                        if (validate_frame(frame_buffer.data(), total_frame_len)) {
+                            uint8_t motion_type = frame_buffer[5];
+
                             if (motion_type == MOTION_FACE_TRACE) {
                                 const size_t expected_data_len = 10;
                                 const size_t actual_data_len = payload_len > 0 ? payload_len - 1 : 0;
+
                                 if (actual_data_len == expected_data_len) {
                                     FaceLocation fl;
-                                    const uint8_t* data_ptr = binary_buffer.data() + 6;
+                                    const uint8_t* data_ptr = frame_buffer.data() + 6;
                                     fl.x = data_ptr[0] | (data_ptr[1] << 8);
                                     fl.y = data_ptr[2] | (data_ptr[3] << 8);
                                     fl.w = data_ptr[4] | (data_ptr[5] << 8);
                                     fl.h = data_ptr[6] | (data_ptr[7] << 8);
                                     fl.detected = (data_ptr[8] != 0);
-                                    if (m_face_location_callback) m_face_location_callback(fl);
+
+                                    if (m_face_location_callback) {
+                                        m_face_location_callback(fl);
+                                    }
+                                } else {
+                                    ESP_LOGW(TAG, "Invalid payload for face trace: len=%d", actual_data_len);
                                 }
                             } else if (motion_type == MOTION_WAKE_DETECT) {
                                 ESP_LOGI(TAG, "Wake word detected.");
@@ -114,7 +127,7 @@ void UartHandler::receive_task_handler() {
                                 start_wake_word_timer();
                             } else if (motion_type == MOTION_PLAY_ANIMATION) {
                                 if (m_anim_player) {
-                                    const char* anim_name = (const char*)(binary_buffer.data() + 6);
+                                    const char* anim_name = (const char*)(frame_buffer.data() + 6);
                                     uint8_t anim_name_len = payload_len > 0 ? payload_len - 1 : 0;
                                     std::string anim_name_str(anim_name, anim_name_len);
                                     ESP_LOGI(TAG, "Queueing one-shot animation: %s", anim_name_str.c_str());
@@ -140,42 +153,12 @@ void UartHandler::receive_task_handler() {
                                 }
                             }
                         }
-                        binary_buffer.clear();
-                        in_binary_frame = false;
-                    }
-                }
-            } else { // Not in a binary frame, so treat as potential text or start of binary
-                if (binary_buffer.empty() && byte == (FRAME_HEADER >> 8)) {
-                    binary_buffer.push_back(byte);
-                } else if (binary_buffer.size() == 1 && byte == (uint8_t)FRAME_HEADER) {
-                    binary_buffer.push_back(byte);
-                    in_binary_frame = true;
-                    text_buffer.clear(); // Clear any partial text command
-                } else {
-                    binary_buffer.clear(); // Not a valid binary start, reset
-                    // Handle as text command
-                    if (byte == '\n' || byte == '\r') {
-                        if (!text_buffer.empty()) {
-                            text_buffer.push_back('\0');
-                            std::string line(text_buffer.data());
-                            ESP_LOGI(TAG, "Received text command: %s", line.c_str());
-                            if (line.rfind("set_filter_alpha ", 0) == 0) {
-                                try {
-                                    float alpha = std::stof(line.substr(17));
-                                    m_motion_controller.set_filter_alpha(alpha);
-                                } catch (const std::exception& e) {
-                                    ESP_LOGE(TAG, "Invalid argument for set_filter_alpha: %s", e.what());
-                                }
-                            }
-                            text_buffer.clear();
-                        }
-                    } else if (isprint(byte)) {
-                        if (text_buffer.size() < 100) { // Prevent buffer overflow
-                           text_buffer.push_back(byte);
-                        }
+                        frame_buffer.clear();
+                        frame_started = false;
                     }
                 }
             }
         }
     }
 }
+
