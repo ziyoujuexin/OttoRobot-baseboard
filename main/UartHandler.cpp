@@ -123,6 +123,21 @@ void UartHandler::receive_task_handler() {
                             } else if (motion_type == MOTION_FACE_END) {
                                 ESP_LOGI(TAG, "Face end detected, stopping all motions.");
                                 m_motion_controller.queue_command({MOTION_STOP, {}});
+                            } else {
+                                // Build a generic motion_command_t and queue it.
+                                motion_command_t cmd;
+                                cmd.motion_type = motion_type;
+                                cmd.params.clear();
+                                if (payload_len > 1) {
+                                    // payload starts at frame_buffer[6], length = payload_len - 1 for params
+                                    cmd.params.assign(frame_buffer.begin() + 6, frame_buffer.begin() + 6 + (payload_len - 1));
+                                }
+                                // Queue the command for the motion controller
+                                if (!m_motion_controller.queue_command(cmd)) {
+                                    ESP_LOGW(TAG, "Failed to queue motion command %d.", cmd.motion_type);
+                                } else {
+                                    ESP_LOGD(TAG, "Command %d with %d bytes of params queued.", cmd.motion_type, (int)cmd.params.size());
+                                }
                             }
                         }
                         binary_buffer.clear();

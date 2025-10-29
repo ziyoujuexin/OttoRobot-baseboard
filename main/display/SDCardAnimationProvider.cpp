@@ -67,7 +67,7 @@ static AnimationData load_file_to_psram(const std::string& vfs_path) {
         return anim_data;
     }
 
-    ESP_LOGI(TAG, "Successfully loaded '%s' (%d bytes) into PSRAM at %p", vfs_path.c_str(), bytes_read, buffer);
+    ESP_LOGD(TAG, "Successfully loaded '%s' (%d bytes) into PSRAM at %p", vfs_path.c_str(), bytes_read, buffer);
     anim_data.data = buffer;
     anim_data.size = bytes_read;
     anim_data.is_valid = true;
@@ -99,7 +99,7 @@ AnimationPair SDCardAnimationProvider::getAnimationData(const std::string& anima
     AnimationData right_anim = load_file_to_psram(right_path);
 
     if (left_anim.is_valid && right_anim.is_valid) {
-        ESP_LOGI(TAG, "Found animation pair for '%s'. Using independent mode.", base_name.c_str());
+        ESP_LOGD(TAG, "Found animation pair for '%s'. Using independent mode.", base_name.c_str());
         anim_pair.left_anim = left_anim;
         anim_pair.right_anim = right_anim;
         anim_pair.is_mirrored = false;
@@ -115,7 +115,7 @@ AnimationPair SDCardAnimationProvider::getAnimationData(const std::string& anima
     AnimationData mirror_anim = load_file_to_psram(mirror_path);
 
     if (mirror_anim.is_valid) {
-        ESP_LOGI(TAG, "Found single animation for '%s'. Using mirror mode.", base_name.c_str());
+        ESP_LOGD(TAG, "Found single animation for '%s'. Using mirror mode.", base_name.c_str());
         anim_pair.left_anim = mirror_anim; // Both point to the same data
         anim_pair.right_anim = mirror_anim;
         anim_pair.is_mirrored = true;
@@ -128,7 +128,7 @@ AnimationPair SDCardAnimationProvider::getAnimationData(const std::string& anima
 
 void SDCardAnimationProvider::releaseAnimationData(AnimationData& anim_data) {
     if (anim_data.data && anim_data.is_valid) {
-        ESP_LOGI(TAG, "Releasing %d bytes of PSRAM at %p", anim_data.size, anim_data.data);
+        ESP_LOGD(TAG, "Releasing %d bytes of PSRAM at %p", anim_data.size, anim_data.data);
         heap_caps_free((void*)anim_data.data);
     }
     // Invalidate the struct to prevent double-free

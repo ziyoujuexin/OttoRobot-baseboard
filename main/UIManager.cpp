@@ -84,6 +84,6 @@ void UIManager::lvgl_task(void *pvParameter) {
         } else {
             ESP_LOGW(TAG, "LVGL mutex take timed out");
         }
-        // vTaskDelay(pdMS_TO_TICKS(task_delay_ms));
+        vTaskDelay(pdMS_TO_TICKS(task_delay_ms));
     }
 }
