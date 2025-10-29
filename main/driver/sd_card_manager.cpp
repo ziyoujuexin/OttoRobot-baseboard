@@ -5,6 +5,9 @@
 #include "sdmmc_cmd.h"
 #include "sd_pwr_ctrl_by_on_chip_ldo.h"
 
+#include <string>
+#include <sys/stat.h>
+
 static const char* TAG = "SD_CARD_MANAGER";
 static sdmmc_card_t* s_card = nullptr;
 static const char* s_mount_path = nullptr;
@@ -18,7 +21,7 @@ esp_err_t sd_card_manager::init(const char* mount_path) {
     // If format_if_mount_failed is set to true, SD card will be partitioned and
     // formatted in case when mounting fails.
     esp_vfs_fat_sdmmc_mount_config_t mount_config = {
-        .format_if_mount_failed = false,
+        .format_if_mount_failed = true,
         .max_files = 5,
         .allocation_unit_size = 16 * 1024,
     };
@@ -66,6 +69,17 @@ esp_err_t sd_card_manager::init(const char* mount_path) {
 
     s_mount_path = mount_path;
     ESP_LOGI(TAG, "SD card mounted successfully at %s", mount_path);
+
+    // Create animations directory if it doesn't exist
+    std::string anim_dir_path = std::string(mount_path) + "/animations";
+    struct stat st;
+    if (stat(anim_dir_path.c_str(), &st) != 0) {
+        ESP_LOGI(TAG, "Creating animations directory: %s", anim_dir_path.c_str());
+        if (mkdir(anim_dir_path.c_str(), 0777) != 0) {
+            ESP_LOGE(TAG, "Failed to create animations directory.");
+            // This is not fatal, but uploads will fail.
+        }
+    }
 
     // Card has been initialized, print its properties
     sdmmc_card_print_info(stdout, s_card);

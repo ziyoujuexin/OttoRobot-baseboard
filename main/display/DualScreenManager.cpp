@@ -47,7 +47,7 @@ void DualScreenManager::UpdateAnimationSource(const AnimationPair& anim_pair) {
         return;
     }
 
-    ESP_LOGI(TAG, "Updating animation source. Mirrored: %s", anim_pair.is_mirrored ? "true" : "false");
+    ESP_LOGD(TAG, "Updating animation source. Mirrored: %s", anim_pair.is_mirrored ? "true" : "false");
 
     // Set mirror mode based on the provided animation pair
     set_mirror_mode(anim_pair.is_mirrored);
