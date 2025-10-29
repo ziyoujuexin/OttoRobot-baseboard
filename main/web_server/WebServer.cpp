@@ -25,6 +25,7 @@ static esp_err_t upload_handler(httpd_req_t *req);
 static esp_err_t animations_api_handler(httpd_req_t *req);
 static esp_err_t play_animation_handler(httpd_req_t *req);
 static esp_err_t delete_animation_handler(httpd_req_t *req);
+static esp_err_t filter_alpha_api_handler(httpd_req_t *req);
 static void wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data);
 
 extern const char index_html_start[] asm("_binary_index_html_start");
@@ -73,7 +74,7 @@ private:
         httpd_config_t config = HTTPD_DEFAULT_CONFIG();
         config.lru_purge_enable = true;
         config.stack_size = 8192;
-        config.max_uri_handlers = 10;
+        config.max_uri_handlers = 12; // Increased from 10
         config.task_priority = 6; // Increase priority to prevent starvation by other tasks
 
         ESP_LOGI(TAG, "Starting server on port: '%d'", config.server_port);
@@ -102,6 +103,9 @@ private:
             httpd_uri_t delete_animation_uri = { .uri = "/api/delete", .method = HTTP_GET, .handler = delete_animation_handler, .user_ctx = this };
             httpd_register_uri_handler(m_server, &delete_animation_uri);
 
+            httpd_uri_t filter_alpha_uri = { .uri = "/api/set_filter_alpha", .method = HTTP_GET, .handler = filter_alpha_api_handler, .user_ctx = this };
+            httpd_register_uri_handler(m_server, &filter_alpha_uri);
+
             // Install the web logger to capture and forward logs
             WebLogger::install(m_server);
 
@@ -117,6 +121,7 @@ private:
     friend esp_err_t root_handler(httpd_req_t *req);
     friend esp_err_t play_animation_handler(httpd_req_t *req);
     friend esp_err_t delete_animation_handler(httpd_req_t *req);
+    friend esp_err_t filter_alpha_api_handler(httpd_req_t *req);
     friend void wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data);
 };
 
@@ -492,6 +497,30 @@ esp_err_t upload_handler(httpd_req_t *req) {
     ESP_LOGI(TAG, "File upload successful");
     httpd_resp_send(req, "Upload successful", HTTPD_RESP_USE_STRLEN);
     return ESP_OK;
+}
+
+esp_err_t filter_alpha_api_handler(httpd_req_t *req)
+{
+    WebServerImpl* server = (WebServerImpl*)req->user_ctx;
+    char buf[64];
+    size_t buf_len = httpd_req_get_url_query_len(req) + 1;
+    if (buf_len > sizeof(buf)) {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Query string too long");
+        return ESP_FAIL;
+    }
+
+    if (httpd_req_get_url_query_str(req, buf, buf_len) == ESP_OK) {
+        char param_val[16];
+        if (httpd_query_key_value(buf, "value", param_val, sizeof(param_val)) == ESP_OK) {
+            float alpha = atof(param_val);
+            server->m_motion_controller.set_filter_alpha(alpha);
+            httpd_resp_send(req, "OK", HTTPD_RESP_USE_STRLEN);
+            return ESP_OK;
+        }
+    }
+
+    httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Missing or invalid value parameter");
+    return ESP_FAIL;
 }
 
 

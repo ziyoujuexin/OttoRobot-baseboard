@@ -9,6 +9,7 @@
 #include "motion_manager/Motion_types.hpp"
 #include "motion_manager/ActionManager.hpp"
 #include "motion_manager/DecisionMaker.hpp" // Include the new header
+#include "motion_manager/EMAFilter.hpp"
 #include <memory>
 #include <string>
 #include <vector>
@@ -40,6 +41,8 @@ public:
     DecisionMaker* get_decision_maker() const;
     bool is_face_tracking_active() const;
 
+    void set_filter_alpha(float alpha);
+
     motion_command_t get_current_command();
     bool is_idle() {
         return is_active == false;
@@ -67,6 +70,9 @@ private:
     // --- Decision Maker ---
     std::unique_ptr<DecisionMaker> m_decision_maker;
 
+    // --- Angle Filtering ---
+    std::vector<EMAFilter> m_angle_filters;
+
     void init_joint_channel_map();
 
     // --- Task Declarations ---
@@ -84,6 +90,8 @@ private:
     std::atomic<bool> m_is_tracking_active;
     int64_t m_last_tracking_turn_end_time;
     std::atomic<bool> m_is_head_frozen;
+    std::atomic<bool> m_is_manual_control_active; // New: Flag for manual servo control
+    int64_t m_manual_control_timeout_us; // New: Timeout for manual control
     std::atomic<bool> m_is_executed{false};
 
 private:
