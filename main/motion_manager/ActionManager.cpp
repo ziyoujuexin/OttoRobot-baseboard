@@ -390,11 +390,11 @@ void ActionManager::register_default_actions(bool force) {
             auto pos = create_home_pos();
             pos[static_cast<int>(ServoChannel::LEFT_ANKLE_LIFT)] = 70.0f; // Corrected for +10 offset
             pos[static_cast<int>(ServoChannel::RIGHT_ANKLE_LIFT)] = 70.0f;
-            pos[static_cast<int>(ServoChannel::LEFT_ARM_LIFT)] = 45.0f;
-            pos[static_cast<int>(ServoChannel::RIGHT_ARM_LIFT)] = 45.0f;
+            pos[static_cast<int>(ServoChannel::LEFT_ARM_LIFT)] = 50.0f; // Adjusted for new limits
+            pos[static_cast<int>(ServoChannel::RIGHT_ARM_LIFT)] = 50.0f; // Adjusted for new limits
             pos[static_cast<int>(ServoChannel::HEAD_TILT)] = 40.0f; // Head jerks up
-            pos[static_cast<int>(ServoChannel::LEFT_EAR_LIFT)] = 60.0f; // Ears shoot up
-            pos[static_cast<int>(ServoChannel::RIGHT_EAR_LIFT)] = 120.0f; // Right ear up, as requested
+            pos[static_cast<int>(ServoChannel::LEFT_EAR_LIFT)] = 120.0f; // Left ear up, as requested
+            pos[static_cast<int>(ServoChannel::RIGHT_EAR_LIFT)] = 60.0f; // Right ear down, as requested
             memcpy(frame.positions, pos.data(), sizeof(frame.positions));
         }
 
@@ -405,11 +405,11 @@ void ActionManager::register_default_actions(bool force) {
             auto pos = create_home_pos();
             pos[static_cast<int>(ServoChannel::LEFT_ANKLE_LIFT)] = 70.0f; // Corrected
             pos[static_cast<int>(ServoChannel::RIGHT_ANKLE_LIFT)] = 70.0f;
-            pos[static_cast<int>(ServoChannel::LEFT_ARM_LIFT)] = 45.0f;
-            pos[static_cast<int>(ServoChannel::RIGHT_ARM_LIFT)] = 45.0f;
+            pos[static_cast<int>(ServoChannel::LEFT_ARM_LIFT)] = 50.0f; // Adjusted for new limits
+            pos[static_cast<int>(ServoChannel::RIGHT_ARM_LIFT)] = 50.0f; // Adjusted for new limits
             pos[static_cast<int>(ServoChannel::HEAD_TILT)] = 40.0f;
-            pos[static_cast<int>(ServoChannel::LEFT_EAR_LIFT)] = 60.0f; // Ears hold
-            pos[static_cast<int>(ServoChannel::RIGHT_EAR_LIFT)] = 120.0f; // Right ear holds up
+            pos[static_cast<int>(ServoChannel::LEFT_EAR_LIFT)] = 120.0f; // Left ear holds up
+            pos[static_cast<int>(ServoChannel::RIGHT_EAR_LIFT)] = 60.0f; // Right ear holds down
             memcpy(frame.positions, pos.data(), sizeof(frame.positions));
         }
 
@@ -593,6 +593,26 @@ void ActionManager::register_default_actions(bool force) {
         thinking.data.gait.params.amplitude[static_cast<uint8_t>(ServoChannel::HEAD_TILT)] = 5;
         m_storage->save_action(thinking);
         m_action_cache[thinking.name] = thinking;
+    }
+
+    { // Scope for lovot_shake
+        RegisteredAction lovot_shake = {};
+        strcpy(lovot_shake.name, "lovot_shake");
+        lovot_shake.type = ActionType::GAIT_PERIODIC;
+        lovot_shake.is_atomic = false;
+        lovot_shake.default_steps = 4;
+        lovot_shake.data.gait.gait_period_ms = 1500;
+        lovot_shake.data.gait.params.amplitude[static_cast<uint8_t>(ServoChannel::HEAD_PAN)] = 20;
+        lovot_shake.data.gait.params.amplitude[static_cast<uint8_t>(ServoChannel::HEAD_TILT)] = 0;
+        lovot_shake.data.gait.params.amplitude[static_cast<uint8_t>(ServoChannel::LEFT_EAR_LIFT)] = 15;
+        lovot_shake.data.gait.params.amplitude[static_cast<uint8_t>(ServoChannel::RIGHT_EAR_LIFT)] = 15;
+        lovot_shake.data.gait.params.amplitude[static_cast<uint8_t>(ServoChannel::LEFT_LEG_ROTATE)] = 10;
+        lovot_shake.data.gait.params.amplitude[static_cast<uint8_t>(ServoChannel::RIGHT_LEG_ROTATE)] = 10;
+        lovot_shake.data.gait.params.phase_diff[static_cast<uint8_t>(ServoChannel::HEAD_PAN)] = PI / 2;
+        lovot_shake.data.gait.params.phase_diff[static_cast<uint8_t>(ServoChannel::LEFT_EAR_LIFT)] = PI;
+        lovot_shake.data.gait.params.phase_diff[static_cast<uint8_t>(ServoChannel::RIGHT_EAR_LIFT)] = PI;
+        m_storage->save_action(lovot_shake);
+        m_action_cache[lovot_shake.name] = lovot_shake;
     }
     
     { // Scope for tracking_L

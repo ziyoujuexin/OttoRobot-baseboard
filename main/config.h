@@ -34,6 +34,7 @@
 #define MOTION_CRYING         0x16
 #define MOTION_SURPRISED      0x17
 #define MOTION_THINKING       0x18
+#define MOTION_LOVOT_SHAKE    0x19
 
 #define MOTION_WAKE_DETECT   0xC0
 #define MOTION_PLAY_ANIMATION 0xD0

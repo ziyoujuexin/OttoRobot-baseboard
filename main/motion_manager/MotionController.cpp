@@ -75,6 +75,7 @@ void MotionController::init() {
     m_gait_command_map[MOTION_CRYING] = "sudden_shock";
     m_gait_command_map[MOTION_SURPRISED] = "curious_ponder";
     m_gait_command_map[MOTION_THINKING] = "thinking";
+    m_gait_command_map[MOTION_LOVOT_SHAKE] = "lovot_shake";
 
     // --- 修正特殊动作的映射 ---
     m_gait_command_map[MOTION_TRACKING_L] = "tracking_L";
