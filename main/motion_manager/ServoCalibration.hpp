@@ -37,9 +37,9 @@ const std::array<AngleLimits, static_cast<size_t>(ServoChannel::SERVO_COUNT)> li
     {0.0f, 180.0f},   // 3: RIGHT_EAR_SWING
     {0.0f, 90.0f},   // 4: HEAD_TILT
     {0.0f, 180.0f},   // 5: HEAD_PAN
-    {0.0f, 180.0f},   // 6: RIGHT_ARM_SWING
+    {0.0f, 220.0f},   // 6: RIGHT_ARM_SWING
     {50.0f, 80.0f},   // 7: LEFT_ARM_LIFT
-    {0.0f, 180.0f},   // 8: LEFT_ARM_SWING
+    {0.0f, 220.0f},   // 8: LEFT_ARM_SWING
     {50.0f, 80.0f}, // 9: RIGHT_ARM_LIFT
     {0.0f, 180.0f},   // 10: LEFT_LEG_ROTATE
     {60.0f, 170.0f},  // 11: LEFT_ANKLE_LIFT

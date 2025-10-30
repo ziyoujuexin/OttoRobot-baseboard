@@ -44,18 +44,19 @@ void PCA9685::init() {
 }
 
 // TODO: 为了代码的兼容性，这里其实180对应了物理上的120度，后续修改
-void PCA9685::set_angle(uint8_t channel, uint8_t angle) {
+void PCA9685::set_angle(uint8_t channel, uint16_t angle) {
     if (channel > 15) {
         ESP_LOGE(TAG, "Invalid channel: %d. Must be 0-15.", channel);
         return;
     }
 
-    // 将角度(0-180)钳位
-    if (angle > 180) {
-        angle = 180;
+    if (channel == 8) {
+        angle = 220 - angle;
+    } else if (channel == 7) {
+        angle = 130 - angle;
     }
 
-    // 将角度(0-180)线性映射到脉冲宽度计数值
+    // 将角度(0-270)线性映射到脉冲宽度计数值
     uint16_t pulse = map_angle_to_pwm(angle);
 
     ESP_LOGD(TAG, "Channel: %d, Angle: %d, Pulse: %d", channel, angle, pulse);
@@ -76,7 +77,7 @@ void PCA9685::home_all() {
     }
 }
 
-uint16_t PCA9685::map_angle_to_pwm(uint8_t angle) {
+uint16_t PCA9685::map_angle_to_pwm(uint16_t angle) {
     // PCA9685 resolution is 12-bit (4096 steps).
     const uint16_t min_pulse_us = 900;
     const uint16_t max_pulse_us = 2100;

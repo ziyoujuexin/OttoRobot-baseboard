@@ -19,12 +19,12 @@ public:
     ~PCA9685() override = default;
 
     void init() override;
-    void set_angle(uint8_t channel, uint8_t angle) override;
+    void set_angle(uint8_t channel, uint16_t angle) override;
     void home_all() override;
 
 private:
     i2c_dev_t dev;
-    uint16_t map_angle_to_pwm(uint8_t angle);
+    uint16_t map_angle_to_pwm(uint16_t angle);
 };
 
 #endif // PCA9685_HPP

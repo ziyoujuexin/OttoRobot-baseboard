@@ -9,7 +9,7 @@ public:
     virtual ~Servo() = default;
 
     virtual void init() = 0;
-    virtual void set_angle(uint8_t channel, uint8_t angle) = 0;
+    virtual void set_angle(uint8_t channel, uint16_t angle) = 0;
     virtual void home_all() = 0;
 };
 

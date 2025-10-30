@@ -353,8 +353,8 @@ esp_err_t servo_api_handler(httpd_req_t *req)
     if (json_obj_get_int(&jctx, "channel", &channel) == 0 &&
         json_obj_get_int(&jctx, "angle", &angle) == 0) {
         
-        if (channel >= 0 && channel < 16 && angle >= 0 && angle <= 180) {
-            server->m_motion_controller.set_single_servo(static_cast<uint8_t>(channel), static_cast<uint8_t>(angle));
+        if (channel >= 0 && channel < 16 && angle >= 0 && angle <= 270) {
+            server->m_motion_controller.set_single_servo(static_cast<uint8_t>(channel), static_cast<uint16_t>(angle));
             httpd_resp_send(req, "Servo command OK", HTTPD_RESP_USE_STRLEN);
             return ESP_OK;
         }

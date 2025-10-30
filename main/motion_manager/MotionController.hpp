@@ -33,7 +33,7 @@ public:
     ~MotionController();
     void init();
     bool queue_command(const motion_command_t& cmd);
-    void set_single_servo(uint8_t channel, uint8_t angle);
+    void set_single_servo(uint8_t channel, uint16_t angle);
     void home(HomeMode mode = HomeMode::All, const std::vector<ServoChannel>& channels = {});
     bool is_body_moving(const RegisteredAction& action) const;
     bool is_body_moving() const;

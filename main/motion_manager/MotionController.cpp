@@ -51,7 +51,7 @@ void MotionController::init() {
     // Initialize angle filters first to prevent race condition
     m_angle_filters.resize(GAIT_JOINT_COUNT);
     for (int i = 0; i < GAIT_JOINT_COUNT; ++i) {
-        m_angle_filters[i].set_alpha(0.3f);
+        m_angle_filters[i].set_alpha(0.8f);
         m_angle_filters[i].reset(ServoCalibration::get_home_pos(static_cast<ServoChannel>(i)));
     }
 
@@ -474,7 +474,7 @@ void MotionController::motion_mixer_task() {
             if (final_angles[i] >= 0.0f) {
                 uint8_t channel = m_joint_channel_map[i];
                 float filtered_angle = m_angle_filters[i].apply(final_angles[i]);
-                m_servo_driver.set_angle(channel, static_cast<int>(filtered_angle));
+                m_servo_driver.set_angle(channel, static_cast<uint16_t>(filtered_angle));
             }
         }
 
@@ -506,13 +506,13 @@ void MotionController::home(HomeMode mode, const std::vector<ServoChannel>& chan
         }
 
         if (should_home) {
-            m_servo_driver.set_angle(i, static_cast<int>(ServoCalibration::get_home_pos(current_channel)));
+            m_servo_driver.set_angle(i, static_cast<uint16_t>(ServoCalibration::get_home_pos(current_channel)));
         }
     }
     vTaskDelay(pdMS_TO_TICKS(100));
 }
 
-void MotionController::set_single_servo(uint8_t channel, uint8_t angle) {
+void MotionController::set_single_servo(uint8_t channel, uint16_t angle) {
     m_servo_driver.set_angle(channel, angle);
     m_is_manual_control_active.store(true);
     m_manual_control_timeout_us = esp_timer_get_time() + 5 * 1000 * 1000; // 5 seconds timeout
