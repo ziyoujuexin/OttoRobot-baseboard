@@ -256,6 +256,35 @@ void MotionController::motion_engine_task() {
                         ESP_LOGW(TAG, "MOTION_SERVO_CONTROL is deprecated and will be handled by mixer.");
                         break;
                     }
+                    case MOTION_PLAY_MOTION: // 0xD1
+                    {
+                        if (!received_cmd.params.empty()) {
+                            std::string action_name(received_cmd.params.begin(), received_cmd.params.end());
+                            ESP_LOGI(TAG, "Received MOTION_PLAY_MOTION for action: '%s'", action_name.c_str());
+
+                            // Check if the action already exists in the active list
+                            bool action_already_exists = false;
+                            for (const auto& existing_instance : m_active_actions) {
+                                if (strcmp(existing_instance.action.name, action_name.c_str()) == 0) {
+                                    action_already_exists = true;
+                                    ESP_LOGW(TAG, "Action '%s' is already active. Ignoring command.", action_name.c_str());
+                                    break;
+                                }
+                            }
+
+                            if (!action_already_exists) {
+                                const RegisteredAction* action_to_add = m_action_manager.get_action(action_name);
+                                if (action_to_add) {
+                                    add_new_action(action_to_add);
+                                } else {
+                                    ESP_LOGE(TAG, "Action '%s' not found in manager!", action_name.c_str());
+                                }
+                            }
+                        } else {
+                            ESP_LOGW(TAG, "Received MOTION_PLAY_MOTION with no action name.");
+                        }
+                        break;
+                    }
                     case MOTION_FACE_TRACE: { 
                         bool is_already_active = false;
                         for(auto const& instance : m_active_actions) {

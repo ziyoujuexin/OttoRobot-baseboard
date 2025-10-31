@@ -22,7 +22,7 @@ void lv_tick_task(void* arg) {
 
 void set_mirror_mode(bool enabled) {
     g_mirror_mode_enabled = enabled;
-    ESP_LOGI(TAG, "Mirror mode %s", enabled ? "enabled" : "disabled");
+    ESP_LOGD(TAG, "Mirror mode %s", enabled ? "enabled" : "disabled");
 }
 
 // LVGL display handles

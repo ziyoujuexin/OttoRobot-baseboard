@@ -51,7 +51,11 @@ void UIManager::lvgl_task(void *pvParameter) {
         // 1. Check and process UI commands (non-blocking)
         UiCommand received_cmd;
         if (xQueueReceive(self->m_ui_command_queue, &received_cmd, 0) == pdPASS) {
-            ESP_LOGI(TAG, "LVGL task received command to play: %s", received_cmd.animation_name);
+            if(strcmp(received_cmd.animation_name, "中眨眼_2_69s") == 0) {
+                ESP_LOGD(TAG, "Received command to play default animation.");
+            } else {
+                ESP_LOGI(TAG, "Received command to play animation: %s", received_cmd.animation_name);
+            }
             
             // 1. Release previous animation data if it's valid
             if (current_anim_pair.is_valid()) {

@@ -34,13 +34,11 @@ private:
     QueueHandle_t m_ui_command_queue; // Handle to the central UI command queue
     
     TaskHandle_t m_task_handle = nullptr;
-    QueueHandle_t m_player_queue = nullptr; // Internal queue for one-shot commands
 
-    // State machine for animation playback
-    enum class PlayerState { PLAYING_DEFAULT, PLAYING_ONESHOT };
-    PlayerState m_current_state = PlayerState::PLAYING_DEFAULT;
-    std::string m_current_anim_name = "中眨眼_2_69s";
-    TickType_t m_one_shot_start_time = 0;
+    // State for cyclical animation playback
+    std::string m_current_anim_name;
+    std::string m_next_anim_name;
+    SemaphoreHandle_t m_next_anim_mutex = nullptr;
 
 };
 

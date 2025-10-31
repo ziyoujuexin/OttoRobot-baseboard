@@ -95,6 +95,10 @@ extern "C" void app_main(void)
     // --- 4. Post-Init Actions & Main Loop ---
     ESP_LOGI(TAG, "Phase 4: Post-Initialization and Main Loop");
 
-    esp_task_wdt_delete(xTaskGetCurrentTaskHandle());
-    vTaskDelete(NULL); // Delete the main task as all work is now in other tasks
+    while(true) {
+        vTaskDelay(pdMS_TO_TICKS(5000));
+        // vTaskGetRunTimeStats(nullptr); // Placeholder to keep main loop alive
+    }
+    // esp_task_wdt_delete(xTaskGetCurrentTaskHandle());
+    // vTaskDelete(NULL); // Delete the main task as all work is now in other tasks
 }
