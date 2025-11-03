@@ -1,5 +1,9 @@
 #pragma once
 
+// I2C configuration
+#define CONFIG_I2CDEV_TIMEOUT 100 // 100ms timeout for I2C operations
+
+
 #include "driver/uart.h"
 #include "freertos/task.h"
 #include "freertos/queue.h"

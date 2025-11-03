@@ -28,7 +28,7 @@ AnimationPlayer::~AnimationPlayer() {
 
 // --- Public API ---
 void AnimationPlayer::start() {
-    xTaskCreate(player_task_wrapper, "anim_player_task", 8192, this, 5, &m_task_handle);
+    xTaskCreatePinnedToCore(player_task_wrapper, "anim_player_task", 8192, this, 5, &m_task_handle, 0);
     ESP_LOGI(TAG, "AnimationPlayer task started.");
 }
 

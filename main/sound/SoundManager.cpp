@@ -68,26 +68,26 @@ void SoundManager::start() {
     });
 
     ESP_LOGI(TAG, "Starting sound processing task.");
-    BaseType_t result = xTaskCreate(
+    BaseType_t result = xTaskCreatePinnedToCore(
         sound_processing_task_entry,
         "SoundProcTask",
         4096, // Stack size
         this, // Task parameter
         5,    // Priority
-        &m_processing_task_handle);
+        &m_processing_task_handle, 1);
 
     if (result != pdPASS) {
         ESP_LOGE(TAG, "Failed to create sound processing task");
     }
 
     ESP_LOGI(TAG, "Starting sound reaction task.");
-    result = xTaskCreate(
+    result = xTaskCreatePinnedToCore(
         sound_reaction_task_entry,
         "SoundReactTask",
         4096, // Stack size
         this, // Task parameter
         5,    // Priority
-        &m_reaction_task_handle);
+        &m_reaction_task_handle, 1);
     
     if (result != pdPASS) {
         ESP_LOGE(TAG, "Failed to create sound reaction task");
