@@ -40,7 +40,7 @@ void UartHandler::init() {
     };
     esp_timer_create(&timer_args, &m_wake_word_timer);
 
-    xTaskCreate(start_task_wrapper, "uart_receive_task", 4096, this, 5, NULL);
+    xTaskCreatePinnedToCore(start_task_wrapper, "uart_receive_task", 4096, this, 5, NULL, 1);
     ESP_LOGI(TAG, "UART Handler initialized and task started.");
 }
 

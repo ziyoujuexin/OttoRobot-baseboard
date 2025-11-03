@@ -80,7 +80,7 @@ esp_err_t DualI2SReader::begin() {
         return ESP_FAIL;
     }
 
-    BaseType_t result = xTaskCreate(read_task_entry, "I2SReadTask", 4096, this, 5, &read_task_handle);
+    BaseType_t result = xTaskCreatePinnedToCore(read_task_entry, "I2SReadTask", 4096, this, 5, &read_task_handle, 1);
     if (result != pdPASS) {
         ESP_LOGE(TAG, "Failed to create I2S read task");
         return ESP_FAIL;

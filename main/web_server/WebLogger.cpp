@@ -147,7 +147,7 @@ void WebLogger::install(httpd_handle_t server) {
     s_log_queue = xQueueCreate(20, sizeof(char *));
 
     // Create the task that will dispatch logs from the queue, passing the server handle to it
-    xTaskCreate(log_dispatcher_task, "log_dispatcher", 4096, server, 5, NULL);
+    xTaskCreatePinnedToCore(log_dispatcher_task, "log_dispatcher", 4096, server, 5, NULL, 1);
 
     // Register the WebSocket handler
     ESP_LOGI(TAG, "Registering WebSocket URI handler: %s", ws_uri.uri);
