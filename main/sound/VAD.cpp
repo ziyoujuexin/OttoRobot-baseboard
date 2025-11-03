@@ -32,7 +32,7 @@ VAD::VAD(int sample_rate, int frame_length_ms)
     }
 
     // 3. 创建处理任务
-    xTaskCreate(this->vad_task, "VAD_Task", 4096, this, 5, &task_handle_);
+    xTaskCreatePinnedToCore(this->vad_task, "VAD_Task", 4096, this, 5, &task_handle_, 1);
 }
 
 // 析构函数：释放资源

@@ -23,7 +23,7 @@ DecisionMaker::DecisionMaker(MotionController& motion_controller)
 
 void DecisionMaker::start()
 {
-    xTaskCreate(
+    xTaskCreatePinnedToCore(
         [](void* arg) {
             static_cast<DecisionMaker*>(arg)->decision_maker_task();
         },
@@ -31,7 +31,9 @@ void DecisionMaker::start()
         4096,
         this,
         5,
-        nullptr);
+        nullptr,
+        1
+    );
 }
 
 void DecisionMaker::set_face_location(const FaceLocation& location)
