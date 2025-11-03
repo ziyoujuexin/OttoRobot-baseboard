@@ -34,6 +34,8 @@ public:
      */
     int get_last_detected_angle() const;
 
+    bool is_idle() const;
+
 private:
     // Task entry points
     static void sound_processing_task_entry(void* arg);

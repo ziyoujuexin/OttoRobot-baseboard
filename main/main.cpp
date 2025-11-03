@@ -27,6 +27,8 @@
 #include "WebServer.hpp"
 #include "UIManager.hpp" // Use the new UIManager
 
+#include "esp_sleep.h"
+
 static const char *TAG = "MAIN";
 
 // The LVGL tick hook is a FreeRTOS requirement and can stay global.
@@ -91,14 +93,5 @@ extern "C" void app_main(void)
     auto web_server = std::make_unique<WebServer>(*action_manager, *motion_controller, *animation_player);
     web_server->start();
 
-
-    // --- 4. Post-Init Actions & Main Loop ---
-    ESP_LOGI(TAG, "Phase 4: Post-Initialization and Main Loop");
-
-    while(true) {
-        vTaskDelay(pdMS_TO_TICKS(5000));
-        // vTaskGetRunTimeStats(nullptr); // Placeholder to keep main loop alive
-    }
-    // esp_task_wdt_delete(xTaskGetCurrentTaskHandle());
-    // vTaskDelete(NULL); // Delete the main task as all work is now in other tasks
+    vTaskDelete(NULL); // Delete main task as its work is done
 }

@@ -18,7 +18,14 @@
 static const char* TAG = "UartHandler";
 
 UartHandler::UartHandler(MotionController& controller, AnimationPlayer* anim_player, FaceLocationCallback callback)
-    : m_motion_controller(controller), m_anim_player(anim_player), m_face_location_callback(callback) {}
+    : m_motion_controller(controller), m_anim_player(anim_player), m_face_location_callback(callback) {
+    m_last_activity_time.store(esp_timer_get_time());
+}
+
+bool UartHandler::is_idle() const {
+    const int64_t idle_threshold_us = 2 * 1000 * 1000; // 2 seconds
+    return (esp_timer_get_time() - m_last_activity_time.load()) > idle_threshold_us;
+}
 
 void UartHandler::init() {
     uart_config_t uart_config = {
@@ -27,7 +34,7 @@ void UartHandler::init() {
         .parity    = UART_PARITY_DISABLE,
         .stop_bits = UART_STOP_BITS_1,
         .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
-        .source_clk = UART_SCLK_DEFAULT,
+        .source_clk = UART_SCLK_XTAL,
     };
     uart_param_config(UART_NUM, &uart_config);
     uart_set_pin(UART_NUM, UART_TX_PIN, UART_RX_PIN, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
@@ -80,7 +87,11 @@ void UartHandler::receive_task_handler() {
 
     while (1) {
         int len = uart_read_bytes(UART_NUM, data, UART_BUFFER_SIZE, pdMS_TO_TICKS(50));
-        if (len <= 0) continue;
+        if (len > 0) {
+            m_last_activity_time.store(esp_timer_get_time());
+        } else {
+            continue;
+        }
 
         for (int i = 0; i < len; i++) {
             if (!frame_started) {

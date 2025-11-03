@@ -98,6 +98,10 @@ int SoundManager::get_last_detected_angle() const {
     return m_last_angle.load();
 }
 
+bool SoundManager::is_idle() const {
+    return !m_is_speaking.load();
+}
+
 void SoundManager::sound_processing_task_entry(void* arg) {
     static_cast<SoundManager*>(arg)->sound_processing_task();
 }

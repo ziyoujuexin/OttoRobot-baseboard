@@ -148,3 +148,12 @@ void AnimationPlayer::player_task() {
         // The loop will now restart with the new m_current_anim_name
     }
 }
+
+bool AnimationPlayer::is_idle() const {
+    bool idle = false;
+    if (xSemaphoreTake(m_next_anim_mutex, pdMS_TO_TICKS(100)) == pdPASS) {
+        idle = (m_current_anim_name == "中眨眼_2_69s" && m_next_anim_name.empty());
+        xSemaphoreGive(m_next_anim_mutex);
+    }
+    return idle;
+}

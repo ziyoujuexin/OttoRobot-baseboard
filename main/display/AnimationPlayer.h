@@ -21,6 +21,7 @@ public:
 
     void start();
     void playOneShotAnimation(const std::string& animation_name);
+    bool is_idle() const;
 
 private:
     // Task and queue management
