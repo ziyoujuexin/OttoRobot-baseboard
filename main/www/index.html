@@ -117,6 +117,7 @@
             <h1>Otto Robot Control</h1>
             <div class="grid-container">
                 <button class="btn" onclick="sendCommand(0x01)">Forward</button>
+                <button class="btn" onclick="sendCommand(0x1C)">KF Forward</button>
                 <button class="btn" onclick="sendCommand(0x02)">Backward</button>
                 <button class="btn" onclick="sendCommand(0x03)">Turn Left</button>
                 <button class="btn" onclick="sendCommand(0x04)">Turn Right</button>
@@ -135,7 +136,6 @@
                 <button class="btn" onclick="sendCommand(0x16)">Sudden Shock</button>
                 <button class="btn" onclick="sendCommand(0x17)">Curious Ponder</button>
                 <button class="btn" onclick="sendCommand(0x18)">Thinking</button>
-                <button class="btn" onclick="sendCommand(0x19)">Lovot Shake</button>
                 <button class="btn" onclick="sendCommand(0x1A)">Track Left</button>
                 <button class="btn" onclick="sendCommand(0x1B)">Track Right</button>
                 <button class="btn btn-stop" onclick="sendCommand(0x00)">STOP</button>
@@ -165,7 +165,6 @@
                             <option value="sudden_shock">Sudden Shock</option>
                             <option value="curious_ponder">Curious Ponder</option>
                             <option value="thinking">Thinking</option>
-                            <option value="lovot_shake">Lovot Shake</option>
                             <option value="tracking_L">Tracking Left</option>
                             <option value="tracking_R">Tracking Right</option>
                         </select>

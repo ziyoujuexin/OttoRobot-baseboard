@@ -75,11 +75,13 @@ void MotionController::init() {
     m_gait_command_map[MOTION_CRYING] = "sudden_shock";
     m_gait_command_map[MOTION_SURPRISED] = "curious_ponder";
     m_gait_command_map[MOTION_THINKING] = "thinking";
-    m_gait_command_map[MOTION_LOVOT_SHAKE] = "lovot_shake";
 
     // --- 修正特殊动作的映射 ---
     m_gait_command_map[MOTION_TRACKING_L] = "tracking_L";
     m_gait_command_map[MOTION_TRACKING_R] = "tracking_R";
+    m_gait_command_map[MOTION_WALK_FORWARD_KF] = "walk_forward_kf";
+    m_gait_command_map[MOTION_STARTLE_AND_SIGH] = "startle_and_sigh";
+    m_gait_command_map[MOTION_WALK_BACKWARD_KF] = "walk_backward_kf";
     
 
     m_motion_queue = xQueueCreate(10, sizeof(motion_command_t));
