@@ -20,7 +20,9 @@ MotionController::MotionController(Servo& servo_driver, ActionManager& action_ma
       m_interrupt_flag(false),
       m_increment_was_limited_last_cycle(false),
       m_is_manual_control_active(false), // Initialize new member
-      m_manual_control_timeout_us(0) // Initialize new member
+      m_manual_control_timeout_us(0),
+      m_default_filter_alpha(0.8f), // Initialize default alpha
+      m_current_filter_alpha(0.8f) // Initialize current alpha // Initialize new member
 {
     m_decision_maker = std::make_unique<DecisionMaker>(*this);
 }
@@ -51,7 +53,7 @@ void MotionController::init() {
     // Initialize angle filters first to prevent race condition
     m_angle_filters.resize(GAIT_JOINT_COUNT);
     for (int i = 0; i < GAIT_JOINT_COUNT; ++i) {
-        m_angle_filters[i].set_alpha(0.8f);
+        m_angle_filters[i].set_alpha(m_default_filter_alpha);
         m_angle_filters[i].reset(ServoCalibration::get_home_pos(static_cast<ServoChannel>(i)));
     }
 
@@ -75,11 +77,13 @@ void MotionController::init() {
     m_gait_command_map[MOTION_CRYING] = "sudden_shock";
     m_gait_command_map[MOTION_SURPRISED] = "curious_ponder";
     m_gait_command_map[MOTION_THINKING] = "thinking";
-    m_gait_command_map[MOTION_LOVOT_SHAKE] = "lovot_shake";
 
     // --- 修正特殊动作的映射 ---
     m_gait_command_map[MOTION_TRACKING_L] = "tracking_L";
     m_gait_command_map[MOTION_TRACKING_R] = "tracking_R";
+    m_gait_command_map[MOTION_WALK_FORWARD_KF] = "walk_forward_kf";
+    m_gait_command_map[MOTION_STARTLE_AND_SIGH] = "startle_and_sigh";
+    m_gait_command_map[MOTION_WALK_BACKWARD_KF] = "walk_backward_kf";
     
 
     m_motion_queue = xQueueCreate(10, sizeof(motion_command_t));
@@ -218,12 +222,7 @@ void MotionController::motion_engine_task() {
                     if (!action_template) return;
 
                     // If starting a body-moving action, freeze the head to prevent conflict.
-                    if (strcmp(action_template->name, "tracking_L") == 0 ||
-                        strcmp(action_template->name, "tracking_R") == 0 ||
-                        strcmp(action_template->name, "walk_forward") == 0 ||
-                        strcmp(action_template->name, "walk_backward") == 0 ||
-                        strcmp(action_template->name, "turn_left") == 0 ||
-                        strcmp(action_template->name, "turn_right") == 0)
+                    if (is_body_moving(*action_template))
                     {
                         m_is_head_frozen.store(true);
                     }
@@ -240,6 +239,10 @@ void MotionController::motion_engine_task() {
                         for (int i = 0; i < GAIT_JOINT_COUNT; ++i) {
                             new_instance.start_positions[i] = ServoCalibration::get_home_pos(static_cast<ServoChannel>(i));
                         }
+                    }
+
+                    if (strcmp(action_template->name, "walk_forward_kf") == 0) {
+                        apply_filter_alpha(0.3f); // Set alpha to 0.3 specifically for walk_forward_kf
                     }
 
                     m_active_actions.push_back(new_instance);
@@ -484,6 +487,7 @@ void MotionController::motion_mixer_task() {
                             }
                             if (is_body_moving(instance.action)) {
                                 m_is_head_frozen.store(false);
+                                apply_filter_alpha(m_default_filter_alpha); // Revert alpha to default
                             }
                         }
                         return finished;
@@ -740,6 +744,22 @@ void MotionController::set_filter_alpha(float alpha) {
     for (auto& filter : m_angle_filters) {
         filter.set_alpha(alpha);
     }
+    m_default_filter_alpha = alpha; // Update default alpha
+    m_current_filter_alpha = alpha; // Update current alpha
     ESP_LOGI(TAG, "Set EMA filter alpha to %.2f for all joints.", alpha);
+}
+
+void MotionController::apply_filter_alpha(float alpha) {
+    if (alpha < 0.0f || alpha > 1.0f) {
+        ESP_LOGE(TAG, "Invalid alpha value %.2f. It should be between 0.0 and 1.0.", alpha);
+        return;
+    }
+    if (m_current_filter_alpha != alpha) {
+        for (auto& filter : m_angle_filters) {
+            filter.set_alpha(alpha);
+        }
+        m_current_filter_alpha = alpha;
+        ESP_LOGI(TAG, "Dynamically set EMA filter alpha to %.2f.", alpha);
+    }
 }
 

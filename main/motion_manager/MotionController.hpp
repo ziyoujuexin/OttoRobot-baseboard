@@ -93,8 +93,12 @@ private:
     std::atomic<bool> m_is_manual_control_active; // New: Flag for manual servo control
     int64_t m_manual_control_timeout_us; // New: Timeout for manual control
     std::atomic<bool> m_is_executed{false};
+    float m_default_filter_alpha = 0.8f; // Default alpha for EMA filters
+    float m_current_filter_alpha = 0.8f; // Current alpha applied to filters
 
 private:
+
+    void apply_filter_alpha(float alpha);
 
     // --- Task Wrappers ---
     static void start_task_wrapper(void* _this) {
