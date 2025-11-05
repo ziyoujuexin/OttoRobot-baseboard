@@ -16,6 +16,7 @@ public:
 
     // Action data access
     const RegisteredAction* get_action(const std::string& name) const;
+    const RegisteredGroup* get_group(const std::string& name) const;
 
     // NVS Storage Interface
     bool delete_action_from_nvs(const std::string& action_name);

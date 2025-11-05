@@ -1,4 +1,5 @@
 #include "PCA9685.hpp"
+#include "motion_manager/ServoCalibration.hpp"
 #include <esp_log.h>
 #include <cstring>
 #include <i2cdev.h>
@@ -44,25 +45,32 @@ void PCA9685::init() {
 }
 
 // TODO: 为了代码的兼容性，这里其实180对应了物理上的120度，后续修改
-void PCA9685::set_angle(uint8_t channel, uint16_t angle) {
+void PCA9685::set_angle(uint8_t channel, float angle) {
     if (channel > 15) {
         ESP_LOGE(TAG, "Invalid channel: %d. Must be 0-15.", channel);
         return;
     }
 
-    if (channel == 8) {
-        angle = 220 - angle;
+    if (channel == 6) {
+        angle = 180 - angle;
     } else if (channel == 7) {
         angle = 130 - angle;
     }
 
-    // 将角度(0-270)线性映射到脉冲宽度计数值
-    uint16_t pulse = map_angle_to_pwm(angle);
+    // Get the min and max angles for this specific channel
+    float min_angle = ServoCalibration::limits[channel].min;
+    float max_angle = ServoCalibration::limits[channel].max;
 
-    ESP_LOGD(TAG, "Channel: %d, Angle: %d, Pulse: %d", channel, angle, pulse);
+    // Get the min and max pulse widths for this specific channel
+    uint16_t min_pulse_us = ServoCalibration::pulse_limits[channel].min_us;
+    uint16_t max_pulse_us = ServoCalibration::pulse_limits[channel].max_us;
+
+    // 将角度(min_angle-max_angle)线性映射到脉冲宽度计数值
+    uint16_t pulse = map_angle_to_pwm(angle, min_angle, max_angle, min_pulse_us, max_pulse_us);
+
+    ESP_LOGD(TAG, "Channel: %d, Angle: %.1f, Min: %.1f, Max: %.1f, Pulse: %d", channel, angle, min_angle, max_angle, pulse);
 
     // 在PCA9685上设置PWM值
-    // set_pwm_value 使用的是0-4095的计数值，正好是我们计算出的pulse
     esp_err_t err = pca9685_set_pwm_value(&dev, channel, pulse);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Failed to set PWM value for channel %d: %s", channel, esp_err_to_name(err));
@@ -77,12 +85,20 @@ void PCA9685::home_all() {
     }
 }
 
-uint16_t PCA9685::map_angle_to_pwm(uint16_t angle) {
+uint16_t PCA9685::map_angle_to_pwm(float angle, float min_angle, float max_angle, uint16_t min_pulse_us, uint16_t max_pulse_us) {
     // PCA9685 resolution is 12-bit (4096 steps).
-    const uint16_t min_pulse_us = 900;
-    const uint16_t max_pulse_us = 2100;
     const float us_per_step = 1000000.0f / (PWM_FREQ_HZ * 4096.0f);
 
-    uint32_t pulse_us = min_pulse_us + (uint32_t)((max_pulse_us - min_pulse_us) * (angle / 180.0f));
+    float range_angle = max_angle - min_angle;
+    if (range_angle == 0) {
+        range_angle = 180.0f; // Prevent division by zero
+    }
+
+    // Calculate the percentage of the angle within its allowed range
+    float percentage = (angle - min_angle) / range_angle;
+
+    // Apply this percentage to the pulse width range
+    uint32_t pulse_us = min_pulse_us + (uint32_t)((max_pulse_us - min_pulse_us) * percentage);
+
     return (uint16_t)(pulse_us / us_per_step);
 }

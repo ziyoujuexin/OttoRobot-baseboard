@@ -66,7 +66,7 @@ void MotionController::init() {
     m_gait_command_map[MOTION_MOVE_EAR] = "wiggle_ears";
     m_gait_command_map[MOTION_NOD_HEAD] = "nod_head";
     m_gait_command_map[MOTION_SHAKE_HEAD] = "shake_head";
-    m_gait_command_map[MOTION_SINGLE_LEG] = "single_leg";
+    m_gait_command_map[MOTION_WALK_BACKWARD_KF] = "walk_backward_kf";
     m_gait_command_map[MOTION_FACE_TRACE] = "face_trace";
     m_gait_command_map[MOTION_HAPPY] = "happy";
     m_gait_command_map[MOTION_SAD] = "look_around"; // Renamed
@@ -263,24 +263,51 @@ void MotionController::motion_engine_task() {
                     {
                         if (!received_cmd.params.empty()) {
                             std::string action_name(received_cmd.params.begin(), received_cmd.params.end());
-                            ESP_LOGI(TAG, "Received MOTION_PLAY_MOTION for action: '%s'", action_name.c_str());
+                            ESP_LOGI(TAG, "Received MOTION_PLAY_MOTION for: '%s'", action_name.c_str());
 
-                            // Check if the action already exists in the active list
-                            bool action_already_exists = false;
-                            for (const auto& existing_instance : m_active_actions) {
-                                if (strcmp(existing_instance.action.name, action_name.c_str()) == 0) {
-                                    action_already_exists = true;
-                                    ESP_LOGW(TAG, "Action '%s' is already active. Ignoring command.", action_name.c_str());
-                                    break;
+                            // First, check if it's an action group
+                            const RegisteredGroup* group_to_add = m_action_manager.get_group(action_name);
+                            if (group_to_add) {
+                                ESP_LOGI(TAG, "Processing action group: '%s'", action_name.c_str());
+                                for (uint8_t i = 0; i < group_to_add->action_count; ++i) {
+                                    std::string member_action_name = group_to_add->action_names[i];
+                                    const RegisteredAction* member_action = m_action_manager.get_action(member_action_name);
+                                    if (member_action) {
+                                        // Check if member action is already active
+                                        bool member_action_already_exists = false;
+                                        for (const auto& existing_instance : m_active_actions) {
+                                            if (strcmp(existing_instance.action.name, member_action_name.c_str()) == 0) {
+                                                member_action_already_exists = true;
+                                                ESP_LOGW(TAG, "Member action '%s' from group '%s' is already active. Ignoring.", member_action_name.c_str(), action_name.c_str());
+                                                break;
+                                            }
+                                        }
+                                        if (!member_action_already_exists) {
+                                            add_new_action(member_action);
+                                        }
+                                    } else {
+                                        ESP_LOGE(TAG, "Member action '%s' not found for group '%s'!", member_action_name.c_str(), action_name.c_str());
+                                    }
                                 }
-                            }
+                            } else {
+                                // If not a group, treat as a single action
+                                // Check if the action already exists in the active list
+                                bool action_already_exists = false;
+                                for (const auto& existing_instance : m_active_actions) {
+                                    if (strcmp(existing_instance.action.name, action_name.c_str()) == 0) {
+                                        action_already_exists = true;
+                                        ESP_LOGW(TAG, "Action '%s' is already active. Ignoring command.", action_name.c_str());
+                                        break;
+                                    }
+                                }
 
-                            if (!action_already_exists) {
-                                const RegisteredAction* action_to_add = m_action_manager.get_action(action_name);
-                                if (action_to_add) {
-                                    add_new_action(action_to_add);
-                                } else {
-                                    ESP_LOGE(TAG, "Action '%s' not found in manager!", action_name.c_str());
+                                if (!action_already_exists) {
+                                    const RegisteredAction* action_to_add = m_action_manager.get_action(action_name);
+                                    if (action_to_add) {
+                                        add_new_action(action_to_add);
+                                    } else {
+                                        ESP_LOGE(TAG, "Action '%s' not found in manager!", action_name.c_str());
+                                    }
                                 }
                             }
                         } else {
@@ -313,22 +340,46 @@ void MotionController::motion_engine_task() {
                         if (m_gait_command_map.count(received_cmd.motion_type)) {
                             const std::string& action_name = m_gait_command_map.at(received_cmd.motion_type);
                             
-                            // Check if the action already exists in the active list
-                            bool action_already_exists = false;
-                            for (const auto& existing_instance : m_active_actions) {
-                                if (strcmp(existing_instance.action.name, action_name.c_str()) == 0) {
-                                    action_already_exists = true;
-                                    ESP_LOGW(TAG, "Action '%s' is already active. Ignoring command.", action_name.c_str());
-                                    break;
+                            // First, check if it's an action group
+                            const RegisteredGroup* group_to_add = m_action_manager.get_group(action_name);
+                            if (group_to_add) {
+                                ESP_LOGI(TAG, "Processing action group: '%s'", action_name.c_str());
+                                for (uint8_t i = 0; i < group_to_add->action_count; ++i) {
+                                    std::string member_action_name = group_to_add->action_names[i];
+                                    const RegisteredAction* member_action = m_action_manager.get_action(member_action_name);
+                                    if (member_action) {
+                                        bool member_action_already_exists = false;
+                                        for (const auto& existing_instance : m_active_actions) {
+                                            if (strcmp(existing_instance.action.name, member_action_name.c_str()) == 0) {
+                                                member_action_already_exists = true;
+                                                break;
+                                            }
+                                        }
+                                        if (!member_action_already_exists) {
+                                            add_new_action(member_action);
+                                        }
+                                    } else {
+                                        ESP_LOGE(TAG, "Member action '%s' not found for group '%s'!", member_action_name.c_str(), action_name.c_str());
+                                    }
                                 }
-                            }
+                            } else {
+                                // If not a group, treat as a single action
+                                bool action_already_exists = false;
+                                for (const auto& existing_instance : m_active_actions) {
+                                    if (strcmp(existing_instance.action.name, action_name.c_str()) == 0) {
+                                        action_already_exists = true;
+                                        ESP_LOGW(TAG, "Action '%s' is already active. Ignoring command.", action_name.c_str());
+                                        break;
+                                    }
+                                }
 
-                            if (!action_already_exists) {
-                                const RegisteredAction* action_to_add = m_action_manager.get_action(action_name);
-                                if (action_to_add) {
-                                    add_new_action(action_to_add);
-                                } else {
-                                     ESP_LOGE(TAG, "Action '%s' not found in manager!", action_name.c_str());
+                                if (!action_already_exists) {
+                                    const RegisteredAction* action_to_add = m_action_manager.get_action(action_name);
+                                    if (action_to_add) {
+                                        add_new_action(action_to_add);
+                                    } else {
+                                        ESP_LOGE(TAG, "Action '%s' not found in manager!", action_name.c_str());
+                                    }
                                 }
                             }
                         } else {
@@ -545,12 +596,14 @@ void MotionController::home(HomeMode mode, const std::vector<ServoChannel>& chan
     vTaskDelay(pdMS_TO_TICKS(100));
 }
 
-void MotionController::set_single_servo(uint8_t channel, uint16_t angle) {
-    m_servo_driver.set_angle(channel, angle);
-    m_is_manual_control_active.store(true);
-    m_manual_control_timeout_us = esp_timer_get_time() + 5 * 1000 * 1000; // 5 seconds timeout
-}
+void MotionController::set_single_servo(uint8_t channel, float angle) {
 
+    m_servo_driver.set_angle(channel, angle);
+
+    m_is_manual_control_active.store(true);
+
+    m_manual_control_timeout_us = esp_timer_get_time() + 120 * 1000 * 1000; // 2 minutes timeout
+}
 // --- Face Tracking Task ---
 void MotionController::face_tracking_task() {
     ESP_LOGI(TAG, "Face tracking task running...");

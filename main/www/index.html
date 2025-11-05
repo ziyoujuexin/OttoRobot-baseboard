@@ -126,7 +126,7 @@
                 <button class="btn" onclick="sendCommand(0x06)">Move Ear</button>
                 <button class="btn" onclick="sendCommand(0x07)">Nod Head</button>
                 <button class="btn" onclick="sendCommand(0x08)">Shake Head</button>
-                <button class="btn" onclick="sendCommand(0x09)">Single Leg</button>
+                <button class="btn" onclick="sendCommand(0x09)">KF Backward</button>
                 <button class="btn" onclick="sendCommand(0x10)">Happy</button>
                 <button class="btn" onclick="sendCommand(0x11)">Look Around</button>
                 <button class="btn" onclick="sendCommand(0x12)">Silly</button>
@@ -155,7 +155,7 @@
                             <option value="wave_hand">Wave Hand</option>
                             <option value="nod_head">Nod Head</option>
                             <option value="shake_head">Shake Head</option>
-                            <option value="single_leg">Single Leg</option>
+                            <option value="walk_backward_kf">KF Backward</option>
                             <option value="happy">Happy</option>
                             <option value="sad">Sad</option>
                             <option value="silly">Silly</option>
@@ -184,9 +184,9 @@
                     <input type="number" id="servo-channel" value="0" min="0" max="15">
                 </div>
                 <div class="form-group">
-                    <label for="servo-angle">Angle (0-270)</label>
+                    <label for="servo-angle">Angle (0 to 180)</label>
                     <div class="input-group">
-                        <input type="range" id="servo-angle" min="0" max="270" value="90" oninput="document.getElementById('servo-angle-value').innerText = this.value">
+                        <input type="range" id="servo-angle" min="0" max="180" value="90" oninput="document.getElementById('servo-angle-value').innerText = this.value">
                         <span id="servo-angle-value" style="width: 40px;">90</span>
                     </div>
                 </div>
@@ -320,7 +320,7 @@
     function setServoAngle() {
         const channel = document.getElementById('servo-channel').value;
         const angle = document.getElementById('servo-angle').value;
-        sendJsonCommand({ channel: parseInt(channel), angle: parseInt(angle) }, '/servo');
+        sendJsonCommand({ channel: parseInt(channel), angle: parseFloat(angle) }, '/servo');
     }
 
     function updateAlpha(value) {
@@ -522,11 +522,17 @@
             params[type].forEach((value, index) => {
                 const sliderId = `slider-${type}-${index}`;
                 const numberId = `number-${type}-${index}`;
+                let min_val = -90;
+                let max_val = 90;
+                if (type === 'amplitude' && (index === 6 || index === 8)) {
+                    min_val = -120;
+                    max_val = 120;
+                }
                 html += `
                     <div class="form-group">
                         <label for="${sliderId}">Servo ${index}</label>
                         <div class="input-group">
-                            <input type="range" id="${sliderId}" min="-90" max="90" step="0.1" value="${value}"
+                            <input type="range" id="${sliderId}" min="${min_val}" max="${max_val}" step="0.1" value="${value}"
                                    oninput="document.getElementById('${numberId}').value = this.value"
                                    onchange="tuneParam(${index}, '${type}', this.value)">
                             <input type="number" id="${numberId}" step="0.1" value="${value}"

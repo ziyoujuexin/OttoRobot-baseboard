@@ -1,7 +1,7 @@
 #pragma once
 
 // I2C configuration
-#define CONFIG_I2CDEV_TIMEOUT 100 // 100ms timeout for I2C operations
+
 
 
 #include "driver/uart.h"
@@ -24,7 +24,7 @@
 #define MOTION_MOVE_EAR       0x06
 #define MOTION_NOD_HEAD       0x07
 #define MOTION_SHAKE_HEAD     0x08
-#define MOTION_SINGLE_LEG     0x09
+#define MOTION_WALK_BACKWARD_KF 0x09
 #define MOTION_WAVE_HELLO     0x0C 
 #define MOTION_FACE_TRACE     0x0A
 #define MOTION_FACE_END       0x0B
@@ -48,7 +48,7 @@
 #define MOTION_TRACKING_R     0x1B
 #define MOTION_WALK_FORWARD_KF 0x1C
 #define MOTION_STARTLE_AND_SIGH 0x1D
-#define MOTION_WALK_BACKWARD_KF 0x1E
+
 
 #define MOTION_TUNE_PARAM     0x20
 #define MOTION_SAVE_PARAMS    0x21
