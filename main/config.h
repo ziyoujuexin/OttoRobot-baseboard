@@ -30,16 +30,15 @@
 #define MOTION_FACE_END       0x0B
 
 #define MOTION_HAPPY          0x10 
-#define MOTION_SAD            0x11
+#define MOTION_LOOKAROUND     0x11
 #define MOTION_SILLY          0x12
 #define MOTION_FUNNY          0x13
 #define MOTION_LAUGHING       0x14
 #define MOTION_ANGRY          0x15
 #define MOTION_CRYING         0x16
 #define MOTION_SURPRISED      0x17
-#define MOTION_THINKING       0x18
+#define MOTION_SAD            0x18
 #define MOTION_LOVOT_SHAKE    0x19
-
 #define MOTION_WAKE_DETECT    0xC0
 #define MOTION_PLAY_ANIMATION 0xD0
 #define MOTION_PLAY_MOTION    0xD1

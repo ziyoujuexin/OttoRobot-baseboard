@@ -69,21 +69,20 @@ void MotionController::init() {
     m_gait_command_map[MOTION_WALK_BACKWARD_KF] = "walk_backward_kf";
     m_gait_command_map[MOTION_FACE_TRACE] = "face_trace";
     m_gait_command_map[MOTION_HAPPY] = "happy";
-    m_gait_command_map[MOTION_SAD] = "look_around"; // Renamed
+    m_gait_command_map[MOTION_SAD] = "sad"; // Corrected mapping
+    m_gait_command_map[MOTION_LOOKAROUND] = "Look_Around";
     m_gait_command_map[MOTION_SILLY] = "silly";
     m_gait_command_map[MOTION_FUNNY] = "funny";
     m_gait_command_map[MOTION_LAUGHING] = "laughing";
     m_gait_command_map[MOTION_ANGRY] = "angry";
     m_gait_command_map[MOTION_CRYING] = "sudden_shock";
     m_gait_command_map[MOTION_SURPRISED] = "curious_ponder";
-    m_gait_command_map[MOTION_THINKING] = "thinking";
 
     // --- 修正特殊动作的映射 ---
     m_gait_command_map[MOTION_TRACKING_L] = "tracking_L";
     m_gait_command_map[MOTION_TRACKING_R] = "tracking_R";
     m_gait_command_map[MOTION_WALK_FORWARD_KF] = "walk_forward_kf";
     m_gait_command_map[MOTION_STARTLE_AND_SIGH] = "startle_and_sigh";
-    m_gait_command_map[MOTION_WALK_BACKWARD_KF] = "walk_backward_kf";
     
 
     m_motion_queue = xQueueCreate(10, sizeof(motion_command_t));

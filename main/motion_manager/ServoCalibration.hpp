@@ -12,7 +12,7 @@ const std::array<float, static_cast<size_t>(ServoChannel::SERVO_COUNT)> trims = 
     0.0f,  // 1: LEFT_EAR_SWING
     0.0f,  // 2: RIGHT_EAR_LIFT
     0.0f,  // 3: RIGHT_EAR_SWING
-    0.0f, // 4: HEAD_TILT (90 - 30 = 60)
+    -20.0f, // 4: HEAD_TILT (90 - 30 = 60)
     0.0f, // 5: HEAD_PAN (90 - 45 = 45)
     0.0f,  // 6: RIGHT_ARM_SWING
     0.0f,  // 7: LEFT_ARM_LIFT (90 - 25 = 65)
@@ -35,12 +35,12 @@ const std::array<AngleLimits, static_cast<size_t>(ServoChannel::SERVO_COUNT)> li
     {30.0f, 110.0f},   // 1: LEFT_EAR_SWING
     {50.0f, 120.0f},   // 2: RIGHT_EAR_LIFT
     {60.0f, 140.0f},   // 3: RIGHT_EAR_SWING
-    {0.0f, 180.0f},   // 4: HEAD_TILT
-    {0.0f, 180.0f},   // 5: HEAD_PAN
-    {-30.0f, 210.0f},   // 6: RIGHT_ARM_SWING
-    {-30.0f, 210.0f},   // 7: LEFT_ARM_LIFT
-    {-30.0f, 210.0f},   // 8: LEFT_ARM_SWING
-    {-30.0f, 210.0f}, // 9: RIGHT_ARM_LIFT
+    {40.0f, 105.0f},   // 4: HEAD_TILT
+    {30.0f, 150.0f},   // 5: HEAD_PAN
+    {0.0f, 180.0f},   // 6: RIGHT_ARM_SWING
+    {0.0f,180.0f},   // 7: LEFT_ARM_LIFT
+    {0.0f, 180.0f},   // 8: LEFT_ARM_SWING
+    {0.0f, 180.0f}, // 9: RIGHT_ARM_LIFT
     {0.0f, 180.0f},   // 10: LEFT_LEG_ROTATE
     {60.0f, 170.0f},  // 11: LEFT_ANKLE_LIFT
     {0.0f, 180.0f},   // 12: RIGHT_LEG_ROTATE
