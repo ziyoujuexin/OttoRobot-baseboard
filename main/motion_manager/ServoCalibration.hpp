@@ -8,8 +8,8 @@ namespace ServoCalibration {
 // Neutral position offsets (trims). The value to ADD to 90 to get the calibrated home.
 // A value of -10 means the calibrated home is 80 degrees.
 const std::array<float, static_cast<size_t>(ServoChannel::SERVO_COUNT)> trims = {{
-    0.0f,  // 0: LEFT_EAR_LIFT
-    0.0f,  // 1: LEFT_EAR_SWING
+    10.0f,  // 0: LEFT_EAR_LIFT
+    -10.0f,  // 1: LEFT_EAR_SWING
     0.0f,  // 2: RIGHT_EAR_LIFT
     0.0f,  // 3: RIGHT_EAR_SWING
     -20.0f, // 4: HEAD_TILT (90 - 30 = 60)

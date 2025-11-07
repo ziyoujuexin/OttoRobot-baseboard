@@ -31,7 +31,7 @@
 
 #define MOTION_HAPPY          0x10 
 #define MOTION_LOOKAROUND     0x11
-#define MOTION_SILLY          0x12
+#define MOTION_DANCE          0x12
 #define MOTION_FUNNY          0x13
 #define MOTION_LAUGHING       0x14
 #define MOTION_ANGRY          0x15
