@@ -19,7 +19,7 @@ const std::array<float, static_cast<size_t>(ServoChannel::SERVO_COUNT)> trims = 
     0.0f,  // 8: LEFT_ARM_SWING
     0.0f, // 9: RIGHT_ARM_LIFT (90 - 25 = 65)
     0.0f, // 10: LEFT_LEG_ROTATE (90 - 10 = 80)
-    30.0f, // 11: LEFT_ANKLE_LIFT (90 + 10 = 100)
+    35.0f, // 11: LEFT_ANKLE_LIFT (90 + 10 = 100)
     0.0f,  // 12: RIGHT_LEG_ROTATE
     0.0f   // 13: RIGHT_ANKLE_LIFT
 }};
