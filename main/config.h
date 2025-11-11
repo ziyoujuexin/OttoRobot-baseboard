@@ -33,14 +33,14 @@
 #define MOTION_LOOKAROUND     0x11
 #define MOTION_DANCE          0x12
 #define MOTION_FUNNY          0x13
-#define MOTION_LAUGHING       0x14
+#define MOTION_VERY_HAPPY     0x14
 #define MOTION_ANGRY          0x15
 #define MOTION_CRYING         0x16
 #define MOTION_SURPRISED      0x17
 #define MOTION_SAD            0x18
 #define MOTION_LOVOT_SHAKE    0x19
 #define MOTION_WAKE_DETECT    0xC0
-#define MOTION_PLAY_ANIMATION 0xD0
+#define MOTION_PLAY_ANIMATION 0xD02
 #define MOTION_PLAY_MOTION    0xD1
 
 #define MOTION_TRACKING_L     0x1A
@@ -53,6 +53,7 @@
 #define MOTION_SAVE_PARAMS    0x21
 #define MOTION_GET_PARAMS     0x22
 #define MOTION_WAKE_DETECT    0xC0
+#define MOTION_SOUND_SOURCE   0xD2
 #define MOTION_SERVO_CONTROL  0xF0
 
 enum class ServoChannel : uint8_t {

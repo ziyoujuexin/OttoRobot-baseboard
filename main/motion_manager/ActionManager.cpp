@@ -48,6 +48,7 @@ void ActionManager::register_default_actions(bool force) {
             ESP_LOGI(TAG, "All default actions (including new ones) found in NVS. Loading from storage.");
             m_action_cache["walk_forward"] = temp_walk_forward;
             m_storage->load_action("walk_backward", m_action_cache["walk_backward"]);
+            m_storage->load_action("walk_backward_kf", m_action_cache["walk_backward_kf"]);
             m_storage->load_action("turn_left", m_action_cache["turn_left"]);
             m_storage->load_action("turn_right", m_action_cache["turn_right"]);
             m_storage->load_action("wiggle_ears", m_action_cache["wiggle_ears"]);
@@ -58,7 +59,7 @@ void ActionManager::register_default_actions(bool force) {
             m_storage->load_action("happy", m_action_cache["happy"]);
             m_storage->load_action("silly", m_action_cache["silly"]);
             m_storage->load_action("funny", m_action_cache["funny"]);
-            m_storage->load_action("laughing", m_action_cache["laughing"]);
+            m_storage->load_action("very_happy", m_action_cache["very_happy"]);
             m_storage->load_action("angry", m_action_cache["angry"]);
             m_storage->load_action("crying", m_action_cache["crying"]);
             m_storage->load_action("surprised", m_action_cache["surprised"]);
@@ -104,7 +105,7 @@ void ActionManager::register_default_actions(bool force) {
             auto& frame = kf_data.frames[kf_data.frame_count++];
             frame.transition_time_ms = frame_time;
             auto pos = create_home_pos();
-            pos[static_cast<int>(ServoChannel::RIGHT_ANKLE_LIFT)] -= lift_amp; // Right foot at peak lift
+            pos[static_cast<int>(ServoChannel::RIGHT_ANKLE_LIFT)] -= lift_amp * 1.2f; // Right foot at peak lift
             pos[static_cast<int>(ServoChannel::LEFT_ARM_SWING)] = 80.0f;
             pos[static_cast<int>(ServoChannel::RIGHT_ARM_SWING)] = 80.0f;
             // Ears neutral
@@ -121,8 +122,8 @@ void ActionManager::register_default_actions(bool force) {
             frame.transition_time_ms = frame_time;
             auto pos = create_home_pos();
             pos[static_cast<int>(ServoChannel::LEFT_LEG_ROTATE)] -= backward_rot_amp * 0.5f;
-            pos[static_cast<int>(ServoChannel::RIGHT_LEG_ROTATE)] -= backward_rot_amp * 0.5f;
-            pos[static_cast<int>(ServoChannel::RIGHT_ANKLE_LIFT)] -= lift_amp * 0.5f; // Right foot moving down to land
+            pos[static_cast<int>(ServoChannel::RIGHT_LEG_ROTATE)] -= backward_rot_amp * 0.7f;
+            pos[static_cast<int>(ServoChannel::RIGHT_ANKLE_LIFT)] -= lift_amp * 0.6f; // Right foot moving down to land
             pos[static_cast<int>(ServoChannel::LEFT_ARM_SWING)] = 110.0f;
             pos[static_cast<int>(ServoChannel::RIGHT_ARM_SWING)] = 50.0f;
             // Ears move in opposition to arms
@@ -139,8 +140,8 @@ void ActionManager::register_default_actions(bool force) {
             frame.transition_time_ms = frame_time;
             auto pos = create_home_pos();
             pos[static_cast<int>(ServoChannel::LEFT_LEG_ROTATE)] -= backward_rot_amp;
-            pos[static_cast<int>(ServoChannel::RIGHT_LEG_ROTATE)] -= backward_rot_amp;
-            pos[static_cast<int>(ServoChannel::LEFT_ANKLE_LIFT)] -= lift_amp * 0.5f; // Left foot pushing off
+            pos[static_cast<int>(ServoChannel::RIGHT_LEG_ROTATE)] -= backward_rot_amp * 1.5f;
+            pos[static_cast<int>(ServoChannel::LEFT_ANKLE_LIFT)] -= lift_amp * 0.35f; // Left foot pushing off
             pos[static_cast<int>(ServoChannel::LEFT_ARM_SWING)] = 110.0f;
             pos[static_cast<int>(ServoChannel::RIGHT_ARM_SWING)] = 50.0f;
             // Ears move in opposition to arms, slightly more pronounced
@@ -157,8 +158,8 @@ void ActionManager::register_default_actions(bool force) {
             frame.transition_time_ms = frame_time;
             auto pos = create_home_pos();
             pos[static_cast<int>(ServoChannel::LEFT_LEG_ROTATE)] -= backward_rot_amp * 0.5f;
-            pos[static_cast<int>(ServoChannel::RIGHT_LEG_ROTATE)] -= backward_rot_amp * 0.5f;
-            pos[static_cast<int>(ServoChannel::LEFT_ANKLE_LIFT)] += lift_amp * 0.5f; // Left foot lifting high
+            pos[static_cast<int>(ServoChannel::RIGHT_LEG_ROTATE)] -= backward_rot_amp * 0.7f;
+            pos[static_cast<int>(ServoChannel::LEFT_ANKLE_LIFT)] += lift_amp * 0.35f; // Left foot lifting high
             pos[static_cast<int>(ServoChannel::LEFT_ARM_SWING)] = 80.0f;
             pos[static_cast<int>(ServoChannel::RIGHT_ARM_SWING)] = 80.0f;
             // Ears neutral
@@ -191,8 +192,8 @@ void ActionManager::register_default_actions(bool force) {
             frame.transition_time_ms = frame_time;
             auto pos = create_home_pos();
             pos[static_cast<int>(ServoChannel::LEFT_LEG_ROTATE)] += forward_rot_amp * 0.5f;
-            pos[static_cast<int>(ServoChannel::RIGHT_LEG_ROTATE)] += forward_rot_amp * 0.5f;
-            pos[static_cast<int>(ServoChannel::LEFT_ANKLE_LIFT)] += lift_amp * 0.5f; // Left foot moving down to land
+            pos[static_cast<int>(ServoChannel::RIGHT_LEG_ROTATE)] += forward_rot_amp * 0.7f;
+            pos[static_cast<int>(ServoChannel::LEFT_ANKLE_LIFT)] += lift_amp * 0.35f; // Left foot moving down to land
             pos[static_cast<int>(ServoChannel::LEFT_ARM_SWING)] = 50.0f;
             pos[static_cast<int>(ServoChannel::RIGHT_ARM_SWING)] = 110.0f;
             // Ears move in opposition to arms
@@ -209,8 +210,8 @@ void ActionManager::register_default_actions(bool force) {
             frame.transition_time_ms = frame_time;
             auto pos = create_home_pos();
             pos[static_cast<int>(ServoChannel::LEFT_LEG_ROTATE)] += forward_rot_amp;
-            pos[static_cast<int>(ServoChannel::RIGHT_LEG_ROTATE)] += forward_rot_amp;
-            pos[static_cast<int>(ServoChannel::RIGHT_ANKLE_LIFT)] += lift_amp * 0.5f; // Right foot pushing off
+            pos[static_cast<int>(ServoChannel::RIGHT_LEG_ROTATE)] += forward_rot_amp * 1.2f;
+            pos[static_cast<int>(ServoChannel::RIGHT_ANKLE_LIFT)] += lift_amp * 0.7f; // Right foot pushing off
             pos[static_cast<int>(ServoChannel::LEFT_ARM_SWING)] = 50.0f;
             pos[static_cast<int>(ServoChannel::RIGHT_ARM_SWING)] = 110.0f;
             // Ears move in opposition to arms, slightly more pronounced
@@ -227,8 +228,8 @@ void ActionManager::register_default_actions(bool force) {
             frame.transition_time_ms = frame_time;
             auto pos = create_home_pos();
             pos[static_cast<int>(ServoChannel::LEFT_LEG_ROTATE)] += forward_rot_amp * 0.5f;
-            pos[static_cast<int>(ServoChannel::RIGHT_LEG_ROTATE)] += forward_rot_amp * 0.5f;
-            pos[static_cast<int>(ServoChannel::RIGHT_ANKLE_LIFT)] -= lift_amp * 0.5f; // Right foot lifting high
+            pos[static_cast<int>(ServoChannel::RIGHT_LEG_ROTATE)] += forward_rot_amp * 0.7f;
+            pos[static_cast<int>(ServoChannel::RIGHT_ANKLE_LIFT)] -= lift_amp * 0.6f; // Right foot lifting high
             pos[static_cast<int>(ServoChannel::LEFT_ARM_SWING)] = 80.0f;
             pos[static_cast<int>(ServoChannel::RIGHT_ARM_SWING)] = 80.0f;
             // Ears neutral
@@ -300,8 +301,8 @@ void ActionManager::register_default_actions(bool force) {
 
         // Arm and Ear movement parameters
         const float arm_swing_offset = 30.0f; // Counter-balance for arms
-        const float ear_lift_offset = 10.0f;  // Front/Back ear movement
-        const float ear_swing_offset = 15.0f; // In/Out ear movement
+        const float ear_lift_offset = 5.0f;  // Front/Back ear movement
+        const float ear_swing_offset = 5.0f; // In/Out ear movement
 
         // Frame 0: Lift right foot
         if (kf_data.frame_count < MAX_KEYFRAMES_PER_ACTION) {
@@ -471,12 +472,12 @@ void ActionManager::register_default_actions(bool force) {
         m_action_cache[turn_left_kf.name] = turn_left_kf;
     }
 
-    { // Scope for turn_right_kf - V2 (Pivot fix)
+    { // Scope for turn_right_kf - V16 (User-Requested Speed/Cycle Change)
         RegisteredAction turn_right_kf = {};
         strcpy(turn_right_kf.name, "turn_right");
         turn_right_kf.type = ActionType::KEYFRAME_SEQUENCE;
         turn_right_kf.is_atomic = false;
-        turn_right_kf.default_steps = 4;
+        turn_right_kf.default_steps = 4; // RESTORED to 4 as per user request
         
         auto& kf_data = turn_right_kf.data.keyframe;
         kf_data.frame_count = 0;
@@ -489,99 +490,56 @@ void ActionManager::register_default_actions(bool force) {
             return pos;
         };
 
-        const float turn_rot_amp_l = 50.0f; // Symmetrical to turn_left's outer leg
-        const float turn_rot_amp_r = 0.0f;  // Zero rotation for inner leg (right, pivot)
-        const float base_lift_amp = 40.0f;
-        const float turn_lift_amp = base_lift_amp * 0.9f;
-        const int frame_time = 150; // Match turn_left speed
+        const int frame_time =82; // MATCHED to turn_left for smoothness
 
-        // The sequence is mirrored from turn_left, but the rotation direction is inverted
-        // to fix the pivot foot issue.
+        // Arm and Ear movement parameters
+        const float arm_swing_offset = 30.0f;
+        const float ear_lift_offset = 5.0f;
+        const float ear_swing_offset = 5.0f;
 
-        // Frame 0: Lift left foot
-        if (kf_data.frame_count < MAX_KEYFRAMES_PER_ACTION) {
+        // Leg servo parameters from user's tuning
+        const float amp_10 = 25.0f;
+        const float amp_11 = -14.8f;
+        const float amp_12 = -45.0f;
+        const float amp_13 = 25.0f;
+
+        const float phase_11 = PI;
+        const float phase_12 = PI / 2.0f;
+
+        // USER-SPECIFIED OFFSETS
+        const float offset_10 = -20.0f;
+        const float offset_11 = -10.0f;
+        const float offset_12 = -15.0f;
+        const float offset_13 = 10.0f;
+
+        for (int i = 0; i < 16; ++i) { // Generate 16 frames
+            if (kf_data.frame_count >= MAX_KEYFRAMES_PER_ACTION) break;
             auto& frame = kf_data.frames[kf_data.frame_count++];
             frame.transition_time_ms = frame_time;
             auto pos = create_home_pos();
-            pos[static_cast<int>(ServoChannel::LEFT_ANKLE_LIFT)] -= turn_lift_amp;
+
+            float theta = i * 2.0f * PI / 16.0f; // Use 16 steps
+
+            // Apply leg positions based on user's sin logic WITH OFFSETS
+            pos[10] = ServoCalibration::get_home_pos(ServoChannel::LEFT_LEG_ROTATE) + offset_10 + amp_10 * sin(theta);
+            pos[11] = ServoCalibration::get_home_pos(ServoChannel::LEFT_ANKLE_LIFT) + offset_11 + amp_11 * sin(theta + phase_11);
+            pos[12] = ServoCalibration::get_home_pos(ServoChannel::RIGHT_LEG_ROTATE) + offset_12 + amp_12 * sin(theta + phase_12);
+            pos[13] = ServoCalibration::get_home_pos(ServoChannel::RIGHT_ANKLE_LIFT) + offset_13 + amp_13 * sin(theta);
+
+            // Apply arm/ear logic with DIFFERENT frequencies for a more organic feel
+            float arm_theta = sin(theta);
+            float ear_theta = sin(theta * 1.5f + PI / 4.0f); // Faster and phase-shifted ear movement
+
+            pos[static_cast<int>(ServoChannel::RIGHT_ARM_SWING)] += arm_swing_offset * arm_theta;
+            pos[static_cast<int>(ServoChannel::LEFT_ARM_SWING)] -= arm_swing_offset * arm_theta;
+            
+            pos[static_cast<int>(ServoChannel::RIGHT_EAR_LIFT)] += ear_lift_offset * ear_theta;
+            pos[static_cast<int>(ServoChannel::LEFT_EAR_LIFT)] -= ear_lift_offset * ear_theta;
+            pos[static_cast<int>(ServoChannel::RIGHT_EAR_SWING)] += ear_swing_offset * ear_theta;
+            pos[static_cast<int>(ServoChannel::LEFT_EAR_SWING)] -= ear_swing_offset * ear_theta;
+
             memcpy(frame.positions, pos.data(), sizeof(frame.positions));
         }
-
-        // Frame 1: Left foot landing, legs rotating (Direction Inverted: +=)
-        if (kf_data.frame_count < MAX_KEYFRAMES_PER_ACTION) {
-            auto& frame = kf_data.frames[kf_data.frame_count++];
-            frame.transition_time_ms = frame_time;
-            auto pos = create_home_pos();
-            pos[static_cast<int>(ServoChannel::LEFT_LEG_ROTATE)] += turn_rot_amp_l * 0.5f;
-            pos[static_cast<int>(ServoChannel::RIGHT_LEG_ROTATE)] += turn_rot_amp_r * 0.5f;
-            pos[static_cast<int>(ServoChannel::LEFT_ANKLE_LIFT)] -= turn_lift_amp * 0.5f;
-            memcpy(frame.positions, pos.data(), sizeof(frame.positions));
-        }
-
-        // Frame 2: Legs at max rotation, right foot pushing off (Direction Inverted: +=)
-        if (kf_data.frame_count < MAX_KEYFRAMES_PER_ACTION) {
-            auto& frame = kf_data.frames[kf_data.frame_count++];
-            frame.transition_time_ms = frame_time;
-            auto pos = create_home_pos();
-            pos[static_cast<int>(ServoChannel::LEFT_LEG_ROTATE)] += turn_rot_amp_l;
-            pos[static_cast<int>(ServoChannel::RIGHT_LEG_ROTATE)] += turn_rot_amp_r;
-            pos[static_cast<int>(ServoChannel::RIGHT_ANKLE_LIFT)] -= turn_lift_amp * 0.5f;
-            memcpy(frame.positions, pos.data(), sizeof(frame.positions));
-        }
-
-        // Frame 3: Legs returning to center, right foot lifting (Direction Inverted: +=)
-        if (kf_data.frame_count < MAX_KEYFRAMES_PER_ACTION) {
-            auto& frame = kf_data.frames[kf_data.frame_count++];
-            frame.transition_time_ms = frame_time;
-            auto pos = create_home_pos();
-            pos[static_cast<int>(ServoChannel::LEFT_LEG_ROTATE)] += turn_rot_amp_l * 0.5f;
-            pos[static_cast<int>(ServoChannel::RIGHT_LEG_ROTATE)] += turn_rot_amp_r * 0.5f;
-            pos[static_cast<int>(ServoChannel::RIGHT_ANKLE_LIFT)] += turn_lift_amp * 0.5f;
-            memcpy(frame.positions, pos.data(), sizeof(frame.positions));
-        }
-
-        // Frame 4: Legs neutral, right foot at peak lift
-        if (kf_data.frame_count < MAX_KEYFRAMES_PER_ACTION) {
-            auto& frame = kf_data.frames[kf_data.frame_count++];
-            frame.transition_time_ms = frame_time;
-            auto pos = create_home_pos();
-            pos[static_cast<int>(ServoChannel::RIGHT_ANKLE_LIFT)] += turn_lift_amp;
-            memcpy(frame.positions, pos.data(), sizeof(frame.positions));
-        }
-
-        // Frame 5: Right foot landing, legs rotating other way (Direction Inverted: -=)
-        if (kf_data.frame_count < MAX_KEYFRAMES_PER_ACTION) {
-            auto& frame = kf_data.frames[kf_data.frame_count++];
-            frame.transition_time_ms = frame_time;
-            auto pos = create_home_pos();
-            pos[static_cast<int>(ServoChannel::LEFT_LEG_ROTATE)] -= turn_rot_amp_l * 0.5f;
-            pos[static_cast<int>(ServoChannel::RIGHT_LEG_ROTATE)] -= turn_rot_amp_r * 0.5f;
-            pos[static_cast<int>(ServoChannel::RIGHT_ANKLE_LIFT)] += turn_lift_amp * 0.5f;
-            memcpy(frame.positions, pos.data(), sizeof(frame.positions));
-        }
-
-        // Frame 6: Legs at max rotation, left foot pushing off (Direction Inverted: -=)
-        if (kf_data.frame_count < MAX_KEYFRAMES_PER_ACTION) {
-            auto& frame = kf_data.frames[kf_data.frame_count++];
-            frame.transition_time_ms = frame_time;
-            auto pos = create_home_pos();
-            pos[static_cast<int>(ServoChannel::LEFT_LEG_ROTATE)] -= turn_rot_amp_l;
-            pos[static_cast<int>(ServoChannel::RIGHT_LEG_ROTATE)] -= turn_rot_amp_r;
-            pos[static_cast<int>(ServoChannel::LEFT_ANKLE_LIFT)] += turn_lift_amp * 0.5f;
-            memcpy(frame.positions, pos.data(), sizeof(frame.positions));
-        }
-
-        // Frame 7: Legs returning to center, left foot lifting (Direction Inverted: -=)
-        if (kf_data.frame_count < MAX_KEYFRAMES_PER_ACTION) {
-            auto& frame = kf_data.frames[kf_data.frame_count++];
-            frame.transition_time_ms = frame_time;
-            auto pos = create_home_pos();
-            pos[static_cast<int>(ServoChannel::LEFT_LEG_ROTATE)] -= turn_rot_amp_l * 0.5f;
-            pos[static_cast<int>(ServoChannel::RIGHT_LEG_ROTATE)] -= turn_rot_amp_r * 0.5f;
-            pos[static_cast<int>(ServoChannel::LEFT_ANKLE_LIFT)] -= turn_lift_amp * 0.5f;
-            memcpy(frame.positions, pos.data(), sizeof(frame.positions));
-        }
-
         m_storage->save_action(turn_right_kf);
         m_action_cache[turn_right_kf.name] = turn_right_kf;
     }
@@ -1171,13 +1129,13 @@ void ActionManager::register_default_actions(bool force) {
     }
 
     {
-        RegisteredAction new_happy = {};
-        strcpy(new_happy.name, "laughing"); // Replacing laughing
-        new_happy.type = ActionType::KEYFRAME_SEQUENCE;
-        new_happy.is_atomic = false;
-        new_happy.default_steps = 1;
+        RegisteredAction very_happy = {};
+        strcpy(very_happy.name, "very_happy"); // Replacing laughing
+        very_happy.type = ActionType::KEYFRAME_SEQUENCE;
+        very_happy.is_atomic = false;
+        very_happy.default_steps = 1;
         
-        auto& kf_data = new_happy.data.keyframe;
+        auto& kf_data = very_happy.data.keyframe;
         kf_data.frame_count = 0;
 
         auto create_home_pos = []() {
@@ -1383,8 +1341,8 @@ void ActionManager::register_default_actions(bool force) {
             memcpy(frame.positions, pos.data(), sizeof(frame.positions));
         }
 
-        m_storage->save_action(new_happy);
-        m_action_cache[new_happy.name] = new_happy;
+        m_storage->save_action(very_happy);
+        m_action_cache[very_happy.name] = very_happy;
     }
 
     {

@@ -73,7 +73,7 @@ void MotionController::init() {
     m_gait_command_map[MOTION_LOOKAROUND] = "Look_Around";
     m_gait_command_map[MOTION_DANCE] = "dance";
     m_gait_command_map[MOTION_FUNNY] = "funny";
-    m_gait_command_map[MOTION_LAUGHING] = "laughing";
+    m_gait_command_map[MOTION_VERY_HAPPY] = "very_happy";
     m_gait_command_map[MOTION_ANGRY] = "angry";
     m_gait_command_map[MOTION_CRYING] = "sudden_shock";
     m_gait_command_map[MOTION_SURPRISED] = "curious_ponder";
