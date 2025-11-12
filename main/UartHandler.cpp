@@ -132,8 +132,8 @@ void UartHandler::receive_task_handler() {
                                 } else {
                                     ESP_LOGW(TAG, "Invalid payload for face trace: len=%d", actual_data_len);
                                 }
-                            } else if (motion_type == MOTION_WAKE_DETECT) {
-                                ESP_LOGI(TAG, "Wake word detected.");
+                            } else if (motion_type == MOTION_SOUND_SOURCE) {
+                                ESP_LOGI(TAG, "turn to sound soucre task detected.");
                                 m_isWakeWordDetected = true;
                                 start_wake_word_timer();
                             } else if (motion_type == MOTION_PLAY_ANIMATION) {

@@ -150,27 +150,27 @@ void SoundManager::sound_reaction_task() {
             if (detected_angle >= 0 && detected_angle < 80) {
                 // right forward
                 ESP_LOGI(TAG, "Detected angle: %d, turning right.", detected_angle);
-                m_motion_controller_ptr->queue_command({MOTION_TRACKING_R, {}});
+                m_motion_controller_ptr->queue_command({MOTION_RIGHT, {}});
                 m_uart_handler_ptr->m_isWakeWordDetected = false;
                 vTaskDelay(pdMS_TO_TICKS(20)); // At least delay 20ms for msg transmission
             } else if (detected_angle > 100 && detected_angle <= 180) {
                 // left forward
                 ESP_LOGI(TAG, "Detected angle: %d, turning left.", detected_angle);
-                m_motion_controller_ptr->queue_command({MOTION_TRACKING_L, {}});
+                m_motion_controller_ptr->queue_command({MOTION_LEFT, {}});
                 m_uart_handler_ptr->m_isWakeWordDetected = false;
                 vTaskDelay(pdMS_TO_TICKS(20));
             } else if (detected_angle > 270 && detected_angle < 360) {
                 // right backward, leave forward deadzone but needn't for backward
                 ESP_LOGI(TAG, "Detected angle: %d, turning right.", detected_angle);
-                m_motion_controller_ptr->queue_command({MOTION_TRACKING_R, {}});
-                m_motion_controller_ptr->queue_command({MOTION_TRACKING_R, {}});
+                m_motion_controller_ptr->queue_command({MOTION_RIGHT, {}});
+                m_motion_controller_ptr->queue_command({MOTION_RIGHT, {}});
                 m_uart_handler_ptr->m_isWakeWordDetected = false;
                 vTaskDelay(pdMS_TO_TICKS(40)); // Double wait time
             } else if (detected_angle > 180 && detected_angle <= 270) {
                 // left backward
                 ESP_LOGI(TAG, "Detected angle: %d, turning left.", detected_angle);
-                m_motion_controller_ptr->queue_command({MOTION_TRACKING_L, {}});
-                m_motion_controller_ptr->queue_command({MOTION_TRACKING_L, {}});
+                m_motion_controller_ptr->queue_command({MOTION_LEFT, {}});
+                m_motion_controller_ptr->queue_command({MOTION_LEFT, {}});
                 m_uart_handler_ptr->m_isWakeWordDetected = false;
                 vTaskDelay(pdMS_TO_TICKS(40));
             }
