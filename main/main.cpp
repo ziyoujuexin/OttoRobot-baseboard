@@ -41,6 +41,7 @@ void vApplicationTickHook( void ){
 
 extern "C" void app_main(void)
 {
+    vTaskDelay(pdMS_TO_TICKS(1000));//延时错位
     ESP_ERROR_CHECK(i2cdev_init());      // For servo driver
 
     if (sd_card_manager::init("/sdcard") != ESP_OK) {

@@ -91,8 +91,8 @@ void ActionManager::register_default_actions(bool force) {
         };
 
         const float original_rot_amp = 55.0f; // Original max rotation amplitude
-        const float forward_rot_amp = original_rot_amp * 0.90f; // 50% for forward movement
-        const float backward_rot_amp = original_rot_amp * 0.80f; // 40% for backward movement
+        const float forward_rot_amp = 50.0f; // 50% for forward movement
+        const float backward_rot_amp = 30.0f; // 40% for backward movement
         const float lift_amp = 40.0f; // Max lift amplitude
         const int frame_time = 180; // 8 frames * 260ms = 2080ms per cycle - SLOWED DOWN FOR STABILITY
 
@@ -105,7 +105,7 @@ void ActionManager::register_default_actions(bool force) {
             auto& frame = kf_data.frames[kf_data.frame_count++];
             frame.transition_time_ms = frame_time;
             auto pos = create_home_pos();
-            pos[static_cast<int>(ServoChannel::RIGHT_ANKLE_LIFT)] -= lift_amp * 1.2f; // Right foot at peak lift
+            pos[static_cast<int>(ServoChannel::RIGHT_ANKLE_LIFT)] -= 60.0f; // 13 Right foot at peak lift
             pos[static_cast<int>(ServoChannel::LEFT_ARM_SWING)] = 80.0f;
             pos[static_cast<int>(ServoChannel::RIGHT_ARM_SWING)] = 80.0f;
             // Ears neutral
@@ -121,9 +121,9 @@ void ActionManager::register_default_actions(bool force) {
             auto& frame = kf_data.frames[kf_data.frame_count++];
             frame.transition_time_ms = frame_time;
             auto pos = create_home_pos();
-            pos[static_cast<int>(ServoChannel::LEFT_LEG_ROTATE)] -= backward_rot_amp * 0.5f;
-            pos[static_cast<int>(ServoChannel::RIGHT_LEG_ROTATE)] -= backward_rot_amp * 0.7f;
-            pos[static_cast<int>(ServoChannel::RIGHT_ANKLE_LIFT)] -= lift_amp * 0.6f; // Right foot moving down to land
+            pos[static_cast<int>(ServoChannel::LEFT_LEG_ROTATE)] -= 15.0f; //10
+            pos[static_cast<int>(ServoChannel::RIGHT_LEG_ROTATE)] -= 30.0f; //12
+            pos[static_cast<int>(ServoChannel::RIGHT_ANKLE_LIFT)] -= 30.0f; // 13 Right foot moving down to land
             pos[static_cast<int>(ServoChannel::LEFT_ARM_SWING)] = 110.0f;
             pos[static_cast<int>(ServoChannel::RIGHT_ARM_SWING)] = 50.0f;
             // Ears move in opposition to arms
@@ -139,9 +139,10 @@ void ActionManager::register_default_actions(bool force) {
             auto& frame = kf_data.frames[kf_data.frame_count++];
             frame.transition_time_ms = frame_time;
             auto pos = create_home_pos();
-            pos[static_cast<int>(ServoChannel::LEFT_LEG_ROTATE)] -= backward_rot_amp;
-            pos[static_cast<int>(ServoChannel::RIGHT_LEG_ROTATE)] -= backward_rot_amp * 1.5f;
-            pos[static_cast<int>(ServoChannel::LEFT_ANKLE_LIFT)] -= lift_amp * 0.35f; // Left foot pushing off
+            pos[static_cast<int>(ServoChannel::LEFT_LEG_ROTATE)] -= 30.0f;//10
+            pos[static_cast<int>(ServoChannel::RIGHT_LEG_ROTATE)] -= 55.0f;//12
+            pos[static_cast<int>(ServoChannel::LEFT_ANKLE_LIFT)] += 50.0f; // 11 Left foot pushing off
+            pos[static_cast<int>(ServoChannel::RIGHT_ANKLE_LIFT)] -= 1.0f; // 13 Right foot moving down to land
             pos[static_cast<int>(ServoChannel::LEFT_ARM_SWING)] = 110.0f;
             pos[static_cast<int>(ServoChannel::RIGHT_ARM_SWING)] = 50.0f;
             // Ears move in opposition to arms, slightly more pronounced
@@ -157,9 +158,9 @@ void ActionManager::register_default_actions(bool force) {
             auto& frame = kf_data.frames[kf_data.frame_count++];
             frame.transition_time_ms = frame_time;
             auto pos = create_home_pos();
-            pos[static_cast<int>(ServoChannel::LEFT_LEG_ROTATE)] -= backward_rot_amp * 0.5f;
-            pos[static_cast<int>(ServoChannel::RIGHT_LEG_ROTATE)] -= backward_rot_amp * 0.7f;
-            pos[static_cast<int>(ServoChannel::LEFT_ANKLE_LIFT)] += lift_amp * 0.35f; // Left foot lifting high
+            pos[static_cast<int>(ServoChannel::LEFT_LEG_ROTATE)] -= 15.0f;//10
+            pos[static_cast<int>(ServoChannel::RIGHT_LEG_ROTATE)] -= 20.0f;//12
+            pos[static_cast<int>(ServoChannel::LEFT_ANKLE_LIFT)] += 35.0f; //11 Left foot lifting high
             pos[static_cast<int>(ServoChannel::LEFT_ARM_SWING)] = 80.0f;
             pos[static_cast<int>(ServoChannel::RIGHT_ARM_SWING)] = 80.0f;
             // Ears neutral
@@ -175,7 +176,7 @@ void ActionManager::register_default_actions(bool force) {
             auto& frame = kf_data.frames[kf_data.frame_count++];
             frame.transition_time_ms = frame_time;
             auto pos = create_home_pos();
-            pos[static_cast<int>(ServoChannel::LEFT_ANKLE_LIFT)] += lift_amp; // Left foot at peak lift
+            pos[static_cast<int>(ServoChannel::LEFT_ANKLE_LIFT)] += 80.0f; // 11 Left foot at peak lift
             pos[static_cast<int>(ServoChannel::LEFT_ARM_SWING)] = 80.0f;
             pos[static_cast<int>(ServoChannel::RIGHT_ARM_SWING)] = 80.0f;
             // Ears neutral
@@ -191,9 +192,9 @@ void ActionManager::register_default_actions(bool force) {
             auto& frame = kf_data.frames[kf_data.frame_count++];
             frame.transition_time_ms = frame_time;
             auto pos = create_home_pos();
-            pos[static_cast<int>(ServoChannel::LEFT_LEG_ROTATE)] += forward_rot_amp * 0.5f;
-            pos[static_cast<int>(ServoChannel::RIGHT_LEG_ROTATE)] += forward_rot_amp * 0.7f;
-            pos[static_cast<int>(ServoChannel::LEFT_ANKLE_LIFT)] += lift_amp * 0.35f; // Left foot moving down to land
+            pos[static_cast<int>(ServoChannel::LEFT_LEG_ROTATE)] += 25.0f;//10
+            pos[static_cast<int>(ServoChannel::RIGHT_LEG_ROTATE)] += 35.0f;//12
+            pos[static_cast<int>(ServoChannel::LEFT_ANKLE_LIFT)] += 65.0f; //11 Left foot moving down to land
             pos[static_cast<int>(ServoChannel::LEFT_ARM_SWING)] = 50.0f;
             pos[static_cast<int>(ServoChannel::RIGHT_ARM_SWING)] = 110.0f;
             // Ears move in opposition to arms
@@ -209,9 +210,9 @@ void ActionManager::register_default_actions(bool force) {
             auto& frame = kf_data.frames[kf_data.frame_count++];
             frame.transition_time_ms = frame_time;
             auto pos = create_home_pos();
-            pos[static_cast<int>(ServoChannel::LEFT_LEG_ROTATE)] += forward_rot_amp;
-            pos[static_cast<int>(ServoChannel::RIGHT_LEG_ROTATE)] += forward_rot_amp * 1.2f;
-            pos[static_cast<int>(ServoChannel::RIGHT_ANKLE_LIFT)] += lift_amp * 0.7f; // Right foot pushing off
+            pos[static_cast<int>(ServoChannel::LEFT_LEG_ROTATE)] += 50.0f;//10
+            pos[static_cast<int>(ServoChannel::RIGHT_LEG_ROTATE)] += 60.0f;//12
+            pos[static_cast<int>(ServoChannel::RIGHT_ANKLE_LIFT)] += 35.0f; //  13 Right foot pushing off
             pos[static_cast<int>(ServoChannel::LEFT_ARM_SWING)] = 50.0f;
             pos[static_cast<int>(ServoChannel::RIGHT_ARM_SWING)] = 110.0f;
             // Ears move in opposition to arms, slightly more pronounced
@@ -227,9 +228,9 @@ void ActionManager::register_default_actions(bool force) {
             auto& frame = kf_data.frames[kf_data.frame_count++];
             frame.transition_time_ms = frame_time;
             auto pos = create_home_pos();
-            pos[static_cast<int>(ServoChannel::LEFT_LEG_ROTATE)] += forward_rot_amp * 0.5f;
-            pos[static_cast<int>(ServoChannel::RIGHT_LEG_ROTATE)] += forward_rot_amp * 0.7f;
-            pos[static_cast<int>(ServoChannel::RIGHT_ANKLE_LIFT)] -= lift_amp * 0.6f; // Right foot lifting high
+            pos[static_cast<int>(ServoChannel::LEFT_LEG_ROTATE)] += 25.0f;//10
+            pos[static_cast<int>(ServoChannel::RIGHT_LEG_ROTATE)] += 35.0f;//12
+            pos[static_cast<int>(ServoChannel::RIGHT_ANKLE_LIFT)] -= 25.0f; // 13  Right foot lifting high
             pos[static_cast<int>(ServoChannel::LEFT_ARM_SWING)] = 80.0f;
             pos[static_cast<int>(ServoChannel::RIGHT_ARM_SWING)] = 80.0f;
             // Ears neutral
