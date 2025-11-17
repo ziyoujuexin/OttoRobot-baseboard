@@ -106,6 +106,7 @@ void ActionManager::register_default_actions(bool force) {
             auto& frame = kf_data.frames[kf_data.frame_count++];
             frame.transition_time_ms = frame_time;
             auto pos = create_home_pos();
+            pos[static_cast<int>(ServoChannel::HEAD_TILT)] = 78.0f;
             pos[static_cast<int>(ServoChannel::LEFT_LEG_ROTATE)] += 12.63f;
             pos[static_cast<int>(ServoChannel::RIGHT_LEG_ROTATE)] += 12.63f;
             pos[static_cast<int>(ServoChannel::LEFT_ANKLE_LIFT)] += 13.86f;
@@ -119,6 +120,7 @@ void ActionManager::register_default_actions(bool force) {
             auto& frame = kf_data.frames[kf_data.frame_count++];
             frame.transition_time_ms = frame_time;
             auto pos = create_home_pos();
+            pos[static_cast<int>(ServoChannel::HEAD_TILT)] = 78.0f;
             pos[static_cast<int>(ServoChannel::LEFT_LEG_ROTATE)] += 23.33f;
             pos[static_cast<int>(ServoChannel::RIGHT_LEG_ROTATE)] += 23.33f;
             pos[static_cast<int>(ServoChannel::LEFT_ANKLE_LIFT)] += 10.61f;
@@ -132,6 +134,7 @@ void ActionManager::register_default_actions(bool force) {
             auto& frame = kf_data.frames[kf_data.frame_count++];
             frame.transition_time_ms = frame_time;
             auto pos = create_home_pos();
+            pos[static_cast<int>(ServoChannel::HEAD_TILT)] = 78.0f;
             pos[static_cast<int>(ServoChannel::LEFT_LEG_ROTATE)] += 30.48f;
             pos[static_cast<int>(ServoChannel::RIGHT_LEG_ROTATE)] += 30.48f;
             pos[static_cast<int>(ServoChannel::LEFT_ANKLE_LIFT)] += 5.74f;
@@ -145,6 +148,7 @@ void ActionManager::register_default_actions(bool force) {
             auto& frame = kf_data.frames[kf_data.frame_count++];
             frame.transition_time_ms = frame_time;
             auto pos = create_home_pos();
+            pos[static_cast<int>(ServoChannel::HEAD_TILT)] = 78.0f;
             pos[static_cast<int>(ServoChannel::LEFT_LEG_ROTATE)] += 33.00f;
             pos[static_cast<int>(ServoChannel::RIGHT_LEG_ROTATE)] += 33.00f;
             pos[static_cast<int>(ServoChannel::LEFT_ANKLE_LIFT)] += 0.00f;
@@ -158,6 +162,7 @@ void ActionManager::register_default_actions(bool force) {
             auto& frame = kf_data.frames[kf_data.frame_count++];
             frame.transition_time_ms = frame_time;
             auto pos = create_home_pos();
+            pos[static_cast<int>(ServoChannel::HEAD_TILT)] = 78.0f;
             pos[static_cast<int>(ServoChannel::LEFT_LEG_ROTATE)] += 30.48f;
             pos[static_cast<int>(ServoChannel::RIGHT_LEG_ROTATE)] += 30.48f;
             pos[static_cast<int>(ServoChannel::LEFT_ANKLE_LIFT)] -= 5.74f;
@@ -171,6 +176,7 @@ void ActionManager::register_default_actions(bool force) {
             auto& frame = kf_data.frames[kf_data.frame_count++];
             frame.transition_time_ms = frame_time;
             auto pos = create_home_pos();
+            pos[static_cast<int>(ServoChannel::HEAD_TILT)] = 78.0f;
             pos[static_cast<int>(ServoChannel::LEFT_LEG_ROTATE)] += 23.33f;
             pos[static_cast<int>(ServoChannel::RIGHT_LEG_ROTATE)] += 23.33f;
             pos[static_cast<int>(ServoChannel::LEFT_ANKLE_LIFT)] -= 10.61f;
@@ -184,6 +190,7 @@ void ActionManager::register_default_actions(bool force) {
             auto& frame = kf_data.frames[kf_data.frame_count++];
             frame.transition_time_ms = frame_time;
             auto pos = create_home_pos();
+            pos[static_cast<int>(ServoChannel::HEAD_TILT)] = 78.0f;
             pos[static_cast<int>(ServoChannel::LEFT_LEG_ROTATE)] += 12.63f;
             pos[static_cast<int>(ServoChannel::RIGHT_LEG_ROTATE)] += 12.63f;
             pos[static_cast<int>(ServoChannel::LEFT_ANKLE_LIFT)] -= 13.86f;
@@ -197,6 +204,7 @@ void ActionManager::register_default_actions(bool force) {
             auto& frame = kf_data.frames[kf_data.frame_count++];
             frame.transition_time_ms = frame_time;
             auto pos = create_home_pos();
+            pos[static_cast<int>(ServoChannel::HEAD_TILT)] = 78.0f;
             pos[static_cast<int>(ServoChannel::LEFT_LEG_ROTATE)] += 0.00f;
             pos[static_cast<int>(ServoChannel::RIGHT_LEG_ROTATE)] += 0.00f;
             pos[static_cast<int>(ServoChannel::LEFT_ANKLE_LIFT)] -= 15.00f;
@@ -210,6 +218,7 @@ void ActionManager::register_default_actions(bool force) {
             auto& frame = kf_data.frames[kf_data.frame_count++];
             frame.transition_time_ms = frame_time;
             auto pos = create_home_pos();
+            pos[static_cast<int>(ServoChannel::HEAD_TILT)] = 78.0f;
             pos[static_cast<int>(ServoChannel::LEFT_LEG_ROTATE)] -= 12.63f;
             pos[static_cast<int>(ServoChannel::RIGHT_LEG_ROTATE)] -= 12.63f;
             pos[static_cast<int>(ServoChannel::LEFT_ANKLE_LIFT)] -= 13.86f;
@@ -223,6 +232,7 @@ void ActionManager::register_default_actions(bool force) {
             auto& frame = kf_data.frames[kf_data.frame_count++];
             frame.transition_time_ms = frame_time;
             auto pos = create_home_pos();
+            pos[static_cast<int>(ServoChannel::HEAD_TILT)] = 78.0f;
             pos[static_cast<int>(ServoChannel::LEFT_LEG_ROTATE)] -= 23.33f;
             pos[static_cast<int>(ServoChannel::RIGHT_LEG_ROTATE)] -= 23.33f;
             pos[static_cast<int>(ServoChannel::LEFT_ANKLE_LIFT)] -= 10.61f;
@@ -236,6 +246,7 @@ void ActionManager::register_default_actions(bool force) {
             auto& frame = kf_data.frames[kf_data.frame_count++];
             frame.transition_time_ms = frame_time;
             auto pos = create_home_pos();
+            pos[static_cast<int>(ServoChannel::HEAD_TILT)] = 78.0f;
             pos[static_cast<int>(ServoChannel::LEFT_LEG_ROTATE)] -= 30.48f;
             pos[static_cast<int>(ServoChannel::RIGHT_LEG_ROTATE)] -= 30.48f;
             pos[static_cast<int>(ServoChannel::LEFT_ANKLE_LIFT)] -= 5.74f;
@@ -249,6 +260,7 @@ void ActionManager::register_default_actions(bool force) {
             auto& frame = kf_data.frames[kf_data.frame_count++];
             frame.transition_time_ms = frame_time;
             auto pos = create_home_pos();
+            pos[static_cast<int>(ServoChannel::HEAD_TILT)] = 78.0f;
             pos[static_cast<int>(ServoChannel::LEFT_LEG_ROTATE)] -= 33.00f;
             pos[static_cast<int>(ServoChannel::RIGHT_LEG_ROTATE)] -= 33.00f;
             pos[static_cast<int>(ServoChannel::LEFT_ANKLE_LIFT)] -= 0.00f;
@@ -262,6 +274,7 @@ void ActionManager::register_default_actions(bool force) {
             auto& frame = kf_data.frames[kf_data.frame_count++];
             frame.transition_time_ms = frame_time;
             auto pos = create_home_pos();
+            pos[static_cast<int>(ServoChannel::HEAD_TILT)] = 78.0f;
             pos[static_cast<int>(ServoChannel::LEFT_LEG_ROTATE)] -= 30.48f;
             pos[static_cast<int>(ServoChannel::RIGHT_LEG_ROTATE)] -= 30.48f;
             pos[static_cast<int>(ServoChannel::LEFT_ANKLE_LIFT)] += 5.74f;
@@ -275,6 +288,7 @@ void ActionManager::register_default_actions(bool force) {
             auto& frame = kf_data.frames[kf_data.frame_count++];
             frame.transition_time_ms = frame_time;
             auto pos = create_home_pos();
+            pos[static_cast<int>(ServoChannel::HEAD_TILT)] = 78.0f;
             pos[static_cast<int>(ServoChannel::LEFT_LEG_ROTATE)] -= 23.33f;
             pos[static_cast<int>(ServoChannel::RIGHT_LEG_ROTATE)] -= 23.33f;
             pos[static_cast<int>(ServoChannel::LEFT_ANKLE_LIFT)] += 10.61f;
@@ -288,6 +302,7 @@ void ActionManager::register_default_actions(bool force) {
             auto& frame = kf_data.frames[kf_data.frame_count++];
             frame.transition_time_ms = frame_time;
             auto pos = create_home_pos();
+            pos[static_cast<int>(ServoChannel::HEAD_TILT)] = 78.0f;
             pos[static_cast<int>(ServoChannel::LEFT_LEG_ROTATE)] -= 12.63f;
             pos[static_cast<int>(ServoChannel::RIGHT_LEG_ROTATE)] -= 12.63f;
             pos[static_cast<int>(ServoChannel::LEFT_ANKLE_LIFT)] += 13.86f;

@@ -36,6 +36,38 @@ void vApplicationTickHook( void ){
     lv_tick_inc(1); // RTOS run 1000Hz
 }
 
+// Function to print task stats for debugging
+void print_task_stats(void *pvParameters) {
+    const char *TAG_STATS = "TASK_STATS";
+    
+    while (1) {
+        // Wait for 10 seconds before printing stats
+        vTaskDelay(pdMS_TO_TICKS(10000));
+
+        size_t num_tasks = uxTaskGetNumberOfTasks();
+        // Allocate a buffer big enough for the task list.
+        // 50 bytes per task is a safe estimate.
+        char *buffer = (char*) malloc(num_tasks * 50); 
+
+        if (buffer == NULL) {
+            ESP_LOGE(TAG_STATS, "Cannot allocate memory for stats buffer");
+            continue; // Try again after delay
+        }
+
+        ESP_LOGI(TAG_STATS, "--- FreeRTOS Task List ---");
+        vTaskList(buffer);
+        printf("%s", buffer); // vTaskList includes newlines
+
+        ESP_LOGI(TAG_STATS, "--- Task Runtime Stats ---");
+        vTaskGetRunTimeStats(buffer);
+        printf("%s", buffer); // vTaskGetRunTimeStats includes newlines
+        
+        free(buffer);
+
+        ESP_LOGI(TAG_STATS, "--- End of Stats ---");
+    }
+}
+
 
 // --- Main Application --- 
 
@@ -93,6 +125,9 @@ extern "C" void app_main(void)
     // Pass the AnimationPlayer instance to the WebServer
     auto web_server = std::make_unique<WebServer>(*action_manager, *motion_controller, *animation_player);
     web_server->start();
+
+    // Create a task to print task stats for debugging
+    xTaskCreate(print_task_stats, "print_task_stats", 4096, NULL, 5, NULL);
 
     vTaskDelete(NULL); // Delete main task as its work is done
 }
