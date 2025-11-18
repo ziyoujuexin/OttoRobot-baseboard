@@ -90,13 +90,14 @@ void ActionManager::register_default_actions(bool force) {
             return pos;
         };
 
-        const int frame_time = 1500 / 16; // 93.75ms
+        const int frame_time = 1200 / 16; // 93.75ms
 
         // Frame 0
         if (kf_data.frame_count < MAX_KEYFRAMES_PER_ACTION) {
             auto& frame = kf_data.frames[kf_data.frame_count++];
             frame.transition_time_ms = frame_time;
             auto pos = create_home_pos();
+            pos[static_cast<int>(ServoChannel::HEAD_TILT)] = 78.0f;
             pos[static_cast<int>(ServoChannel::LEFT_ANKLE_LIFT)] += 15.00f;
             pos[static_cast<int>(ServoChannel::RIGHT_ANKLE_LIFT)] += 15.00f;
             memcpy(frame.positions, pos.data(), sizeof(frame.positions));
@@ -305,7 +306,7 @@ void ActionManager::register_default_actions(bool force) {
             pos[static_cast<int>(ServoChannel::HEAD_TILT)] = 78.0f;
             pos[static_cast<int>(ServoChannel::LEFT_LEG_ROTATE)] -= 12.63f;
             pos[static_cast<int>(ServoChannel::RIGHT_LEG_ROTATE)] -= 12.63f;
-            pos[static_cast<int>(ServoChannel::LEFT_ANKLE_LIFT)] += 13.86f;
+            pos[static_cast<int>(ServoChannel::LEFT_ANKLE_LIFT)] += 13.86f;  
             pos[static_cast<int>(ServoChannel::RIGHT_ANKLE_LIFT)] += 13.86f;
             pos[static_cast<int>(ServoChannel::LEFT_ARM_SWING)] += 19.13f;
             pos[static_cast<int>(ServoChannel::RIGHT_ARM_SWING)] -= 19.13f;
@@ -368,7 +369,7 @@ void ActionManager::register_default_actions(bool force) {
         const int frame_time = 1200 / 16; // Faster cycle
 
         // Parameters for a left shuffle-turn (V2 - Reduced amplitude)
-        const float r_leg_rot_amp = 28.0f;  // Right leg swings more
+        const float r_leg_rot_amp = 20.0f;  // Right leg swings more
         const float l_leg_rot_amp = -20.0f; // Left leg swings backward less
         const float lift_amp = 20.0f;       // Lift height for both feet
         const float arm_amp = -30.0f;       // Arms swing opposite to body rotation
@@ -379,12 +380,12 @@ void ActionManager::register_default_actions(bool force) {
             frame.transition_time_ms = frame_time;
             auto pos = create_home_pos();
             float theta = (float)i * 2.0f * PI / 16.0f + PI;
-
+            pos[static_cast<int>(ServoChannel::HEAD_TILT)] = 78.0f;
             pos[static_cast<int>(ServoChannel::RIGHT_LEG_ROTATE)] += r_leg_rot_amp * sin(theta);
             pos[static_cast<int>(ServoChannel::LEFT_LEG_ROTATE)]  += l_leg_rot_amp * sin(theta);
-            pos[static_cast<int>(ServoChannel::RIGHT_ANKLE_LIFT)] += lift_amp * cos(theta); // cos(theta) is sin(theta + PI/2)
-            pos[static_cast<int>(ServoChannel::LEFT_ANKLE_LIFT)]  += lift_amp * 1.2 * cos(theta);
-            pos[static_cast<int>(ServoChannel::RIGHT_ARM_SWING)]  += arm_amp * sin(theta);
+            pos[static_cast<int>(ServoChannel::RIGHT_ANKLE_LIFT)] += lift_amp * cos(theta) ; // cos(theta) is sin(theta + PI/2)
+            pos[static_cast<int>(ServoChannel::LEFT_ANKLE_LIFT)]  += lift_amp * 1.2 * cos(theta) + 8.0f;
+            pos[static_cast<int>(ServoChannel::RIGHT_ARM_SWING)]  -= arm_amp * sin(theta);
             pos[static_cast<int>(ServoChannel::LEFT_ARM_SWING)]   += arm_amp * sin(theta);
 
             memcpy(frame.positions, pos.data(), sizeof(frame.positions));
@@ -426,13 +427,13 @@ void ActionManager::register_default_actions(bool force) {
             frame.transition_time_ms = frame_time;
             auto pos = create_home_pos();
             float theta = (float)i * 2.0f * PI / 16.0f;
-
+            pos[static_cast<int>(ServoChannel::HEAD_TILT)] = 78.0f;
             pos[static_cast<int>(ServoChannel::RIGHT_LEG_ROTATE)] += r_leg_rot_amp * sin(theta);
             pos[static_cast<int>(ServoChannel::LEFT_LEG_ROTATE)]  += l_leg_rot_amp * sin(theta);
-            pos[static_cast<int>(ServoChannel::RIGHT_ANKLE_LIFT)] += lift_amp * cos(theta);
-            pos[static_cast<int>(ServoChannel::LEFT_ANKLE_LIFT)]  += lift_amp * cos(theta);
+            pos[static_cast<int>(ServoChannel::RIGHT_ANKLE_LIFT)] += lift_amp * cos(theta) + 5.0f;
+            pos[static_cast<int>(ServoChannel::LEFT_ANKLE_LIFT)]  += lift_amp * cos(theta) + 8.0f;
             pos[static_cast<int>(ServoChannel::RIGHT_ARM_SWING)]  += arm_amp * sin(theta);
-            pos[static_cast<int>(ServoChannel::LEFT_ARM_SWING)]   += arm_amp * sin(theta);
+            pos[static_cast<int>(ServoChannel::LEFT_ARM_SWING)]   -= arm_amp * sin(theta);
 
             memcpy(frame.positions, pos.data(), sizeof(frame.positions));
         }
