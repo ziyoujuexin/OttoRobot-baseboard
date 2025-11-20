@@ -902,7 +902,7 @@ void ActionManager::register_default_actions(bool force) {
 
     {
         RegisteredAction look_around = {};
-        strcpy(look_around.name, "Look_Around");
+        strcpy(look_around.name, "look_around");
         look_around.type = ActionType::KEYFRAME_SEQUENCE;
         look_around.is_atomic = false;
         look_around.default_steps = 1; // Play sequence only once
