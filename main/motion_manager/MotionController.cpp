@@ -290,17 +290,21 @@ void MotionController::motion_engine_task() {
                                 }
                             } else {
                                 // If not a group, treat as a single action
-                                // Check if the action already exists in the active list
-                                bool action_already_exists = false;
-                                for (const auto& existing_instance : m_active_actions) {
-                                    if (strcmp(existing_instance.action.name, action_name.c_str()) == 0) {
-                                        action_already_exists = true;
-                                        ESP_LOGW(TAG, "Action '%s' is already active. Ignoring command.", action_name.c_str());
-                                        break;
-                                    }
-                                }
+                                auto it = std::find_if(m_active_actions.begin(), m_active_actions.end(),
+                                    [&](const ActionInstance& instance) {
+                                        return strcmp(instance.action.name, action_name.c_str()) == 0;
+                                    });
 
-                                if (!action_already_exists) {
+                                if (it != m_active_actions.end()) {
+                                    // Action is already active. Extend its duration.
+                                    const RegisteredAction* action_template = m_action_manager.get_action(action_name);
+                                    if (action_template) {
+                                        it->remaining_steps += action_template->default_steps;
+                                        ESP_LOGI(TAG, "Action '%s' is already active. Extending by %d steps. Total remaining: %d",
+                                                 action_name.c_str(), (int)action_template->default_steps, (int)it->remaining_steps);
+                                    }
+                                } else {
+                                    // Action is not active. Add it as a new instance.
                                     const RegisteredAction* action_to_add = m_action_manager.get_action(action_name);
                                     if (action_to_add) {
                                         add_new_action(action_to_add);
@@ -363,16 +367,21 @@ void MotionController::motion_engine_task() {
                                 }
                             } else {
                                 // If not a group, treat as a single action
-                                bool action_already_exists = false;
-                                // for (const auto& existing_instance : m_active_actions) {
-                                //     if (strcmp(existing_instance.action.name, action_name.c_str()) == 0) {
-                                //         action_already_exists = true;
-                                //         ESP_LOGW(TAG, "Action '%s' is already active. Ignoring command.", action_name.c_str());
-                                //         break;
-                                //     }
-                                // }
+                                auto it = std::find_if(m_active_actions.begin(), m_active_actions.end(),
+                                    [&](const ActionInstance& instance) {
+                                        return strcmp(instance.action.name, action_name.c_str()) == 0;
+                                    });
 
-                                if (!action_already_exists) {
+                                if (it != m_active_actions.end()) {
+                                    // Action is already active. Extend its duration.
+                                    const RegisteredAction* action_template = m_action_manager.get_action(action_name);
+                                    if (action_template) {
+                                        it->remaining_steps += action_template->default_steps;
+                                        ESP_LOGI(TAG, "Action '%s' is already active. Extending by %d steps. Total remaining: %d",
+                                                 action_name.c_str(), (int)action_template->default_steps, (int)it->remaining_steps);
+                                    }
+                                } else {
+                                    // Action is not active. Add it as a new instance.
                                     const RegisteredAction* action_to_add = m_action_manager.get_action(action_name);
                                     if (action_to_add) {
                                         add_new_action(action_to_add);
