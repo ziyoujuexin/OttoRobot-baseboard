@@ -364,13 +364,13 @@ void MotionController::motion_engine_task() {
                             } else {
                                 // If not a group, treat as a single action
                                 bool action_already_exists = false;
-                                for (const auto& existing_instance : m_active_actions) {
-                                    if (strcmp(existing_instance.action.name, action_name.c_str()) == 0) {
-                                        action_already_exists = true;
-                                        ESP_LOGW(TAG, "Action '%s' is already active. Ignoring command.", action_name.c_str());
-                                        break;
-                                    }
-                                }
+                                // for (const auto& existing_instance : m_active_actions) {
+                                //     if (strcmp(existing_instance.action.name, action_name.c_str()) == 0) {
+                                //         action_already_exists = true;
+                                //         ESP_LOGW(TAG, "Action '%s' is already active. Ignoring command.", action_name.c_str());
+                                //         break;
+                                //     }
+                                // }
 
                                 if (!action_already_exists) {
                                     const RegisteredAction* action_to_add = m_action_manager.get_action(action_name);
@@ -558,6 +558,7 @@ void MotionController::motion_mixer_task() {
                 uint8_t channel = m_joint_channel_map[i];
                 float filtered_angle = m_angle_filters[i].apply(final_angles[i]);
                 m_servo_driver.set_angle(channel, static_cast<uint16_t>(filtered_angle));
+                vTaskDelay(pdMS_TO_TICKS(1));
             }
         }
 

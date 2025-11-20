@@ -147,13 +147,13 @@ void SoundManager::sound_reaction_task() {
             }
             
             // --- Original Body Turn Logic ---
-            if (detected_angle >= 0 && detected_angle < 80) {
+            if (detected_angle >= 0 && detected_angle < 70) {
                 // right forward
                 ESP_LOGI(TAG, "Detected angle: %d, turning right.", detected_angle);
                 m_motion_controller_ptr->queue_command({MOTION_RIGHT, {}});
                 m_uart_handler_ptr->m_isWakeWordDetected = false;
                 vTaskDelay(pdMS_TO_TICKS(20)); // At least delay 20ms for msg transmission
-            } else if (detected_angle > 100 && detected_angle <= 180) {
+            } else if (detected_angle > 110 && detected_angle <= 180) {
                 // left forward
                 ESP_LOGI(TAG, "Detected angle: %d, turning left.", detected_angle);
                 m_motion_controller_ptr->queue_command({MOTION_LEFT, {}});
@@ -174,6 +174,10 @@ void SoundManager::sound_reaction_task() {
                 m_uart_handler_ptr->m_isWakeWordDetected = false;
                 vTaskDelay(pdMS_TO_TICKS(40));
             }
+            m_motion_controller_ptr->queue_command({MOTION_WALK_FORWARD_KF, {}});
+            m_motion_controller_ptr->queue_command({MOTION_WALK_FORWARD_KF, {}});
+            m_motion_controller_ptr->queue_command({MOTION_WALK_FORWARD_KF, {}});
+            m_motion_controller_ptr->queue_command({MOTION_WALK_FORWARD_KF, {}});
 
             last_processed_angle = detected_angle;
             m_last_angle = -1; // Reset the angle after processing
@@ -182,7 +186,7 @@ void SoundManager::sound_reaction_task() {
                 vTaskDelay(pdMS_TO_TICKS(50));
             }
             ESP_LOGI(TAG, "Sound Reaction complete, stopping.");
-            m_motion_controller_ptr->queue_command({MOTION_STOP, {}});
+            // m_motion_controller_ptr->queue_command({MOTION_STOP, {}});
         }
     }
 }

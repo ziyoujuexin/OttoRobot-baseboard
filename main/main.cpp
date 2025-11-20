@@ -90,8 +90,8 @@ extern "C" void app_main(void)
     sound_manager->start();
 
     // Pass the AnimationPlayer instance to the WebServer
-    auto web_server = std::make_unique<WebServer>(*action_manager, *motion_controller, *animation_player);
-    web_server->start();
+    // auto web_server = std::make_unique<WebServer>(*action_manager, *motion_controller, *animation_player);
+    // web_server->start();
 
 
     vTaskDelete(NULL); // Delete main task as its work is done

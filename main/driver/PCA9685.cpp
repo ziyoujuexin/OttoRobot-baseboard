@@ -81,7 +81,7 @@ void PCA9685::home_all() {
     ESP_LOGI(TAG, "Homing all servos to 90 degrees.");
     for (uint8_t i = 0; i < 16; ++i) {
         set_angle(i, 90);
-        vTaskDelay(pdMS_TO_TICKS(100));
+        vTaskDelay(pdMS_TO_TICKS(200));
     }
 }
 
