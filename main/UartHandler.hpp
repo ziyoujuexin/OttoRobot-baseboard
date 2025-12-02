@@ -16,14 +16,14 @@ class UartHandler {
 public:
     using FaceLocationCallback = std::function<void(const FaceLocation&)>;
 
-    explicit UartHandler(MotionController& controller, AnimationPlayer* anim_player, FaceLocationCallback callback);
+    explicit UartHandler(MotionController* controller, AnimationPlayer* anim_player, FaceLocationCallback callback);
     void init();
     bool is_idle() const;
 
     bool m_isWakeWordDetected = false;
 
 private:
-    MotionController& m_motion_controller;
+    MotionController* m_motion_controller;
     AnimationPlayer* m_anim_player; // Changed to AnimationPlayer
     FaceLocationCallback m_face_location_callback;
     std::atomic<int64_t> m_last_activity_time;

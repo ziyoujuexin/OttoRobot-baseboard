@@ -17,7 +17,7 @@
 
 static const char* TAG = "UartHandler";
 
-UartHandler::UartHandler(MotionController& controller, AnimationPlayer* anim_player, FaceLocationCallback callback)
+UartHandler::UartHandler(MotionController* controller, AnimationPlayer* anim_player, FaceLocationCallback callback)
     : m_motion_controller(controller), m_anim_player(anim_player), m_face_location_callback(callback) {
     m_last_activity_time.store(esp_timer_get_time());
 }
@@ -146,7 +146,9 @@ void UartHandler::receive_task_handler() {
                                 }
                             } else if (motion_type == MOTION_FACE_END) {
                                 ESP_LOGI(TAG, "Face end detected, stopping all motions.");
-                                m_motion_controller.queue_command({MOTION_STOP, {}});
+                                if (m_motion_controller) {
+                                    m_motion_controller->queue_command({MOTION_STOP, {}});
+                                }
                             } else {
                                 // Build a generic motion_command_t and queue it.
                                 motion_command_t cmd;
@@ -157,10 +159,12 @@ void UartHandler::receive_task_handler() {
                                     cmd.params.assign(frame_buffer.begin() + 6, frame_buffer.begin() + 6 + (payload_len - 1));
                                 }
                                 // Queue the command for the motion controller
-                                if (!m_motion_controller.queue_command(cmd)) {
-                                    ESP_LOGW(TAG, "Failed to queue motion command %d.", cmd.motion_type);
-                                } else {
-                                    ESP_LOGD(TAG, "Command %d with %d bytes of params queued.", cmd.motion_type, (int)cmd.params.size());
+                                if (m_motion_controller) {
+                                    if (!m_motion_controller->queue_command(cmd)) {
+                                        ESP_LOGW(TAG, "Failed to queue motion command %d.", cmd.motion_type);
+                                    } else {
+                                        ESP_LOGD(TAG, "Command %d with %d bytes of params queued.", cmd.motion_type, (int)cmd.params.size());
+                                    }
                                 }
                             }
                         }

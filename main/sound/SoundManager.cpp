@@ -112,82 +112,20 @@ void SoundManager::sound_reaction_task_entry(void* arg) {
 
 void SoundManager::sound_reaction_task() {
     ESP_LOGI(TAG, "Sound reaction task started.");
-    int last_processed_angle = -1;
 
     while (1) {
-        vTaskDelay(pdMS_TO_TICKS(500));
-        if (m_uart_handler_ptr->m_isWakeWordDetected == false) {
-            continue; // Skip processing if wake word not detected
-        }
-        int detected_angle = get_last_detected_angle();
+        int detected_angle = m_last_angle.load();
 
         if (detected_angle != -1) {
-            ESP_LOGI(TAG, "New sound detected at angle: %d. Reacting.", detected_angle);
+            // Log the detected angle as requested by the user.
+            ESP_LOGI("main", "Sound event processed. Detected Angle: %d", detected_angle);
 
-            // --- Head Turn Logic ---
-            bool is_left = (detected_angle > 100 && detected_angle <= 270);
-            bool is_right = (detected_angle >= 0 && detected_angle < 80) || (detected_angle > 270 && detected_angle < 360);
-
-            if (is_left || is_right) {
-                float head_angle = is_left ? 120.0f : 60.0f; // 115 for left, 65 for right
-                
-                ESP_LOGI(TAG, "Turning head to angle %.1f", head_angle);
-                motion_command_t head_turn_cmd;
-                head_turn_cmd.motion_type = 0xF0; // MOTION_SERVO_CONTROL
-                head_turn_cmd.params.push_back(static_cast<uint8_t>(ServoChannel::HEAD_PAN));
-                uint8_t float_bytes[sizeof(float)];
-                memcpy(float_bytes, &head_angle, sizeof(float));
-                head_turn_cmd.params.insert(head_turn_cmd.params.end(), float_bytes, float_bytes + sizeof(float));
-                uint32_t duration_ms = 500; // 500ms to turn head
-                uint8_t duration_bytes[sizeof(uint32_t)];
-                memcpy(duration_bytes, &duration_ms, sizeof(uint32_t));
-                head_turn_cmd.params.insert(head_turn_cmd.params.end(), duration_bytes, duration_bytes + sizeof(uint32_t));
-                m_motion_controller_ptr->queue_command(head_turn_cmd);
-                vTaskDelay(pdMS_TO_TICKS(500)); // Wait 300ms for head to turn
-            }
-            
-            // --- Original Body Turn Logic ---
-            if (detected_angle >= 0 && detected_angle < 70) {
-                // right forward
-                ESP_LOGI(TAG, "Detected angle: %d, turning right.", detected_angle);
-                m_motion_controller_ptr->queue_command({MOTION_RIGHT, {}});
-                m_uart_handler_ptr->m_isWakeWordDetected = false;
-                vTaskDelay(pdMS_TO_TICKS(20)); // At least delay 20ms for msg transmission
-            } else if (detected_angle > 110 && detected_angle <= 180) {
-                // left forward
-                ESP_LOGI(TAG, "Detected angle: %d, turning left.", detected_angle);
-                m_motion_controller_ptr->queue_command({MOTION_LEFT, {}});
-                m_uart_handler_ptr->m_isWakeWordDetected = false;
-                vTaskDelay(pdMS_TO_TICKS(20));
-            } else if (detected_angle > 270 && detected_angle < 360) {
-                // right backward, leave forward deadzone but needn't for backward
-                ESP_LOGI(TAG, "Detected angle: %d, turning right.", detected_angle);
-                m_motion_controller_ptr->queue_command({MOTION_RIGHT, {}});
-                m_motion_controller_ptr->queue_command({MOTION_RIGHT, {}});
-                m_uart_handler_ptr->m_isWakeWordDetected = false;
-                vTaskDelay(pdMS_TO_TICKS(40)); // Double wait time
-            } else if (detected_angle > 180 && detected_angle <= 270) {
-                // left backward
-                ESP_LOGI(TAG, "Detected angle: %d, turning left.", detected_angle);
-                m_motion_controller_ptr->queue_command({MOTION_LEFT, {}});
-                m_motion_controller_ptr->queue_command({MOTION_LEFT, {}});
-                m_uart_handler_ptr->m_isWakeWordDetected = false;
-                vTaskDelay(pdMS_TO_TICKS(40));
-            }
-            m_motion_controller_ptr->queue_command({MOTION_WALK_FORWARD_KF, {}});
-            m_motion_controller_ptr->queue_command({MOTION_WALK_FORWARD_KF, {}});
-            m_motion_controller_ptr->queue_command({MOTION_WALK_FORWARD_KF, {}});
-            m_motion_controller_ptr->queue_command({MOTION_WALK_FORWARD_KF, {}});
-
-            last_processed_angle = detected_angle;
-            m_last_angle = -1; // Reset the angle after processing
-            
-            while (!m_motion_controller_ptr->is_idle()) {
-                vTaskDelay(pdMS_TO_TICKS(50));
-            }
-            ESP_LOGI(TAG, "Sound Reaction complete, stopping.");
-            // m_motion_controller_ptr->queue_command({MOTION_STOP, {}});
+            // Reset the angle to avoid logging the same angle multiple times.
+            m_last_angle.store(-1);
         }
+
+        // Wait for a short period before checking again.
+        vTaskDelay(pdMS_TO_TICKS(100)); // Check every 100ms
     }
 }
 

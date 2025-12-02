@@ -41,7 +41,7 @@ void vApplicationTickHook( void ){
 extern "C" void app_main(void)
 {
     vTaskDelay(pdMS_TO_TICKS(1000));//延时错位
-    ESP_ERROR_CHECK(i2cdev_init());      // For servo driver
+    // ESP_ERROR_CHECK(i2cdev_init());      // For servo driver
 
     if (sd_card_manager::init("/sdcard") != ESP_OK) {
         ESP_LOGE(TAG, "Failed to initialize SD card. Halting.");
@@ -57,14 +57,14 @@ extern "C" void app_main(void)
     // --- 3. Application Services and Managers Initialization ---
     ESP_LOGI(TAG, "Phase 3: Initializing Application Services & Managers");
 
-    auto servo_driver = std::make_unique<PCA9685>();
-    servo_driver->init();
+    // auto servo_driver = std::make_unique<PCA9685>();
+    // servo_driver->init();
 
-    auto action_manager = std::make_unique<ActionManager>();
-    action_manager->init();
+    // auto action_manager = std::make_unique<ActionManager>();
+    // action_manager->init();
 
-    auto motion_controller = std::make_unique<MotionController>(*servo_driver, *action_manager);
-    motion_controller->init();
+    // auto motion_controller = std::make_unique<MotionController>(*servo_driver, *action_manager);
+    // motion_controller->init();
 
     auto display_manager = std::make_unique<DualScreenManager>();
     auto sd_provider = std::make_unique<SDCardAnimationProvider>("/sdcard/animations");
@@ -79,19 +79,19 @@ extern "C" void app_main(void)
     animation_player->start();
 
     auto face_location_callback = [&](const FaceLocation& loc) {
-        if (motion_controller) {
-            motion_controller->queue_face_location(loc);
-        }
+        // if (motion_controller) {
+        //     motion_controller->queue_face_location(loc);
+        // }
     };
-    auto uart_handler = std::make_unique<UartHandler>(*motion_controller, animation_player.get(), face_location_callback);
+    auto uart_handler = std::make_unique<UartHandler>(nullptr, animation_player.get(), face_location_callback);
     uart_handler->init();
     
-    auto sound_manager = std::make_unique<SoundManager>(motion_controller.get(), uart_handler.get());
+    auto sound_manager = std::make_unique<SoundManager>(nullptr, uart_handler.get());
     sound_manager->start();
 
     // Pass the AnimationPlayer instance to the WebServer
-    // auto web_server = std::make_unique<WebServer>(*action_manager, *motion_controller, *animation_player);
-    // web_server->start();
+    auto web_server = std::make_unique<WebServer>(*animation_player);
+    web_server->start();
 
 
     vTaskDelete(NULL); // Delete main task as its work is done

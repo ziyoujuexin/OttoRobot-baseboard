@@ -33,16 +33,14 @@ extern const char index_html_end[]   asm("_binary_index_html_end");
 
 class WebServerImpl {
 public:
-    WebServerImpl(ActionManager& action_manager, MotionController& motion_controller, AnimationPlayer& animation_player) 
-        : m_action_manager(action_manager), m_motion_controller(motion_controller), m_animation_player(animation_player) {}
+    WebServerImpl(AnimationPlayer& animation_player) 
+        : m_animation_player(animation_player) {}
 
     void start() {
         wifi_init();
     }
 
 private:
-    ActionManager& m_action_manager;
-    MotionController& m_motion_controller;
     AnimationPlayer& m_animation_player;
     httpd_handle_t m_server = NULL;
 
@@ -66,8 +64,14 @@ private:
         strcpy((char*)wifi_config.sta.password, WIFI_PASSWORD);
         ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
         ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
-        ESP_ERROR_CHECK(esp_wifi_start());
-        ESP_LOGI(TAG, "wifi_init finished.");
+        
+        esp_err_t ret = esp_wifi_start();
+        if (ret != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to start WiFi (error: %s). Web server will be unavailable.", esp_err_to_name(ret));
+            ESP_LOGE(TAG, "Please check your WiFi credentials in config.h");
+        } else {
+            ESP_LOGI(TAG, "wifi_init finished.");
+        }
     }
 
     void start_webserver() {
@@ -82,14 +86,14 @@ private:
             httpd_uri_t root = { .uri = "/", .method = HTTP_GET, .handler = root_handler, .user_ctx = this };
             httpd_register_uri_handler(m_server, &root);
 
-            httpd_uri_t control = { .uri = "/control", .method = HTTP_POST, .handler = command_api_handler, .user_ctx = this };
-            httpd_register_uri_handler(m_server, &control);
+            // httpd_uri_t control = { .uri = "/control", .method = HTTP_POST, .handler = command_api_handler, .user_ctx = this };
+            // httpd_register_uri_handler(m_server, &control);
 
-            httpd_uri_t tune = { .uri = "/api/tune", .method = HTTP_POST, .handler = tuning_api_handler, .user_ctx = this };
-            httpd_register_uri_handler(m_server, &tune);
+            // httpd_uri_t tune = { .uri = "/api/tune", .method = HTTP_POST, .handler = tuning_api_handler, .user_ctx = this };
+            // httpd_register_uri_handler(m_server, &tune);
 
-            httpd_uri_t servo_uri = { .uri = "/servo", .method = HTTP_POST, .handler = servo_api_handler, .user_ctx = this };
-            httpd_register_uri_handler(m_server, &servo_uri);
+            // httpd_uri_t servo_uri = { .uri = "/servo", .method = HTTP_POST, .handler = servo_api_handler, .user_ctx = this };
+            // httpd_register_uri_handler(m_server, &servo_uri);
 
             httpd_uri_t upload_uri = { .uri = "/upload", .method = HTTP_POST, .handler = upload_handler, .user_ctx = this };
             httpd_register_uri_handler(m_server, &upload_uri);
@@ -103,8 +107,8 @@ private:
             httpd_uri_t delete_animation_uri = { .uri = "/api/delete", .method = HTTP_GET, .handler = delete_animation_handler, .user_ctx = this };
             httpd_register_uri_handler(m_server, &delete_animation_uri);
 
-            httpd_uri_t filter_alpha_uri = { .uri = "/api/set_filter_alpha", .method = HTTP_GET, .handler = filter_alpha_api_handler, .user_ctx = this };
-            httpd_register_uri_handler(m_server, &filter_alpha_uri);
+            // httpd_uri_t filter_alpha_uri = { .uri = "/api/set_filter_alpha", .method = HTTP_GET, .handler = filter_alpha_api_handler, .user_ctx = this };
+            // httpd_register_uri_handler(m_server, &filter_alpha_uri);
 
             // Install the web logger to capture and forward logs
             WebLogger::install(m_server);
@@ -114,14 +118,9 @@ private:
         ESP_LOGI(TAG, "Error starting server!");
     }
 
-    friend esp_err_t servo_api_handler(httpd_req_t *req);
-
-    friend esp_err_t tuning_api_handler(httpd_req_t *req);
-    friend esp_err_t command_api_handler(httpd_req_t *req);
     friend esp_err_t root_handler(httpd_req_t *req);
     friend esp_err_t play_animation_handler(httpd_req_t *req);
     friend esp_err_t delete_animation_handler(httpd_req_t *req);
-    friend esp_err_t filter_alpha_api_handler(httpd_req_t *req);
     friend void wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data);
 };
 
@@ -252,115 +251,22 @@ esp_err_t delete_animation_handler(httpd_req_t *req) {
 
 esp_err_t command_api_handler(httpd_req_t *req)
 {
-    WebServerImpl* server = (WebServerImpl*)req->user_ctx;
-    char buf[100];
-    int ret = httpd_req_recv(req, buf, sizeof(buf) - 1);
-    if (ret <= 0) return ESP_FAIL;
-    buf[ret] = '\0';
-
-    char param_val[32];
-    if (httpd_query_key_value(buf, "motion", param_val, sizeof(param_val)) == ESP_OK) {
-        motion_command_t cmd = { .motion_type = (uint8_t)atoi(param_val) };
-        server->m_motion_controller.queue_command(cmd);
-        httpd_resp_send(req, "Command Queued", HTTPD_RESP_USE_STRLEN);
-        return ESP_OK;
-    }
+    ESP_LOGW(TAG, "Received request for deprecated /control endpoint.");
     httpd_resp_send_404(req);
     return ESP_FAIL;
 }
 
 esp_err_t tuning_api_handler(httpd_req_t *req)
 {
-    WebServerImpl* server = (WebServerImpl*)req->user_ctx;
-    char content[512];
-    int ret = httpd_req_recv(req, content, sizeof(content) - 1);
-    if (ret <= 0) { if (ret == HTTPD_SOCK_ERR_TIMEOUT) httpd_resp_send_408(req); return ESP_FAIL; }
-    content[ret] = '\0';
-
-    jparse_ctx_t jctx;
-    json_parse_start(&jctx, content, ret);
-
-    char cmd_buf[32];
-    if (json_obj_get_string(&jctx, "command", cmd_buf, sizeof(cmd_buf)) != 0) {
-        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Missing 'command'");
-        return ESP_FAIL;
-    }
-
-    std::string command(cmd_buf);
-    if (command == "get_params") {
-        char action_buf[64];
-        if (json_obj_get_string(&jctx, "action", action_buf, sizeof(action_buf)) == 0) {
-            std::string json_response = server->m_action_manager.get_action_params_json(action_buf);
-            httpd_resp_set_type(req, "application/json");
-            httpd_resp_send(req, json_response.c_str(), json_response.length());
-            return ESP_OK;
-        }
-    } else if (command == "tune_param") {
-        char action_buf[64], param_type_buf[32];
-        int servo_index; float value;
-        if (json_obj_get_string(&jctx, "action", action_buf, sizeof(action_buf)) == 0 &&
-            json_obj_get_int(&jctx, "servo", &servo_index) == 0 &&
-            json_obj_get_string(&jctx, "param", param_type_buf, sizeof(param_type_buf)) == 0 &&
-            json_obj_get_float(&jctx, "value", &value) == 0) {
-            server->m_action_manager.tune_gait_parameter(action_buf, servo_index, param_type_buf, value);
-            httpd_resp_send(req, "Tune OK", HTTPD_RESP_USE_STRLEN);
-            return ESP_OK;
-        }
-    } else if (command == "update_action_props") {
-        char action_buf[64];
-        bool is_atomic;
-        int default_steps, gait_period_ms;
-        if (json_obj_get_string(&jctx, "action", action_buf, sizeof(action_buf)) == 0 &&
-            json_obj_get_bool(&jctx, "is_atomic", &is_atomic) == 0 &&
-            json_obj_get_int(&jctx, "default_steps", &default_steps) == 0 &&
-            json_obj_get_int(&jctx, "gait_period_ms", &gait_period_ms) == 0) {
-            // server->m_action_manager.update_action_properties(std::string(action_buf), default_steps, gait_period_ms, is_atomic);
-            httpd_resp_send(req, "Update OK", HTTPD_RESP_USE_STRLEN);
-            return ESP_OK;
-        }
-    } else if (command == "save_params") {
-        char action_buf[64];
-        if (json_obj_get_string(&jctx, "action", action_buf, sizeof(action_buf)) == 0) {
-            bool success = server->m_action_manager.save_action_to_nvs(action_buf);
-            httpd_resp_set_type(req, "application/json");
-            if (success) httpd_resp_send(req, "{\"success\":true}", HTTPD_RESP_USE_STRLEN);
-            else httpd_resp_send(req, "{\"success\":false, \"error\":\"Failed to save action to NVS\"}", HTTPD_RESP_USE_STRLEN);
-            return ESP_OK;
-        }
-    }
-
-    httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid JSON");
+    ESP_LOGW(TAG, "Received request for deprecated /api/tune endpoint.");
+    httpd_resp_send_404(req);
     return ESP_FAIL;
 }
 
 esp_err_t servo_api_handler(httpd_req_t *req)
 {
-    WebServerImpl* server = (WebServerImpl*)req->user_ctx;
-    char content[100];
-    int ret = httpd_req_recv(req, content, sizeof(content) - 1);
-    if (ret <= 0) {
-        if (ret == HTTPD_SOCK_ERR_TIMEOUT) {
-            httpd_resp_send_408(req);
-        }
-        return ESP_FAIL;
-    }
-    content[ret] = '\0';
-
-    jparse_ctx_t jctx;
-    json_parse_start(&jctx, content, ret);
-
-    int channel, angle;
-    if (json_obj_get_int(&jctx, "channel", &channel) == 0 &&
-        json_obj_get_int(&jctx, "angle", &angle) == 0) {
-        
-        if (channel >= 0 && channel < 16 && angle >= 0 && angle <= 270) {
-            server->m_motion_controller.set_single_servo(static_cast<uint8_t>(channel), static_cast<uint16_t>(angle));
-            httpd_resp_send(req, "Servo command OK", HTTPD_RESP_USE_STRLEN);
-            return ESP_OK;
-        }
-    }
-
-    httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid JSON or parameters");
+    ESP_LOGW(TAG, "Received request for deprecated /servo endpoint.");
+    httpd_resp_send_404(req);
     return ESP_FAIL;
 }
 
@@ -501,25 +407,8 @@ esp_err_t upload_handler(httpd_req_t *req) {
 
 esp_err_t filter_alpha_api_handler(httpd_req_t *req)
 {
-    WebServerImpl* server = (WebServerImpl*)req->user_ctx;
-    char buf[64];
-    size_t buf_len = httpd_req_get_url_query_len(req) + 1;
-    if (buf_len > sizeof(buf)) {
-        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Query string too long");
-        return ESP_FAIL;
-    }
-
-    if (httpd_req_get_url_query_str(req, buf, buf_len) == ESP_OK) {
-        char param_val[16];
-        if (httpd_query_key_value(buf, "value", param_val, sizeof(param_val)) == ESP_OK) {
-            float alpha = atof(param_val);
-            server->m_motion_controller.set_filter_alpha(alpha);
-            httpd_resp_send(req, "OK", HTTPD_RESP_USE_STRLEN);
-            return ESP_OK;
-        }
-    }
-
-    httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Missing or invalid value parameter");
+    ESP_LOGW(TAG, "Received request for deprecated /api/set_filter_alpha endpoint.");
+    httpd_resp_send_404(req);
     return ESP_FAIL;
 }
 
@@ -540,10 +429,10 @@ void wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t event_id
 
 // --- Public WebServer Class --- 
 
-WebServer::WebServer(ActionManager& action_manager, MotionController& motion_controller, AnimationPlayer& animation_player)
-    : m_action_manager(action_manager), m_motion_controller(motion_controller), m_animation_player(animation_player) {}
+WebServer::WebServer(AnimationPlayer& animation_player)
+    : m_animation_player(animation_player) {}
 
 void WebServer::start() {
-    WebServerImpl* impl = new WebServerImpl(m_action_manager, m_motion_controller, m_animation_player);
+    WebServerImpl* impl = new WebServerImpl(m_animation_player);
     impl->start();
 }
